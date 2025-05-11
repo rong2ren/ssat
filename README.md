@@ -46,6 +46,7 @@ Generate questions using the command-line interface:
 ```bash
 # Generate 3 easy math questions about addition
 python src/main.py --type math --difficulty standard --topic addition --count 3
+python src/main.py --type math --count 3
 
 # Save the generated questions to a JSON file
 python src/main.py --type verb --count 5 --output questions.json
