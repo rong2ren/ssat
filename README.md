@@ -1,6 +1,6 @@
 # SSAT Question Generator
 
-An AI-powered SSAT question generator for elementary level students. This project generates customized SSAT questions and answers using OpenAI's API.
+An AI-powered SSAT question generator for elementary level students. This project generates customized SSAT questions and answers using AI. Explore tools like VEGA AI (PDF/image-to-question conversion) and Khanmigo (standards-aligned assessments) 
 
 ## Features
 
@@ -16,45 +16,72 @@ An AI-powered SSAT question generator for elementary level students. This projec
 
 ## Setup
 
-This project uses Poetry for dependency management.
+This project uses UV for dependency management (fast, modern Python package manager).
 
 1. Clone this repository
-2. Install Poetry if you don't have it already:
+2. Install UV if you don't have it already:
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
-   curl -sSL https://install.python-poetry.org | python3 -
+   Then add to your PATH:
+   ```bash
+   source $HOME/.local/bin/env
    ```
 3. Install dependencies:
+   ```bash
+   uv sync
    ```
-   poetry install
-   ```
-sometimes, when you installed dependency in your Poetry Environment but it still show "import could not be resolved" error is likly due to your IDE still use computer python environment.
-Make sure your editor is using the correct Python interpreter (the one from Poetry's virtual environment)
-- find your poetry virtual environment path: ```poetry env info --path```
-- press Cmd+Shift+P (Mac) or Ctrl+Shift+P (Windows/Linux) and Search for "Python: Select Interpreter"
+
+**IDE Setup**: If your IDE shows "import could not be resolved" errors, make sure it's using the correct Python interpreter:
+- Find your UV virtual environment path: `uv env --path`
+- In your IDE, search for "Python: Select Interpreter"
 - Click "Enter interpreter path..."
-- Paste the path from step 1, and append /bin/python (on Mac/Linux) or \Scripts\python.exe (on Windows)
+- Paste the path from step 1, and append `/bin/python` (on Mac/Linux) or `\Scripts\python.exe` (on Windows)
 
+4. Create a `.env` file and configure at least one LLM provider:
+   ```bash
+   # Required database settings
+   SUPABASE_URL=your_supabase_url_here
+   SUPABASE_KEY=your_supabase_key_here
+   
+   # Configure at least one LLM provider
+   
+   # Google Gemini (FREE tier: 15 requests/min, 1500/day) - Recommended!
+   GEMINI_API_KEY=your_gemini_api_key_here
+   
+   # DeepSeek (Affordable with competitive pricing)
+   DEEPSEEK_API_KEY=your_deepseek_api_key_here
+   
+   # OpenAI (PAID service, excellent quality)
+   OPENAI_API_KEY=your_openai_api_key_here
+   ```
 
-4. Create a `.env` file based on `.env.example` and add your OpenAI API key
-5. Activate the virtual environment:
-
+5. Get API keys:
+   - **Gemini**: https://ai.google.dev/ (FREE - Recommended for testing!)
+   - **DeepSeek**: https://platform.deepseek.com/ (Very affordable pricing)
+   - **OpenAI**: https://platform.openai.com/api-keys (paid)
 
 ## Usage
 
 Generate questions using the command-line interface:
 
 ```bash
-# Generate 3 easy math questions about addition
-python src/main.py --type math --difficulty standard --topic addition --count 3
-python src/main.py --type math --count 3
+# Generate 3 math questions (uses first available provider)
+uv run python src/main.py --type math --count 3
 
-# Save the generated questions to a JSON file
-python src/main.py --type verb --count 5 --output questions.json
+# Generate math questions with a specific provider
+uv run python src/main.py --type math --count 3 --provider gemini
+uv run python src/main.py --type math --count 3 --provider deepseek
+uv run python src/main.py --type math --count 3 --provider openai
 
-# Generate reading comprehension questions for grade 4
-python src/main.py --type reading --level elementary --count 2
+# Generate with specific topic and difficulty
+uv run python src/main.py --type math --difficulty standard --topic addition --count 3 --provider gemini
 
-poetry run python
+# Save questions to JSON file
+uv run python src/main.py --type verbal --count 5 --output questions.json --provider deepseek
+
+# Generate reading comprehension questions
+uv run python src/main.py --type reading --level elementary --count 2 --provider gemini
 ```
 
 ### Available Options
@@ -64,25 +91,32 @@ poetry run python
 - `--topic`: Any specific topic to focus on (optional, e.g. 'fractions', 'geometry')
 - `--count`: Number of questions to generate
 - `--level`: "elementary", "middle", "high"
+- `--provider`: LLM provider to use ("openai", "gemini", "deepseek")
 - `--output`: File path to save the questions as JSON
 
-## Environment
+### LLM Provider Comparison
 
-The project requires a valid OpenAI API key or similar model.
+| Provider | Cost | Speed | Quality | Free Tier |
+|----------|------|--------|---------|-----------|
+| **Gemini** | FREE | Fast | High | 15 req/min, 1500/day |
+| **DeepSeek** | Very Cheap | Fast | High | Pay-per-use, very affordable |
+| **OpenAI** | Paid | Fast | Excellent | No |
 
-```
-poetry init
-poetry install
-poetry shell
-``` 
+**Recommendations**: 
+- **Free Testing**: Use **Gemini** (completely free tier)
+- **Production**: Use **DeepSeek** (excellent value for money)
+- **Premium**: Use **OpenAI** (highest quality, most expensive)
 
-### Virtual Environment
-```
-poetry config --list
-poetry env info
-```
+### Why UV?
 
+This project uses **UV** instead of Poetry for faster, more reliable dependency management:
+- **10-100x faster** dependency resolution
+- **5-20x faster** package installation
+- **Better compatibility** with existing Python tooling
+- **Modern architecture** written in Rust
+- **Active development** and community support
 
+## Folder Structure
 ```
 ssat/
 ├── src/
@@ -99,6 +133,7 @@ ssat/
 │   └── server.py                  # Web server entry point (future)
 ├── examples/                      # Real-world questions examples
 ├── tests/                         # Test
-├── pyproject.toml
+├── pyproject.toml                 # Project configuration
+├── uv.lock                        # UV dependency lock file
 └── README.md
 ```

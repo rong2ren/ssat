@@ -5,11 +5,12 @@ import argparse
 
 from ssat.models import QuestionType, DifficultyLevel, QuestionRequest
 from ssat.generator import generate_questions
+from ssat.llm import llm_client
 from loguru import logger
 
 def parse_args():
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description="SSAT Question Generator CLI")
+    parser = argparse.ArgumentParser(description="SSAT Question Generator")
     parser.add_argument(
         "--type",
         choices=[qt.value for qt in QuestionType],
@@ -45,16 +46,21 @@ def parse_args():
         type=str, 
         help="Output file path for JSON result (if not specified, prints to console)"
     )
+    parser.add_argument(
+        "--provider",
+        type=str,
+        choices=["openai", "gemini", "deepseek"],
+        help="LLM provider to use (openai, gemini, deepseek). If not specified, uses first available provider"
+    )
     
     return parser.parse_args()
 
 
 def main():
     """Run the question generator CLI."""
+    # Parse command line arguments
     args = parse_args()
-    
-    
-    
+
     # Create request
     request = QuestionRequest(
         question_type=args.type,
@@ -65,10 +71,18 @@ def main():
     )
     
     try:
+        # Show available providers
+        available_providers = llm_client.get_available_providers()
+        if available_providers:
+            available_names = [p.value for p in available_providers]
+            logger.info(f"Available LLM providers: {', '.join(available_names)}")
+        else:
+            logger.error("No LLM providers available. Please configure at least one API key in .env file")
+            return
+        
         # Generate questions
         logger.debug(f"Request details: {request}")
-        # questions = generator.generate_questions(request)
-        questions = generate_questions(request)
+        questions = generate_questions(request, llm=args.provider)
         logger.info(f"Successfully generated {len(questions)} questions")
         
         # Convert to dict for JSON serialization

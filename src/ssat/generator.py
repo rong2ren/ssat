@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from ssat.models import Question, Option, QuestionRequest, CognitiveLevel
 from loguru import logger
-from ssat.llm import call_openai_chat
+from ssat.llm import llm_client, LLMProvider
 from ssat.util import extract_json_from_text
 
 # System prompt template
@@ -42,7 +42,6 @@ SYSTEM_PROMPT = """
 }}
 """
 
-
 # Dictionary of type-specific rules
 TYPE_SPECIFIC_RULES = {
     "MATH": """
@@ -64,6 +63,7 @@ TYPE_SPECIFIC_RULES = {
 - Distractors should include words with similar sounds or partial meaning overlap
 """,
     "ANALOGY": """
+-Generate an SSAT-style analogy with the structure 'A : B → C : D
 - Relationships should be clear and unambiguous
 - Use common relationship types: part-whole, cause-effect, synonym, antonym, category
 - Distractors should include pairs with incorrect relationship types
@@ -97,7 +97,7 @@ def generate_prompt(request: QuestionRequest) -> str:
     return prompt
 
 
-def generate_questions(request: QuestionRequest, llm: Optional[str] = "OpenAI") -> List[Question]:
+def generate_questions(request: QuestionRequest, llm: Optional[str] = "openai") -> List[Question]:
     """Generate questions based on the request."""
     logger.info(f"Generating questions for request: {request}")
     
@@ -112,13 +112,35 @@ def generate_questions(request: QuestionRequest, llm: Optional[str] = "OpenAI") 
     user_message = generate_prompt(request)
     # logger.debug(f"User message: {user_message}")
     try:
-        if llm == "OpenAI":
-            content = call_openai_chat(
-                system_message=system_message,
-                prompt=user_message,
-            )
-        else:
-            raise ValueError(f"Unsupported LLM: {llm}")
+        # Check available providers
+        available_providers = llm_client.get_available_providers()
+        
+        if not available_providers:
+            raise ValueError("No LLM providers available. Please configure at least one API key in .env file")
+        
+        # Use specified provider or fall back to first available
+        provider_name = llm.lower() if llm else available_providers[0].value
+        
+        try:
+            provider = LLMProvider(provider_name)
+        except ValueError:
+            available_names = [p.value for p in available_providers]
+            raise ValueError(f"Unsupported LLM provider: {llm}. Available providers: {available_names}")
+        
+        if provider not in available_providers:
+            available_names = [p.value for p in available_providers]
+            raise ValueError(f"Provider {provider.value} not available. Available providers: {available_names}")
+        
+        logger.info(f"Using LLM provider: {provider.value}")
+        
+        content = llm_client.call_llm(
+            provider=provider,
+            system_message=system_message,
+            prompt=user_message,
+        )
+
+        if content is None:
+            raise ValueError(f"LLM call to {provider.value} failed - no content returned")
 
         data = extract_json_from_text(content)
         

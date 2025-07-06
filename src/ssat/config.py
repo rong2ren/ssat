@@ -7,9 +7,14 @@ class Settings(BaseSettings):
     # create a subclass called Settings that inherits from BaseSettings
     SUPABASE_URL: str
     SUPABASE_KEY: str
-    OPENAI_API_KEY: str
+    
+    # LLM Provider API Keys
+    OPENAI_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
+    DEEPSEEK_API_KEY: str = ""
+    
     EMBEDDING_MODEL_NAME: str = "all-MiniLM-L6-v2"  # optional
-    APP_ENV: str = "development"  # optional, tracks environment (dev/staging/prod)
+    APP_ENV: str = "dev"  # optional, tracks environment (dev/staging/prod)
 
     class Config:
         # Config is a nested class that provides configuration options for the Settings class.
