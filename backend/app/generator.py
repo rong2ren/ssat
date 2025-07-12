@@ -33,15 +33,18 @@ class SSATGenerator:
     def get_training_examples(self, request: QuestionRequest) -> List[Dict[str, Any]]:
         """Get real SSAT questions as training examples from database using embeddings."""
         try:
-            # Map QuestionType to database sections
+            # Map QuestionType to database sections and subsections
             section_mapping = {
-                "math": "Quantitative", 
-                "verbal": "Verbal",
-                "analogy": "Verbal",
-                "synonym": "Verbal"
+                "quantitative": ("Quantitative", None),
+                "verbal": ("Verbal", None),  # Get mixed verbal examples
+                "analogy": ("Verbal", "Analogies"),  # Get only analogy examples
+                "synonym": ("Verbal", "Synonyms")    # Get only synonym examples
             }
             
-            section_filter = section_mapping.get(request.question_type.value, request.question_type.value.title())
+            section_filter, subsection_filter = section_mapping.get(
+                request.question_type.value, 
+                (request.question_type.value.title(), None)
+            )
             
             if request.topic:
                 # Use embedding-based similarity search for specific topics
@@ -53,7 +56,7 @@ class SSATGenerator:
                     response = self.supabase.rpc('get_training_examples_by_embedding', {
                         'query_embedding': query_embedding,
                         'section_filter': section_filter,
-                        'subsection_filter': None,
+                        'subsection_filter': subsection_filter,
                         'difficulty_filter': request.difficulty.value.title(),
                         'limit_count': 15  # Get more candidates
                     }).execute()
@@ -68,7 +71,7 @@ class SSATGenerator:
             # Also use hybrid approach: get more candidates, randomly select
             response = self.supabase.rpc('get_training_examples_by_section', {
                 'section_filter': section_filter,
-                'subsection_filter': None,
+                'subsection_filter': subsection_filter,
                 'difficulty_filter': request.difficulty.value.title(),
                 'limit_count': 15  # Get more candidates for diversity
             }).execute()
@@ -173,7 +176,7 @@ OUTPUT FORMAT - Return ONLY a JSON object:
         """Fallback generic prompt when no training examples available."""
         
         type_specific_rules = {
-            "math": "Focus on arithmetic, fractions, basic geometry, and word problems suitable for elementary students.",
+            "quantitative": "Focus on arithmetic, fractions, basic geometry, and word problems suitable for elementary students.",
             "verbal": "Focus on vocabulary appropriate for elementary students, including synonyms and analogies.",
             "analogy": "Create analogies with clear relationships that elementary students can understand.",
             "synonym": "Use vocabulary words appropriate for grades 3-4.",
@@ -312,4 +315,106 @@ def generate_questions(request: QuestionRequest, llm: Optional[str] = "deepseek"
         raise ValueError(f"Failed to parse AI response: {e}")
     except Exception as e:
         logger.error(f"Error in question generation: {e}")
+        raise
+
+async def generate_questions_async(request: QuestionRequest, llm: Optional[str] = "deepseek") -> List[Question]:
+    """Async version of generate_questions for true parallel execution."""
+    logger.info(f"Generating questions async for request: {request}")
+    
+    # Initialize generator
+    generator = SSATGenerator()
+    
+    try:
+        # Get training examples from database
+        if request.question_type.value == "reading":
+            # Handle reading comprehension differently
+            training_examples = generator.get_reading_training_examples()
+            system_message = generator.build_generic_prompt(request)
+        else:
+            # Get math/verbal training examples
+            training_examples = generator.get_training_examples(request)
+            system_message = generator.build_few_shot_prompt(request, training_examples)
+        
+        # Log training info
+        if training_examples:
+            logger.info(f"Using {len(training_examples)} real SSAT examples for training")
+        else:
+            logger.info("No training examples found, using generic prompt")
+        
+        # Get available LLM providers
+        available_providers = llm_client.get_available_providers()
+        
+        if not available_providers:
+            raise ValueError("No LLM providers available. Please configure at least one API key in .env file")
+        
+        # Use specified provider or fall back to preferred provider order
+        if llm:
+            provider_name = llm.lower()
+        else:
+            # Preferred provider order: DeepSeek -> Gemini -> OpenAI
+            preferred_order = ['deepseek', 'gemini', 'openai']
+            provider_name = None
+            
+            for preferred in preferred_order:
+                if any(p.value == preferred for p in available_providers):
+                    provider_name = preferred
+                    break
+            
+            # Fallback to first available if none of the preferred are available
+            if not provider_name:
+                provider_name = available_providers[0].value
+        
+        try:
+            provider = LLMProvider(provider_name)
+        except ValueError:
+            available_names = [p.value for p in available_providers]
+            raise ValueError(f"Unsupported LLM provider: {llm}. Available providers: {available_names}")
+        
+        if provider not in available_providers:
+            available_names = [p.value for p in available_providers]
+            raise ValueError(f"Provider {provider.value} not available. Available providers: {available_names}")
+        
+        logger.info(f"Using LLM provider: {provider.value}")
+        
+        # Generate questions using async LLM call for true parallelism
+        content = await llm_client.call_llm_async(
+            provider=provider,
+            system_message=system_message,
+            prompt="Generate the questions as specified.",
+        )
+
+        if content is None:
+            raise ValueError(f"LLM call to {provider.value} failed - no content returned")
+
+        data = extract_json_from_text(content)
+        
+        if data is None:
+            raise ValueError("Failed to extract JSON from LLM response")
+        
+        # Parse generated questions
+        questions = []
+        for q_data in data["questions"]:
+            options = [Option(letter=opt["letter"], text=opt["text"]) for opt in q_data["options"]]
+            # Convert cognitive level to uppercase
+            cognitive_level = q_data.get("cognitive_level", "UNDERSTAND").upper()
+            question = Question(
+                question_type=request.question_type,
+                difficulty=request.difficulty,
+                text=q_data["text"],
+                options=options,
+                correct_answer=q_data["correct_answer"],
+                explanation=q_data["explanation"],
+                cognitive_level=cognitive_level,
+                tags=q_data.get("tags", []),
+                visual_description=q_data.get("visual_description")
+            )
+            questions.append(question)
+        
+        logger.info(f"Successfully generated {len(questions)} questions async using {'real SSAT examples' if training_examples else 'generic prompt'}")
+        return questions
+        
+    except (json.JSONDecodeError, KeyError) as e:
+        raise ValueError(f"Failed to parse AI response: {e}")
+    except Exception as e:
+        logger.error(f"Error in async question generation: {e}")
         raise

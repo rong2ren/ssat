@@ -2,6 +2,7 @@
 
 from typing import Any, Dict, Optional, Union
 import time
+import asyncio
 from enum import Enum
 
 from loguru import logger
@@ -224,6 +225,45 @@ class LLMClient:
                 return None
         
         return None
+    
+    async def call_llm_async(
+        self,
+        provider: Union[LLMProvider, str],
+        system_message: str,
+        prompt: str,
+        model: Optional[str] = None,
+        temperature: float = 0.4,
+        max_tokens: int = 2000,
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
+    ) -> Optional[str]:
+        """Async version of call_llm using asyncio.to_thread for true parallelism."""
+        
+        # Convert string to enum if needed
+        if isinstance(provider, str):
+            try:
+                provider = LLMProvider(provider.lower())
+            except ValueError:
+                raise ValueError(f"Unsupported provider: {provider}")
+        
+        if provider not in self.clients:
+            available = [p.value for p in self.get_available_providers()]
+            raise ValueError(f"Provider {provider.value} not available. Available providers: {available}")
+        
+        logger.info(f"Calling {provider.value} LLM (async)")
+        
+        # Run the synchronous LLM call in a thread pool
+        return await asyncio.to_thread(
+            self.call_llm,
+            provider,
+            system_message,
+            prompt,
+            model,
+            temperature,
+            max_tokens,
+            max_retries,
+            retry_delay
+        )
 
 # Global LLM client instance
 llm_client = LLMClient()

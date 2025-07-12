@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { QuestionForm } from './QuestionForm'
 import { QuestionDisplay } from './QuestionDisplay'
-import { TestDisplay } from './TestDisplay'
-import { Question, QuestionRequest, TestSection } from '@/types/api'
+import { ProgressiveTestGenerator } from './ProgressiveTestGenerator'
+import { Question, QuestionRequest } from '@/types/api'
 
 interface QuestionGeneratorProps {
   showChinese: boolean
@@ -12,10 +12,15 @@ interface QuestionGeneratorProps {
 
 export default function QuestionGenerator({ showChinese }: QuestionGeneratorProps) {
   const [questions, setQuestions] = useState<Question[]>([])
-  const [testSections, setTestSections] = useState<TestSection[]>([])
-  const [isCompleteTest, setIsCompleteTest] = useState(false)
+  const [isProgressiveMode, setIsProgressiveMode] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [testRequest, setTestRequest] = useState<{
+    difficulty: string
+    include_sections: string[]
+    custom_counts: Record<string, number>
+    originalSelection?: string[] // What user actually selected for display
+  } | null>(null)
 
   // UI translations mapping
   const translations = {
@@ -45,8 +50,6 @@ export default function QuestionGenerator({ showChinese }: QuestionGeneratorProp
 
       const data = await response.json()
       setQuestions(data.questions)
-      setIsCompleteTest(false)
-      setTestSections([]) // Clear test sections
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -54,37 +57,42 @@ export default function QuestionGenerator({ showChinese }: QuestionGeneratorProp
     }
   }
 
-  const handleGenerateCompleteTest = async () => {
-    setLoading(true)
-    setError(null)
-    
-    try {
-      const response = await fetch('/api/generate/complete-test', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          difficulty: 'Medium',
-          include_sections: ['math', 'verbal', 'reading'],
-          custom_counts: { math: 10, verbal: 10, reading: 3 }
-        }),
+  const handleGenerateCompleteTest = (customConfig?: {
+    sections: string[]
+    counts: Record<string, number>
+    difficulty: string
+  }) => {
+    if (customConfig) {
+      // Use custom configuration - send individual sections to backend for better training
+      setTestRequest({
+        difficulty: customConfig.difficulty,
+        include_sections: customConfig.sections, // Send original sections directly
+        custom_counts: customConfig.counts,
+        originalSelection: customConfig.sections
       })
-
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status}`)
-      }
-
-      const data = await response.json()
-      // Store sections for complete test display
-      setTestSections(data.sections)
-      setIsCompleteTest(true)
-      setQuestions([]) // Clear individual questions
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    } finally {
-      setLoading(false)
+    } else {
+      // Use default configuration with separate analogy/synonym for better quality
+      setTestRequest({
+        difficulty: 'Medium',
+        include_sections: ['quantitative', 'analogy', 'synonym', 'reading', 'writing'],
+        custom_counts: { quantitative: 10, analogy: 4, synonym: 6, reading: 7, writing: 1 }
+      })
     }
+    
+    setIsProgressiveMode(true)
+    setQuestions([]) // Clear individual questions
+    setError(null)
+  }
+
+  // Show progressive test generator when in progressive mode
+  if (isProgressiveMode && testRequest) {
+    return (
+      <ProgressiveTestGenerator 
+        showChinese={showChinese}
+        testRequest={testRequest}
+        onBack={() => setIsProgressiveMode(false)}
+      />
+    )
   }
 
   return (
@@ -123,13 +131,8 @@ export default function QuestionGenerator({ showChinese }: QuestionGeneratorProp
       )}
 
       {/* Questions Display */}
-      {questions.length > 0 && !loading && !isCompleteTest && (
+      {questions.length > 0 && !loading && (
         <QuestionDisplay questions={questions} showChinese={showChinese} />
-      )}
-      
-      {/* Complete Test Display */}
-      {testSections.length > 0 && !loading && isCompleteTest && (
-        <TestDisplay sections={testSections} showChinese={showChinese} />
       )}
     </div>
   )

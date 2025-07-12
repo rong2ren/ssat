@@ -149,7 +149,7 @@ class SSATTestService:
         for topic, count in topics_counts:
             if count > 0:
                 topic_request = QuestionRequest(
-                    question_type="math",
+                    question_type="quantitative",
                     difficulty=difficulty,
                     topic=topic,
                     count=count

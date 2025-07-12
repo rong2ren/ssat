@@ -7,7 +7,7 @@ from loguru import logger
 
 # Import SSAT modules (now local)
 from app.core_models import QuestionRequest, QuestionType as SSATQuestionType, DifficultyLevel as SSATDifficultyLevel
-from app.generator import generate_questions, SSATGenerator
+from app.generator import generate_questions, generate_questions_async, SSATGenerator
 from app.settings import settings
 from app.models.requests import QuestionGenerationRequest, CompleteTestRequest, QuestionType, DifficultyLevel
 from app.models.responses import StandaloneSection, ReadingSection, WritingSection, ReadingPassage, WritingPrompt
@@ -39,7 +39,7 @@ class QuestionService:
             
             # Try to get training examples as a health check
             test_request = QuestionRequest(
-                question_type=SSATQuestionType.MATH,
+                question_type=SSATQuestionType.QUANTITATIVE,
                 difficulty=SSATDifficultyLevel.MEDIUM,
                 count=1
             )
@@ -53,7 +53,7 @@ class QuestionService:
         """Convert API request to internal SSAT request format."""
         # Map API enums to internal enums
         question_type_mapping = {
-            QuestionType.MATH: SSATQuestionType.MATH,
+            QuestionType.QUANTITATIVE: SSATQuestionType.QUANTITATIVE,
             QuestionType.READING: SSATQuestionType.READING,
             QuestionType.VERBAL: SSATQuestionType.VERBAL,
             QuestionType.ANALOGY: SSATQuestionType.ANALOGY,
@@ -142,7 +142,7 @@ class QuestionService:
         try:
             # Define default question counts for each section
             default_counts = {
-                QuestionType.MATH: 25,
+                QuestionType.QUANTITATIVE: 25,
                 QuestionType.VERBAL: 30,
                 QuestionType.READING: 7,  # Usually fewer reading passages with multiple questions each
                 QuestionType.WRITING: 1   # Usually one writing prompt
@@ -201,7 +201,7 @@ class QuestionService:
     def _get_section_instructions(self, section_type: QuestionType) -> str:
         """Get instructions for a specific test section."""
         instructions = {
-            QuestionType.MATH: "Solve each problem and choose the best answer. You may use scratch paper for calculations.",
+            QuestionType.QUANTITATIVE: "Solve each problem and choose the best answer. You may use scratch paper for calculations.",
             QuestionType.VERBAL: "Choose the word that best completes each sentence or answers each question.",
             QuestionType.READING: "Read each passage carefully and answer the questions that follow.",
             QuestionType.WRITING: "Write a short essay in response to the prompt. Use proper grammar and organization.",
@@ -212,24 +212,28 @@ class QuestionService:
     
     def _get_section_time_limit(self, section_type: QuestionType, question_count: int) -> int:
         """Get recommended time limit for a section based on type and question count."""
-        # Time per question in minutes (approximate)
+        # For practice sections, use reasonable minimums to avoid 0-minute confusion
+        # Time per question in minutes (with minimums)
         time_per_question = {
-            QuestionType.MATH: 1.5,
-            QuestionType.VERBAL: 0.8,
-            QuestionType.READING: 2.0,  # Reading takes longer
-            QuestionType.WRITING: 15.0,  # Writing prompts take much longer
-            QuestionType.ANALOGY: 1.0,
-            QuestionType.SYNONYM: 0.5
+            QuestionType.QUANTITATIVE: 1.5,
+            QuestionType.VERBAL: 1.0,
+            QuestionType.READING: 2.0,
+            QuestionType.WRITING: 15.0,
+            QuestionType.ANALOGY: 1.0,    # 1 minute per analogy
+            QuestionType.SYNONYM: 1.0     # 1 minute per synonym (increased from 0.5)
         }
         
         base_time = time_per_question.get(section_type, 1.0)
-        return int(base_time * question_count)
+        calculated_time = base_time * question_count
+        
+        # Ensure minimum of 1 minute for any section
+        return max(1, int(calculated_time))
     
     async def get_topic_suggestions(self, question_type: str) -> List[str]:
         """Get suggested topics for a given question type."""
         # Define common topics for each question type
         topic_suggestions = {
-            "math": [
+            "quantitative": [
                 "addition", "subtraction", "multiplication", "division",
                 "fractions", "decimals", "geometry", "measurement",
                 "word problems", "patterns", "time", "money"
@@ -271,7 +275,7 @@ class QuestionService:
         
         return writing_prompt
     
-    async def _generate_standalone_section(self, section_type: QuestionType, difficulty: DifficultyLevel, count: int, provider: Optional[Any]) -> StandaloneSection:
+    async def _generate_standalone_section(self, section_type: QuestionType, difficulty: DifficultyLevel, count: int, provider: Optional[Any], use_async: bool = False) -> StandaloneSection:
         """Generate a standalone section (math, verbal, analogy, synonym)."""
         # Create request for this section
         section_request = QuestionGenerationRequest(
@@ -281,8 +285,40 @@ class QuestionService:
             provider=provider
         )
         
-        # Generate questions for this section
-        section_result = await self.generate_questions(section_request)
+        if use_async:
+            # For progressive generation - use async LLM calls
+            ssat_request = self._convert_to_ssat_request(section_request)
+            provider_name = provider.value if provider else None
+            questions = await generate_questions_async(ssat_request, llm=provider_name)
+            
+            # Convert questions to API response format
+            api_questions = []
+            for question in questions:
+                api_question = {
+                    "id": question.id,
+                    "question_type": question.question_type.value,
+                    "difficulty": question.difficulty.value,
+                    "text": question.text,
+                    "options": [
+                        {"letter": opt.letter, "text": opt.text} 
+                        for opt in question.options
+                    ],
+                    "correct_answer": question.correct_answer,
+                    "explanation": question.explanation,
+                    "cognitive_level": question.cognitive_level,
+                    "tags": question.tags,
+                    "metadata": question.metadata
+                }
+                
+                # Only include visual_description if it has meaningful content
+                if question.visual_description and question.visual_description.strip() and \
+                   question.visual_description.lower() not in ["none", "no visual elements", "no visual elements required"]:
+                    api_question["visual_description"] = question.visual_description
+                api_questions.append(api_question)
+        else:
+            # For synchronous generation - use existing method
+            section_result = await self.generate_questions(section_request)
+            api_questions = section_result["questions"]
         
         # Get section instructions and time limit
         instructions = self._get_section_instructions(section_type)
@@ -290,19 +326,19 @@ class QuestionService:
         
         return StandaloneSection(
             section_type=section_type.value,
-            questions=section_result["questions"],
+            questions=api_questions,
             time_limit_minutes=time_limit,
             instructions=instructions
         )
     
-    async def _generate_reading_section(self, difficulty: DifficultyLevel, total_questions: int, provider: Optional[Any]) -> ReadingSection:
+    async def _generate_reading_section(self, difficulty: DifficultyLevel, total_questions: int, provider: Optional[Any], use_async: bool = False) -> ReadingSection:
         """Generate a reading section with passages and questions."""
         # Calculate number of passages needed (4 questions per passage)
         num_passages = max(1, total_questions // 4)
         
         passages = []
         for i in range(num_passages):
-            passage = await self._generate_reading_passage(difficulty, provider, i + 1)
+            passage = await self._generate_reading_passage(difficulty, provider, i + 1, use_async)
             passages.append(passage)
         
         instructions = self._get_section_instructions(QuestionType.READING)
@@ -339,7 +375,7 @@ class QuestionService:
             instructions=instructions
         )
     
-    async def _generate_reading_passage(self, difficulty: DifficultyLevel, provider: Optional[Any], passage_number: int) -> ReadingPassage:
+    async def _generate_reading_passage(self, difficulty: DifficultyLevel, provider: Optional[Any], passage_number: int, use_async: bool = False) -> ReadingPassage:
         """Generate a single reading passage with 4 questions."""
         import uuid
         from app.specifications import OFFICIAL_ELEMENTARY_SPECS
@@ -349,7 +385,7 @@ class QuestionService:
         passage_types = OFFICIAL_ELEMENTARY_SPECS["reading_structure"]["passage_types"]
         passage_type = random.choice(passage_types)
         
-        # Generate passage and questions using existing question generation
+        # Generate passage and questions
         section_request = QuestionGenerationRequest(
             question_type=QuestionType.READING,
             difficulty=difficulty,
@@ -357,13 +393,47 @@ class QuestionService:
             provider=provider
         )
         
-        # For now, use existing generation but we'll need to enhance this to generate 
-        # passage-based questions properly
-        section_result = await self.generate_questions(section_request)
-        
-        # Extract passage text from first question (temporary - needs proper passage generation)
-        first_question = section_result["questions"][0]
-        passage_text = first_question.get("text", "Sample passage text would go here...")
+        if use_async:
+            # For progressive generation - use async LLM calls
+            ssat_request = self._convert_to_ssat_request(section_request)
+            provider_name = provider.value if provider else None
+            questions = await generate_questions_async(ssat_request, llm=provider_name)
+            
+            # Convert questions to API format
+            api_questions = []
+            for question in questions:
+                api_question = {
+                    "id": question.id,
+                    "question_type": question.question_type.value,
+                    "difficulty": question.difficulty.value,
+                    "text": question.text,
+                    "options": [
+                        {"letter": opt.letter, "text": opt.text} 
+                        for opt in question.options
+                    ],
+                    "correct_answer": question.correct_answer,
+                    "explanation": question.explanation,
+                    "cognitive_level": question.cognitive_level,
+                    "tags": question.tags,
+                    "metadata": question.metadata
+                }
+                
+                if question.visual_description and question.visual_description.strip() and \
+                   question.visual_description.lower() not in ["none", "no visual elements", "no visual elements required"]:
+                    api_question["visual_description"] = question.visual_description
+                api_questions.append(api_question)
+            
+            # Extract passage text from first question (temporary - needs proper passage generation)
+            first_question = api_questions[0] if api_questions else {}
+            passage_text = first_question.get("text", "Sample passage text would go here...")
+        else:
+            # For synchronous generation - use existing method
+            section_result = await self.generate_questions(section_request)
+            api_questions = section_result["questions"]
+            
+            # Extract passage text from first question (temporary - needs proper passage generation)
+            first_question = section_result["questions"][0]
+            passage_text = first_question.get("text", "Sample passage text would go here...")
         
         # Create passage ID and metadata
         passage_id = str(uuid.uuid4())
@@ -375,6 +445,6 @@ class QuestionService:
             passage_type=passage_type,
             grade_level="3-4",
             topic=f"Elementary Reading - {passage_type}",
-            questions=section_result["questions"],
+            questions=api_questions,
             metadata={"passage_number": passage_number, "difficulty": difficulty.value}
         )

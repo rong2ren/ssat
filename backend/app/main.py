@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import time
+import asyncio
 from datetime import datetime
 from loguru import logger
 
@@ -118,6 +119,171 @@ async def generate_complete_test(request: CompleteTestRequest):
     except Exception as e:
         logger.error(f"Complete test generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Complete test generation failed: {str(e)}")
+
+# Progressive Test Generation Endpoints (Smart Polling)
+
+@app.post("/generate/complete-test/start")
+async def start_progressive_test_generation(request: CompleteTestRequest):
+    """Start progressive test generation and return job ID for polling."""
+    try:
+        from app.services.job_manager import job_manager
+        
+        logger.info(f"Starting progressive test generation - difficulty: {request.difficulty}")
+        
+        # Create job with request data
+        job_id = job_manager.create_job({
+            "difficulty": request.difficulty.value,
+            "include_sections": [section.value for section in request.include_sections],
+            "custom_counts": request.custom_counts,
+            "provider": request.provider.value if request.provider else None
+        })
+        
+        # Start background generation
+        asyncio.create_task(generate_test_sections_background(job_id, request))
+        
+        return {
+            "job_id": job_id,
+            "status": "started",
+            "message": "Test generation started. Use the job_id to poll for progress."
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to start progressive test generation: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to start test generation: {str(e)}")
+
+@app.get("/generate/complete-test/{job_id}/status")
+async def get_test_generation_status(job_id: str):
+    """Get the current status of a progressive test generation job."""
+    try:
+        from app.services.job_manager import job_manager
+        
+        job = job_manager.get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        # Get completed sections in the proper format
+        completed_sections = job_manager.get_completed_sections(job_id)
+        
+        return {
+            "job_id": job_id,
+            "status": job.status,
+            "progress": {
+                "completed": job.completed_sections,
+                "total": job.total_sections,
+                "percentage": int((job.completed_sections / max(job.total_sections, 1)) * 100)
+            },
+            "sections": completed_sections,
+            "section_details": {k: v.to_dict() for k, v in job.sections.items()},
+            "error": job.error,
+            "created_at": job.created_at.isoformat(),
+            "updated_at": job.updated_at.isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get job status: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get job status: {str(e)}")
+
+@app.delete("/generate/complete-test/{job_id}")
+async def cancel_test_generation(job_id: str):
+    """Cancel a progressive test generation job."""
+    try:
+        from app.services.job_manager import job_manager
+        
+        job = job_manager.get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        job_manager.cancel_job(job_id)
+        
+        return {
+            "job_id": job_id,
+            "status": "cancelled",
+            "message": "Test generation cancelled successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to cancel job: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to cancel job: {str(e)}")
+
+async def generate_test_sections_background(job_id: str, request: CompleteTestRequest):
+    """Background task to generate test sections in parallel."""
+    from app.services.job_manager import job_manager, JobStatus
+    
+    try:
+        job_manager.update_job_status(job_id, JobStatus.RUNNING)
+        
+        # Create tasks for all sections to run in parallel
+        section_tasks = []
+        for section_type in request.include_sections:
+            task = asyncio.create_task(
+                generate_single_section_background(job_id, section_type, request)
+            )
+            section_tasks.append(task)
+        
+        # Wait for all sections to complete (or fail)
+        await asyncio.gather(*section_tasks, return_exceptions=True)
+        
+        # Check final job status
+        job = job_manager.get_job(job_id)
+        if job and job.completed_sections == job.total_sections:
+            job_manager.update_job_status(job_id, JobStatus.COMPLETED)
+            logger.info(f"All sections completed for job {job_id}")
+        
+    except Exception as e:
+        logger.error(f"Background generation failed for job {job_id}: {e}")
+        job_manager.update_job_status(job_id, JobStatus.FAILED, str(e))
+
+async def generate_single_section_background(job_id: str, section_type, request: CompleteTestRequest):
+    """Generate a single section in the background."""
+    from app.services.job_manager import job_manager
+    
+    try:
+        job_manager.start_section(job_id, section_type.value)
+        logger.info(f"Starting generation for section {section_type.value} in job {job_id}")
+        
+        # Update progress: section started (25% of section progress)
+        job_manager.update_section_progress(job_id, section_type.value, 25, "Preparing generation...")
+        
+        # Get custom count for this section
+        custom_counts = request.custom_counts or {}
+        section_count = custom_counts.get(section_type.value, {
+            "quantitative": 10, "analogy": 4, "synonym": 6, "reading": 7, "writing": 1
+        }.get(section_type.value, 5))
+        
+        # Update progress: about to start LLM generation (50% of section progress)
+        job_manager.update_section_progress(job_id, section_type.value, 50, f"Generating {section_count} questions...")
+        
+        # Generate the section using async service methods for true parallelism
+        if section_type.value == "writing":
+            section = await question_service._generate_writing_section(request.difficulty)
+        elif section_type.value == "reading":
+            section = await question_service._generate_reading_section(
+                request.difficulty, section_count, request.provider, use_async=True
+            )
+        else:
+            section = await question_service._generate_standalone_section(
+                section_type, request.difficulty, section_count, request.provider, use_async=True
+            )
+        
+        # Update progress: generation complete, processing results (90%)
+        job_manager.update_section_progress(job_id, section_type.value, 90, "Processing results...")
+        
+        # Convert section to dict for storage
+        if hasattr(section, 'model_dump'):
+            section_data = section.model_dump()
+        else:
+            section_data = section.__dict__
+        
+        job_manager.complete_section(job_id, section_type.value, section_data)
+        logger.info(f"Completed section {section_type.value} for job {job_id}")
+        
+    except Exception as e:
+        logger.error(f"Failed to generate section {section_type.value} for job {job_id}: {e}")
+        job_manager.fail_section(job_id, section_type.value, str(e))
 
 @app.get("/topics/suggestions")
 async def get_topic_suggestions(question_type: str):

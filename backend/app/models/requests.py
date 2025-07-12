@@ -6,7 +6,7 @@ from enum import Enum
 
 class QuestionType(str, Enum):
     """Types of SSAT questions."""
-    MATH = "math"
+    QUANTITATIVE = "quantitative"
     READING = "reading"
     VERBAL = "verbal"
     ANALOGY = "analogy"
@@ -77,7 +77,7 @@ class CompleteTestRequest(BaseModel):
         description="Preferred LLM provider (uses best available if not specified)"
     )
     include_sections: List[QuestionType] = Field(
-        default=[QuestionType.MATH, QuestionType.VERBAL, QuestionType.READING, QuestionType.WRITING],
+        default=[QuestionType.QUANTITATIVE, QuestionType.VERBAL, QuestionType.READING, QuestionType.WRITING],
         description="Sections to include in the complete test"
     )
     custom_counts: Optional[dict] = Field(

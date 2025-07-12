@@ -73,7 +73,7 @@ class WritingPrompt(BaseModel):
 
 class StandaloneSection(BaseModel):
     """Section with independent questions (math, verbal, analogy, synonym)."""
-    section_type: Literal["math", "verbal", "analogy", "synonym"] = Field(..., description="Type of standalone section")
+    section_type: Literal["quantitative", "verbal", "analogy", "synonym"] = Field(..., description="Type of standalone section")
     questions: List[GeneratedQuestion] = Field(..., description="Independent questions")
     time_limit_minutes: int = Field(..., description="Time limit for this section")
     instructions: str = Field(..., description="Section instructions")

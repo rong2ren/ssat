@@ -18,7 +18,7 @@ export interface Question {
 }
 
 export interface QuestionRequest {
-  question_type: 'math' | 'reading' | 'verbal' | 'analogy' | 'synonym' | 'writing'
+  question_type: 'quantitative' | 'reading' | 'analogy' | 'synonym' | 'writing'
   difficulty: 'Easy' | 'Medium' | 'Hard'
   topic?: string
   count: number
@@ -26,7 +26,7 @@ export interface QuestionRequest {
 
 export interface CompleteTestRequest {
   difficulty: 'Easy' | 'Medium' | 'Hard'
-  include_sections: ('math' | 'reading' | 'verbal' | 'analogy' | 'synonym' | 'writing')[]
+  include_sections: ('quantitative' | 'reading' | 'analogy' | 'synonym' | 'writing')[]
   custom_counts?: Record<string, number>
 }
 
@@ -66,7 +66,7 @@ export interface WritingPrompt {
 }
 
 export interface StandaloneSection {
-  section_type: 'math' | 'verbal' | 'analogy' | 'synonym'
+  section_type: 'quantitative' | 'analogy' | 'synonym'
   questions: Question[]
   time_limit_minutes: number
   instructions: string

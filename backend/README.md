@@ -18,16 +18,16 @@ This is the FastAPI backend for the SSAT Question Generator web application.
 - `POST /generate/complete-test` - Generate complete SSAT practice test
 - `GET /providers/status` - Check LLM provider availability
 - `GET /health` - API health check
-- `GET /topics/suggestions?question_type=math` - Get topic suggestions
+- `GET /topics/suggestions?question_type=quantitative` - Get topic suggestions
 
 ### Example Requests
 
-#### Generate Math Questions
+#### Generate Quantitative Questions
 ```bash
 curl -X POST "http://localhost:8000/generate" \
   -H "Content-Type: application/json" \
   -d '{
-    "question_type": "math",
+    "question_type": "quantitative",
     "difficulty": "Medium", 
     "topic": "fractions",
     "count": 5,
@@ -41,8 +41,8 @@ curl -X POST "http://localhost:8000/generate/complete-test" \
   -H "Content-Type: application/json" \
   -d '{
     "difficulty": "Medium",
-    "include_sections": ["math", "verbal", "reading"],
-    "custom_counts": {"math": 15, "verbal": 20, "reading": 5}
+    "include_sections": ["quantitative", "analogy", "synonym", "reading"],
+    "custom_counts": {"quantitative": 15, "analogy": 8, "synonym": 12, "reading": 5}
   }'
 ```
 

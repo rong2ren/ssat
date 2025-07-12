@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, field_validator
 
 class QuestionType(str, Enum):
     """Types of SSAT questions."""
-    MATH = "math"
+    QUANTITATIVE = "quantitative"
     READING = "reading"
     VERBAL = "verbal"
     ANALOGY = "analogy"

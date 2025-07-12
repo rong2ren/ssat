@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     
-    const response = await fetch(`${BACKEND_URL}/generate/complete-test`, {
+    const response = await fetch(`${BACKEND_URL}/generate/complete-test/start`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

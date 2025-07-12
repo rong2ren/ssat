@@ -24,7 +24,7 @@ OFFICIAL_ELEMENTARY_SPECS = {
             section_type="scored",
             break_after=False,
             instructions="Solve each problem and select the best answer. You may NOT use a calculator.",
-            question_types=["math"]
+            question_types=["quantitative"]
         ),
         SectionSpec(
             name="Verbal", 
