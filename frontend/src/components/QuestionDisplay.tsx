@@ -3,15 +3,29 @@
 import { useState } from 'react'
 import { Button } from './ui/Button'
 import { Question } from '@/types/api'
-import { Download, Printer, Eye, EyeOff } from 'lucide-react'
+import { Download, Eye, EyeOff } from 'lucide-react'
 
 interface QuestionDisplayProps {
   questions: Question[]
   showChinese: boolean
+  // Props for controlled behavior (when used as child component)
+  showAnswers?: boolean      // External control of answer visibility
+  showControls?: boolean     // Whether to show the control buttons (default: true)
+  showHeader?: boolean       // Whether to show the header section (default: true)
 }
 
-export function QuestionDisplay({ questions, showChinese }: QuestionDisplayProps) {
-  const [showAnswers, setShowAnswers] = useState(false)
+export function QuestionDisplay({ 
+  questions, 
+  showChinese, 
+  showAnswers: externalShowAnswers,
+  showControls = true,
+  showHeader = true 
+}: QuestionDisplayProps) {
+  // Internal state for standalone mode, external control for child mode
+  const [internalShowAnswers, setInternalShowAnswers] = useState(false)
+  
+  // Use external control if provided, otherwise use internal state
+  const showAnswers = externalShowAnswers !== undefined ? externalShowAnswers : internalShowAnswers
 
   // UI translations mapping
   const translations = {
@@ -35,9 +49,6 @@ export function QuestionDisplay({ questions, showChinese }: QuestionDisplayProps
 
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
 
-  const handlePrint = () => {
-    window.print()
-  }
 
   const handleDownload = () => {
     // Use browser's print dialog with "Save as PDF" option
@@ -154,50 +165,46 @@ export function QuestionDisplay({ questions, showChinese }: QuestionDisplayProps
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg">
-      {/* Header */}
-      <div className="border-b border-gray-200 p-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-2xl font-semibold text-gray-800">{t('Generated Questions')}</h2>
-            <p className="text-gray-600">{questions.length} {t('questions ready for practice')}</p>
-          </div>
-          
-          <div className="flex space-x-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowAnswers(!showAnswers)}
-              className="flex items-center space-x-2"
-            >
-              {showAnswers ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              <span>{showAnswers ? t('Hide Answers') : t('Show Answers')}</span>
-            </Button>
+    <div className={showHeader ? "bg-white rounded-lg shadow-lg" : ""}>
+      {/* Header - Only show in standalone mode */}
+      {showHeader && (
+        <div className="border-b border-gray-200 p-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-semibold text-gray-800">{t('Generated Questions')}</h2>
+              <p className="text-gray-600">{questions.length} {t('questions ready for practice')}</p>
+            </div>
             
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDownload}
-              className="flex items-center space-x-2"
-            >
-              <Download className="h-4 w-4" />
-              <span>{t('Save as PDF')}</span>
-            </Button>
+            {/* Controls - Only show in standalone mode */}
+            {showControls && (
+              <div className="flex space-x-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setInternalShowAnswers(!internalShowAnswers)}
+                  className="flex items-center space-x-2"
+                >
+                  {showAnswers ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  <span>{showAnswers ? t('Hide Answers') : t('Show Answers')}</span>
+                </Button>
             
-            <Button
-              size="sm"
-              onClick={handlePrint}
-              className="flex items-center space-x-2"
-            >
-              <Printer className="h-4 w-4" />
-              <span>{t('Print')}</span>
-            </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownload}
+                  className="flex items-center space-x-2"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>{t('Save as PDF')}</span>
+                </Button>
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      )}
 
       {/* Questions List */}
-      <div className="p-6 space-y-8 print:p-4">
+      <div className={showHeader ? "p-6 space-y-8 print:p-4" : "space-y-8"}>
         {questions.map((question, index) => (
           <div key={index} className="border-b border-gray-100 last:border-b-0 pb-8 last:pb-0">
             {/* Question Header */}
