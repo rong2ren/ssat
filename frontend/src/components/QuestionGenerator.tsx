@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { QuestionForm } from './QuestionForm'
 import { QuestionDisplay } from './QuestionDisplay'
 import { ProgressiveTestGenerator } from './ProgressiveTestGenerator'
+import { PracticeQuestionsForm } from './forms/PracticeQuestionsForm'
+import { CompleteTestForm } from './forms/CompleteTestForm'
+import { Tabs, TabContent } from './ui/Tabs'
 import { Question, QuestionRequest } from '@/types/api'
 
 interface QuestionGeneratorProps {
@@ -15,6 +17,7 @@ export default function QuestionGenerator({ showChinese }: QuestionGeneratorProp
   const [isProgressiveMode, setIsProgressiveMode] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [activeMode, setActiveMode] = useState('practice')
   const [testRequest, setTestRequest] = useState<{
     difficulty: string
     include_sections: string[]
@@ -24,7 +27,10 @@ export default function QuestionGenerator({ showChinese }: QuestionGeneratorProp
 
   // UI translations mapping
   const translations = {
-    'Generate Questions': '生成题目',
+    'Practice Questions': '练习题目',
+    'Complete Test': '完整测试',
+    'Generate 1-20 individual questions for targeted practice and skill building': '生成1-20道个人题目，进行针对性练习和技能培养',
+    'Generate a comprehensive SSAT practice test with multiple sections': '生成完整的SSAT模拟考试',
     'Generating questions...': '正在生成题目...',
     'Error generating questions': '生成题目时出错'
   }
@@ -95,23 +101,55 @@ export default function QuestionGenerator({ showChinese }: QuestionGeneratorProp
     )
   }
 
+  const tabs = [
+    {
+      id: 'practice',
+      label: t('Practice Questions'),
+      icon: <span className="text-lg">🎯</span>,
+      description: t('Generate 1-20 individual questions for targeted practice and skill building')
+    },
+    {
+      id: 'complete',
+      label: t('Complete Test'),
+      icon: <span className="text-lg">📝</span>,
+      description: t('Generate a comprehensive SSAT practice test with multiple sections')
+    }
+  ]
+
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      {/* Question Generation Form */}
+      {/* Main Generator Interface */}
       <div className="bg-white rounded-lg shadow-lg p-6">
-        <h2 className="text-2xl font-semibold text-gray-800 mb-6">{t('Generate Questions')}</h2>
-        <QuestionForm 
-          onSubmit={handleGenerateQuestions}
-          onGenerateCompleteTest={handleGenerateCompleteTest}
-          loading={loading}
-          showChinese={showChinese}
+        {/* Mode Selector Tabs */}
+        <Tabs 
+          tabs={tabs} 
+          defaultTab="practice"
+          onTabChange={setActiveMode}
         />
+
+        {/* Practice Questions Form */}
+        <TabContent activeTab={activeMode} tabId="practice">
+          <PracticeQuestionsForm
+            onSubmit={handleGenerateQuestions}
+            loading={loading}
+            showChinese={showChinese}
+          />
+        </TabContent>
+
+        {/* Complete Test Form */}
+        <TabContent activeTab={activeMode} tabId="complete">
+          <CompleteTestForm
+            onSubmit={handleGenerateCompleteTest}
+            loading={loading}
+            showChinese={showChinese}
+          />
+        </TabContent>
       </div>
 
       {/* Error Display */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex">
+          <div className="flex items-center">
             <div className="text-red-600">
               <h3 className="font-medium">{t('Error generating questions')}</h3>
               <p className="text-sm">{error}</p>
@@ -130,8 +168,8 @@ export default function QuestionGenerator({ showChinese }: QuestionGeneratorProp
         </div>
       )}
 
-      {/* Questions Display */}
-      {questions.length > 0 && !loading && (
+      {/* Results Display */}
+      {activeMode === 'practice' && questions.length > 0 && !loading && (
         <QuestionDisplay questions={questions} showChinese={showChinese} />
       )}
     </div>

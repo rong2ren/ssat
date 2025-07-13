@@ -19,9 +19,9 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-8">
-        <div className="text-center mb-8 relative">
-          {/* Language Toggle - Top Right */}
-          <div className="absolute top-0 right-0">
+        <div className="mb-8">
+          {/* Language Toggle - Top Right but more visible */}
+          <div className="flex justify-end mb-4">
             <Button
               variant="outline"
               size="sm"
@@ -32,13 +32,15 @@ export default function Home() {
               <span>{showChinese ? 'English' : '中文'}</span>
             </Button>
           </div>
-
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            {t('SSAT Practice Generator')}
-          </h1>
-          <p className="text-xl text-gray-600">
-            {t('Generate high-quality SSAT questions for elementary students')}
-          </p>
+          
+          <div className="text-center">
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">
+              {t('SSAT Practice Generator')}
+            </h1>
+            <p className="text-xl text-gray-600">
+              {t('Generate high-quality SSAT questions for elementary students')}
+            </p>
+          </div>
         </div>
         
         <QuestionGenerator showChinese={showChinese} />

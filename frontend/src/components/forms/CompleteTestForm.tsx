@@ -1,0 +1,240 @@
+'use client'
+
+import { useState } from 'react'
+import { Button } from '../ui/Button'
+import { Select } from '../ui/Select'
+import { Input } from '../ui/Input'
+import { Label } from '../ui/Label'
+
+interface CompleteTestFormProps {
+  onSubmit: (customConfig?: {
+    sections: string[]
+    counts: Record<string, number>
+    difficulty: string
+  }) => void
+  loading: boolean
+  showChinese: boolean
+}
+
+export function CompleteTestForm({ onSubmit, loading, showChinese }: CompleteTestFormProps) {
+  const [difficulty, setDifficulty] = useState('Medium')
+  const [useCustomization, setUseCustomization] = useState(false)
+  const [selectedSections, setSelectedSections] = useState(['quantitative', 'analogy', 'synonym', 'reading', 'writing'])
+  const [customCounts, setCustomCounts] = useState<Record<string, number>>({
+    quantitative: 10,
+    reading: 7,
+    analogy: 4,
+    synonym: 6,
+    writing: 1
+  })
+
+  // UI translations
+  const translations = {
+    'Overall Difficulty': '整体难度',
+    'Generate Complete Test': '生成完整测试',
+    'Generating...': '生成中...',
+    'Test Format': '测试格式',
+    'Use Official SSAT Format': '使用官方SSAT格式',
+    'Customize Sections': '自定义',
+    'Select Test Sections': '选择题型',
+    'Questions per Section': '每部分题目数',
+    'Official test format with standard question counts': '官方测试格式，标准题目数量',
+    'Pick sections and question counts': '自由选择题型和数量',
+    'Applied to all sections in the test': '应用于测试的所有部分',
+    'Recommended': '推荐',
+    'Questions:': '题目数：',
+    'Quantitative': '数学',
+    'Reading': '阅读',
+    'Analogies': '类比',
+    'Synonyms': '同义词',
+    'Writing': '写作',
+    'Math problems and numerical reasoning': '数学问题和数值推理',
+    'Reading comprehension passages': '阅读理解文章',
+    'Word relationship patterns': '词汇关系模式',
+    'Word meaning identification': '词义识别',
+    'Creative writing prompt': '作文',
+    'Easy': '简单',
+    'Medium': '中等',
+    'Hard': '困难',
+    'Please select at least one section': '请至少选择一个部分',
+    'Question counts must be between 1 and 30': '题目数量必须在1到30之间'
+  }
+
+  const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (useCustomization) {
+      // Validate custom configuration
+      if (selectedSections.length === 0) {
+        alert(t('Please select at least one section'))
+        return
+      }
+      
+      const invalidCounts = selectedSections.filter(section => {
+        const count = customCounts[section] || 0
+        return count < 1 || count > 30
+      })
+      
+      if (invalidCounts.length > 0) {
+        alert(t('Question counts must be between 1 and 30'))
+        return
+      }
+      
+      onSubmit({
+        sections: selectedSections,
+        counts: customCounts,
+        difficulty: difficulty
+      })
+    } else {
+      // Use default configuration
+      onSubmit()
+    }
+  }
+
+  const difficulties = [
+    { value: 'Easy', label: t('Easy') },
+    { value: 'Medium', label: t('Medium') },
+    { value: 'Hard', label: t('Hard') }
+  ]
+
+  const sectionTypes = [
+    { value: 'quantitative', label: t('Quantitative'), defaultCount: 10, description: t('Math problems and numerical reasoning') },
+    { value: 'analogy', label: t('Analogies'), defaultCount: 4, description: t('Word relationship patterns') },
+    { value: 'synonym', label: t('Synonyms'), defaultCount: 6, description: t('Word meaning identification') },
+    { value: 'reading', label: t('Reading'), defaultCount: 7, description: t('Reading comprehension passages') },
+    { value: 'writing', label: t('Writing'), defaultCount: 1, description: t('Creative writing prompt') }
+  ]
+
+  return (
+    <div className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Overall Difficulty */}
+        <div className="space-y-2">
+          <Label htmlFor="test-difficulty">{t('Overall Difficulty')} *</Label>
+          <Select
+            value={difficulty}
+            onChange={setDifficulty}
+            options={difficulties}
+            id="test-difficulty"
+            className="md:w-1/3"
+          />
+          <p className="text-xs text-gray-500">{t('Applied to all sections in the test')}</p>
+        </div>
+
+        {/* Enhanced Format Selection */}
+        <div className="space-y-4">
+          <Label className="text-base font-medium">{t('Test Format')}</Label>
+          
+          <div className="grid md:grid-cols-2 gap-4">
+            {/* Official Format Card */}
+            <div className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
+              !useCustomization 
+                ? 'border-blue-500 bg-blue-50' 
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+            onClick={() => setUseCustomization(false)}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <Label className="font-medium text-lg cursor-pointer">
+                  {t('Use Official SSAT Format')}
+                </Label>
+                <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                  {t('Recommended')}
+                </span>
+              </div>
+              
+              <p className="text-sm text-gray-600 mb-3">
+                ✓ {t('Official test format with standard question counts')}
+              </p>
+              
+              <div className="text-xs text-gray-500">
+                {t('Quantitative')} (10) • {t('Analogies')} (4) • {t('Synonyms')} (6) • {t('Reading')} (7) • {t('Writing')} (1)
+              </div>
+            </div>
+
+            {/* Custom Format Card */}
+            <div className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
+              useCustomization 
+                ? 'border-blue-500 bg-blue-50' 
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+            onClick={() => setUseCustomization(true)}
+            >
+              <Label className="font-medium text-lg cursor-pointer block mb-3">
+                {t('Customize Sections')}
+              </Label>
+              
+              <p className="text-sm text-gray-600">
+                ⚙️ {t('Pick sections and question counts')}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Customization Options */}
+        {useCustomization && (
+          <div className="bg-gray-50 rounded-lg p-6 space-y-6">
+            {/* Combined Section Selection and Counts */}
+            <div>
+              <Label className="text-sm font-medium mb-3 block">{t('Select Test Sections')}</Label>
+              <div className="space-y-3">
+                {sectionTypes.map((section) => (
+                  <div key={section.value} className="flex items-center space-x-4 p-3 border rounded-lg">
+                    <input
+                      type="checkbox"
+                      id={`section-${section.value}`}
+                      checked={selectedSections.includes(section.value)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedSections(prev => [...prev, section.value])
+                        } else {
+                          setSelectedSections(prev => prev.filter(s => s !== section.value))
+                        }
+                      }}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    
+                    <div className="flex-1">
+                      <Label htmlFor={`section-${section.value}`} className="font-medium cursor-pointer">
+                        {t(section.label)}
+                      </Label>
+                      <p className="text-sm text-gray-600">{t(section.description)}</p>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <Label className="text-sm text-gray-600 whitespace-nowrap">{t('Questions:')}</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="30"
+                        value={customCounts[section.value] || section.defaultCount}
+                        onChange={(e) => setCustomCounts(prev => ({
+                          ...prev,
+                          [section.value]: parseInt(e.target.value) || 1
+                        }))}
+                        disabled={!selectedSections.includes(section.value)}
+                        className="w-16 text-sm"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Submit Button */}
+        <Button 
+          type="submit" 
+          disabled={loading}
+          className="w-full md:w-auto"
+          size="lg"
+        >
+          {loading ? t('Generating...') : t('Generate Complete Test')}
+        </Button>
+      </form>
+    </div>
+  )
+}
