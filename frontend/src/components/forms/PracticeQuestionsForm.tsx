@@ -10,10 +10,10 @@ import { QuestionRequest } from '@/types/api'
 interface PracticeQuestionsFormProps {
   onSubmit: (request: QuestionRequest) => void
   loading: boolean
-  showChinese: boolean
+  showChinese?: boolean
 }
 
-export function PracticeQuestionsForm({ onSubmit, loading, showChinese }: PracticeQuestionsFormProps) {
+export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }: PracticeQuestionsFormProps) {
   const [formData, setFormData] = useState({
     question_type: 'analogy' as const,
     difficulty: 'Medium' as const,

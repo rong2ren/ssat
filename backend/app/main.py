@@ -17,6 +17,8 @@ from app.models.requests import (
 )
 from app.models.responses import (
     QuestionGenerationResponse,
+    ReadingGenerationResponse,
+    WritingGenerationResponse,
     CompleteTestResponse,
     CompleteElementaryTestResponse,
     ProviderStatusResponse,
@@ -24,6 +26,7 @@ from app.models.responses import (
     GenerationMetadata
 )
 from app.services.question_service import QuestionService
+from app.services.unified_content_service import UnifiedContentService
 from app.services.llm_service import LLMService
 from app.services.ssat_test_service import ssat_test_service
 
@@ -48,7 +51,8 @@ app.add_middleware(
 )
 
 # Initialize services
-question_service = QuestionService()
+question_service = QuestionService()  # Keep for complete test generation
+content_service = UnifiedContentService()  # New unified service for individual content
 llm_service = LLMService()
 
 @app.get("/", response_model=HealthResponse)
@@ -92,19 +96,21 @@ async def get_provider_status():
         logger.error(f"Failed to get provider status: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get provider status: {str(e)}")
 
-@app.post("/generate", response_model=QuestionGenerationResponse)
-async def generate_questions(request: QuestionGenerationRequest):
-    """Generate individual SSAT questions based on request parameters."""
+@app.post("/generate")
+async def generate_content(request: QuestionGenerationRequest):
+    """Generate SSAT content based on request parameters. Returns type-specific response."""
     try:
-        logger.info(f"Generating {request.count} {request.question_type} questions")
+        logger.info(f"Generating {request.count} {request.question_type.value} content")
         
-        result = await question_service.generate_questions(request)
+        # Use unified content service for proper type-specific generation
+        result = await content_service.generate_content(request)
         
-        return QuestionGenerationResponse(**result)
+        # Return the type-specific response (QuestionGenerationResponse, ReadingGenerationResponse, or WritingGenerationResponse)
+        return result
         
     except Exception as e:
-        logger.error(f"Question generation failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Question generation failed: {str(e)}")
+        logger.error(f"Content generation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Content generation failed: {str(e)}")
 
 @app.post("/generate/complete-test", response_model=CompleteTestResponse)
 async def generate_complete_test(request: CompleteTestRequest):

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Globe } from 'lucide-react'
 
 export default function Home() {
-  const [showChinese, setShowChinese] = useState(false)
+  const [showChinese, setShowChinese] = useState<boolean>(false)
 
   // UI translations mapping
   const translations = {

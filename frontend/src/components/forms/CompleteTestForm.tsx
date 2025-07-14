@@ -13,10 +13,10 @@ interface CompleteTestFormProps {
     difficulty: string
   }) => void
   loading: boolean
-  showChinese: boolean
+  showChinese?: boolean
 }
 
-export function CompleteTestForm({ onSubmit, loading, showChinese }: CompleteTestFormProps) {
+export function CompleteTestForm({ onSubmit, loading, showChinese = false }: CompleteTestFormProps) {
   const [difficulty, setDifficulty] = useState('Medium')
   const [useCustomization, setUseCustomization] = useState(false)
   const [selectedSections, setSelectedSections] = useState(['quantitative', 'analogy', 'synonym', 'reading', 'writing'])

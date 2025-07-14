@@ -5,6 +5,7 @@ import { Button } from './ui/Button'
 import { TestSection, StandaloneSection, ReadingSection, WritingSection } from '@/types/api'
 import { Eye, EyeOff, Download } from 'lucide-react'
 import { QuestionDisplay } from './QuestionDisplay'
+import { generateUnifiedPDF } from '@/utils/pdfGenerator'
 
 interface TestDisplayProps {
   sections: TestSection[]
@@ -17,141 +18,15 @@ export function TestDisplay({ sections, showChinese }: TestDisplayProps) {
   const t = (key: string) => key // Simplified for now
 
   const handleDownloadCompleteTest = () => {
-    // Collect all questions from all sections
-    const allQuestions: any[] = []
-    
-    sections.forEach((section, sectionIndex) => {
-      if (section.section_type === 'writing') {
-        // Add writing prompt as a special "question"
-        const writingSection = section as WritingSection
-        allQuestions.push({
-          text: `Writing Prompt: ${writingSection.prompt.prompt_text}`,
-          options: [],
-          correct_answer: '',
-          explanation: writingSection.prompt.instructions,
-          cognitive_level: 'Creative',
-          tags: ['writing'],
-          sectionName: 'Writing'
-        })
-      } else if (section.section_type === 'reading') {
-        const readingSection = section as ReadingSection
-        readingSection.passages.forEach((passage, passageIndex) => {
-          // Add passage text as context
-          allQuestions.push({
-            text: `Reading Passage ${passageIndex + 1}: ${passage.title || 'Untitled'}`,
-            options: [],
-            correct_answer: '',
-            explanation: passage.text,
-            cognitive_level: 'Comprehension',
-            tags: ['reading', 'passage'],
-            sectionName: 'Reading'
-          })
-          // Add passage questions
-          passage.questions.forEach(q => {
-            allQuestions.push({
-              ...q,
-              sectionName: 'Reading'
-            })
-          })
-        })
-      } else {
-        // Standalone sections (quantitative, analogy, synonym)
-        const standaloneSection = section as StandaloneSection
-        standaloneSection.questions.forEach(q => {
-          allQuestions.push({
-            ...q,
-            sectionName: section.section_type
-          })
-        })
-      }
+    generateUnifiedPDF(sections, {
+      title: 'Complete SSAT Practice Test',
+      includeAnswers: showAnswers,
+      showSectionBreaks: true,
+      language: showChinese ? 'zh' : 'en',
+      testType: 'complete'
     })
-
-    // Generate PDF with all questions
-    generateCompletePDF(allQuestions, showAnswers)
   }
 
-  const generateCompletePDF = (questions: any[], includeAnswers: boolean) => {
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) return
-    
-    const content = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Complete SSAT Practice Test - ${new Date().toISOString().split('T')[0]}</title>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; margin: 40px; }
-            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 15px; }
-            .section-break { page-break-before: always; margin-top: 40px; padding-top: 20px; border-top: 3px solid #2563eb; }
-            .question { margin-bottom: 30px; page-break-inside: avoid; }
-            .question-number { font-weight: bold; color: #2563eb; }
-            .options { margin: 15px 0; }
-            .option { margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 4px; }
-            .answer-section { margin-top: 15px; padding: 15px; background: #dcfce7; border-radius: 6px; border-left: 4px solid #16a34a; }
-            .passage { background: #dbeafe; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2563eb; }
-            @media print { 
-              body { margin: 20px; } 
-              .question { page-break-inside: avoid; }
-              .section-break { page-break-before: always; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>Complete SSAT Practice Test</h1>
-            <p>Generated on ${new Date().toLocaleDateString()}</p>
-            <p>${questions.length} questions • ${includeAnswers ? 'With Answer Key' : 'Questions Only'}</p>
-          </div>
-          ${questions.map((question, index) => {
-            const isNewSection = index === 0 || question.sectionName !== questions[index - 1]?.sectionName
-            return `
-              ${isNewSection ? `<div class="section-break"><h2>${question.sectionName} Section</h2></div>` : ''}
-              <div class="question">
-                <div class="question-number">Question ${index + 1}</div>
-                ${question.sectionName === 'Reading' && question.tags?.includes('passage') ? 
-                  `<div class="passage"><strong>Reading Passage:</strong><br>${question.explanation}</div>` :
-                  `<p><strong>${question.text}</strong></p>`
-                }
-                ${question.options && question.options.length > 0 ? `
-                  <div class="options">
-                    ${question.options.map((option: any) => 
-                      `<div class="option">${option.letter}. ${option.text}</div>`
-                    ).join('')}
-                  </div>
-                ` : ''}
-                ${includeAnswers ? `
-                  <div class="answer-section">
-                    <strong>Answer:</strong> ${question.correct_answer}<br>
-                    <strong>Explanation:</strong> ${question.explanation}
-                  </div>
-                ` : ''}
-              </div>
-            `
-          }).join('')}
-          ${!includeAnswers ? `
-            <div style="page-break-before: always; margin-top: 40px;">
-              <h2>Answer Key</h2>
-              <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
-                ${questions.map((question, index) => `
-                  <div style="text-align: center; padding: 8px; background: #f3f4f6; border-radius: 4px;">
-                    <strong>${index + 1}.</strong> ${question.correct_answer}
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          ` : ''}
-        </body>
-      </html>
-    `
-    
-    printWindow.document.write(content)
-    printWindow.document.close()
-    printWindow.focus()
-    setTimeout(() => {
-      printWindow.print()
-      printWindow.close()
-    }, 250)
-  }
 
   if (sections.length === 0) {
     return null
@@ -363,128 +238,15 @@ function SectionHeader({ section, sectionIndex, showAnswers: globalShowAnswers }
   }
   
   const handleSectionPDF = () => {
-    // Generate PDF for this specific section
-    const sectionQuestions: any[] = []
-    
-    if (section.section_type === 'writing') {
-      const writingSection = section as WritingSection
-      sectionQuestions.push({
-        text: `Writing Prompt: ${writingSection.prompt.prompt_text}`,
-        options: [],
-        correct_answer: '',
-        explanation: writingSection.prompt.instructions,
-        cognitive_level: 'Creative',
-        tags: ['writing'],
-        sectionName: 'Writing'
-      })
-    } else if (section.section_type === 'reading') {
-      const readingSection = section as ReadingSection
-      readingSection.passages.forEach((passage, passageIndex) => {
-        sectionQuestions.push({
-          text: `Reading Passage ${passageIndex + 1}: ${passage.title || 'Untitled'}`,
-          options: [],
-          correct_answer: '',
-          explanation: passage.text,
-          cognitive_level: 'Comprehension',
-          tags: ['reading', 'passage'],
-          sectionName: 'Reading'
-        })
-        passage.questions.forEach(q => {
-          sectionQuestions.push({
-            ...q,
-            sectionName: 'Reading'
-          })
-        })
-      })
-    } else {
-      const standaloneSection = section as StandaloneSection
-      standaloneSection.questions.forEach(q => {
-        sectionQuestions.push({
-          ...q,
-          sectionName: section.section_type
-        })
-      })
-    }
-    
-    generateSectionPDF(sectionQuestions, effectiveShowAnswers, section.section_type)
+    generateUnifiedPDF([section], {
+      title: `${section.section_type.charAt(0).toUpperCase() + section.section_type.slice(1)} Section`,
+      includeAnswers: effectiveShowAnswers,
+      showSectionBreaks: false,
+      language: 'en', // TODO: Add language support to this component
+      testType: 'complete'
+    })
   }
   
-  const generateSectionPDF = (questions: any[], includeAnswers: boolean, sectionType: string) => {
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) return
-    
-    const content = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>${sectionType.charAt(0).toUpperCase() + sectionType.slice(1)} Section - ${new Date().toISOString().split('T')[0]}</title>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; margin: 40px; }
-            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 15px; }
-            .question { margin-bottom: 30px; page-break-inside: avoid; }
-            .question-number { font-weight: bold; color: #2563eb; }
-            .options { margin: 15px 0; }
-            .option { margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 4px; }
-            .answer-section { margin-top: 15px; padding: 15px; background: #dcfce7; border-radius: 6px; border-left: 4px solid #16a34a; }
-            .passage { background: #dbeafe; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2563eb; }
-            @media print { 
-              body { margin: 20px; } 
-              .question { page-break-inside: avoid; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>${sectionType.charAt(0).toUpperCase() + sectionType.slice(1)} Section</h1>
-            <p>Generated on ${new Date().toLocaleDateString()}</p>
-            <p>${questions.length} questions • ${includeAnswers ? 'With Answer Key' : 'Questions Only'}</p>
-          </div>
-          ${questions.map((question, index) => `
-            <div class="question">
-              <div class="question-number">Question ${index + 1}</div>
-              ${question.sectionName === 'Reading' && question.tags?.includes('passage') ? 
-                `<div class="passage"><strong>Reading Passage:</strong><br>${question.explanation}</div>` :
-                `<p><strong>${question.text}</strong></p>`
-              }
-              ${question.options && question.options.length > 0 ? `
-                <div class="options">
-                  ${question.options.map((option: any) => 
-                    `<div class="option">${option.letter}. ${option.text}</div>`
-                  ).join('')}
-                </div>
-              ` : ''}
-              ${includeAnswers ? `
-                <div class="answer-section">
-                  <strong>Answer:</strong> ${question.correct_answer}<br>
-                  <strong>Explanation:</strong> ${question.explanation}
-                </div>
-              ` : ''}
-            </div>
-          `).join('')}
-          ${!includeAnswers ? `
-            <div style="page-break-before: always; margin-top: 40px;">
-              <h2>Answer Key</h2>
-              <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
-                ${questions.map((question, index) => `
-                  <div style="text-align: center; padding: 8px; background: #f3f4f6; border-radius: 4px;">
-                    <strong>${index + 1}.</strong> ${question.correct_answer}
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          ` : ''}
-        </body>
-      </html>
-    `
-    
-    printWindow.document.write(content)
-    printWindow.document.close()
-    printWindow.focus()
-    setTimeout(() => {
-      printWindow.print()
-      printWindow.close()
-    }, 250)
-  }
   
   return (
     <div className="bg-gray-50 px-4 py-3 border-b">

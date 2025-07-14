@@ -31,19 +31,12 @@ class GenerationMetadata(BaseModel):
     request_id: Optional[str] = Field(default=None, description="Unique request identifier")
     timestamp: datetime = Field(default_factory=datetime.now, description="Generation timestamp")
 
-class QuestionGenerationResponse(BaseModel):
-    """Response for individual question generation."""
-    questions: List[GeneratedQuestion] = Field(..., description="Generated questions")
-    metadata: GenerationMetadata = Field(..., description="Generation metadata")
-    status: str = Field(default="success", description="Generation status")
-    count: int = Field(..., description="Number of questions generated")
-
 class ReadingPassage(BaseModel):
     """A reading passage with associated questions."""
     id: str = Field(..., description="Unique passage identifier")
     title: Optional[str] = Field(default=None, description="Passage title")
     text: str = Field(..., description="Passage text (150-200 words for elementary)")
-    passage_type: Literal["fiction", "non_fiction", "poetry", "biography"] = Field(..., description="Type of reading passage")
+    passage_type: str = Field(..., description="Type of reading passage")
     grade_level: str = Field(default="3-4", description="Target grade level")
     topic: str = Field(..., description="Passage topic/theme")
     questions: List[GeneratedQuestion] = Field(..., description="Questions based on this passage")
@@ -94,6 +87,32 @@ class WritingSection(BaseModel):
 
 # Union type for polymorphic sections
 TestSection = Union[StandaloneSection, ReadingSection, WritingSection]
+
+# Content generation response models (now that data models are defined)
+class QuestionGenerationResponse(BaseModel):
+    """Response for individual question generation."""
+    questions: List[GeneratedQuestion] = Field(..., description="Generated questions")
+    metadata: GenerationMetadata = Field(..., description="Generation metadata")
+    status: str = Field(default="success", description="Generation status")
+    count: int = Field(..., description="Number of questions generated")
+
+class ReadingGenerationResponse(BaseModel):
+    """Response for reading passage generation."""
+    passages: List[ReadingPassage] = Field(..., description="Generated reading passages")
+    metadata: GenerationMetadata = Field(..., description="Generation metadata")
+    status: str = Field(default="success", description="Generation status")
+    count: int = Field(..., description="Number of passages generated")
+    total_questions: int = Field(..., description="Total questions across all passages")
+
+class WritingGenerationResponse(BaseModel):
+    """Response for writing prompt generation."""
+    prompts: List[WritingPrompt] = Field(..., description="Generated writing prompts")
+    metadata: GenerationMetadata = Field(..., description="Generation metadata")
+    status: str = Field(default="success", description="Generation status")
+    count: int = Field(..., description="Number of prompts generated")
+
+# Union type for polymorphic content generation responses
+ContentGenerationResponse = Union[QuestionGenerationResponse, ReadingGenerationResponse, WritingGenerationResponse]
 
 class CompleteTestResponse(BaseModel):
     """Response for complete SSAT test generation."""

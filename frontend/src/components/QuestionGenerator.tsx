@@ -6,14 +6,16 @@ import { ProgressiveTestGenerator } from './ProgressiveTestGenerator'
 import { PracticeQuestionsForm } from './forms/PracticeQuestionsForm'
 import { CompleteTestForm } from './forms/CompleteTestForm'
 import { Tabs, TabContent } from './ui/Tabs'
-import { Question, QuestionRequest } from '@/types/api'
+import { Question, QuestionRequest, ReadingPassage } from '@/types/api'
 
 interface QuestionGeneratorProps {
-  showChinese: boolean
+  showChinese?: boolean
 }
 
-export default function QuestionGenerator({ showChinese }: QuestionGeneratorProps) {
+export default function QuestionGenerator({ showChinese = false }: QuestionGeneratorProps) {
   const [questions, setQuestions] = useState<Question[]>([])
+  const [passages, setPassages] = useState<ReadingPassage[]>([])
+  const [contentType, setContentType] = useState<'questions' | 'passages' | 'prompts'>('questions')
   const [isProgressiveMode, setIsProgressiveMode] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -55,7 +57,42 @@ export default function QuestionGenerator({ showChinese }: QuestionGeneratorProp
       }
 
       const data = await response.json()
-      setQuestions(data.questions)
+      
+      // Handle different response types based on content type
+      if (data.questions) {
+        // Standalone questions (math, verbal, analogy, synonym)
+        setQuestions(data.questions)
+        setPassages([])
+        setContentType('questions')
+      } else if (data.passages) {
+        // Reading comprehension - keep passages in their natural structure
+        setPassages(data.passages)
+        setQuestions([])
+        setContentType('passages')
+      } else if (data.prompts) {
+        // Writing prompts - convert to question-like format for display
+        const promptQuestions = data.prompts.map((prompt, index) => ({
+          id: `writing-${index}`,
+          question_type: 'writing',
+          difficulty: request.difficulty,
+          text: prompt.prompt_text, // Just the prompt, not combined with instructions
+          options: [], // No options for writing
+          correct_answer: '',
+          explanation: 'This is a creative writing task. Write a story with a beginning, middle, and end.',
+          cognitive_level: 'CREATE',
+          tags: ['writing', 'creative'],
+          visual_description: prompt.visual_description || undefined,
+          metadata: {
+            isWritingPrompt: true,
+            instructions: prompt.instructions
+          }
+        }))
+        setQuestions(promptQuestions)
+        setPassages([])
+        setContentType('prompts')
+      } else {
+        throw new Error('Unknown response format')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -169,8 +206,18 @@ export default function QuestionGenerator({ showChinese }: QuestionGeneratorProp
       )}
 
       {/* Results Display */}
-      {activeMode === 'practice' && questions.length > 0 && !loading && (
-        <QuestionDisplay questions={questions} showChinese={showChinese} />
+      {activeMode === 'practice' && !loading && (
+        <>
+          {contentType === 'questions' && questions.length > 0 && (
+            <QuestionDisplay questions={questions} showChinese={showChinese} />
+          )}
+          {contentType === 'passages' && passages.length > 0 && (
+            <QuestionDisplay passages={passages} showChinese={showChinese} />
+          )}
+          {contentType === 'prompts' && questions.length > 0 && (
+            <QuestionDisplay questions={questions} showChinese={showChinese} />
+          )}
+        </>
       )}
     </div>
   )

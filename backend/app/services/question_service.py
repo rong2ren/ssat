@@ -76,7 +76,7 @@ class QuestionService:
         )
     
     async def generate_questions(self, request: QuestionGenerationRequest) -> Dict[str, Any]:
-        """Generate questions based on the request."""
+        """Generate questions based on the request (non-reading questions)."""
         start_time = time.time()
         request_id = str(uuid.uuid4())
         
@@ -133,6 +133,7 @@ class QuestionService:
         except Exception as e:
             logger.error(f"Question generation failed: {e}")
             raise e
+    
     
     async def generate_complete_test(self, request: CompleteTestRequest) -> Dict[str, Any]:
         """Generate a complete SSAT practice test."""
@@ -393,58 +394,60 @@ class QuestionService:
             provider=provider
         )
         
+        # Generate reading passage using dedicated function
+        ssat_request = self._convert_to_ssat_request(section_request)
+        provider_name = provider.value if provider else None
+        
         if use_async:
             # For progressive generation - use async LLM calls
-            ssat_request = self._convert_to_ssat_request(section_request)
-            provider_name = provider.value if provider else None
-            questions = await generate_questions_async(ssat_request, llm=provider_name)
-            
-            # Convert questions to API format
-            api_questions = []
-            for question in questions:
-                api_question = {
-                    "id": question.id,
-                    "question_type": question.question_type.value,
-                    "difficulty": question.difficulty.value,
-                    "text": question.text,
-                    "options": [
-                        {"letter": opt.letter, "text": opt.text} 
-                        for opt in question.options
-                    ],
-                    "correct_answer": question.correct_answer,
-                    "explanation": question.explanation,
-                    "cognitive_level": question.cognitive_level,
-                    "tags": question.tags,
-                    "metadata": question.metadata
-                }
-                
-                if question.visual_description and question.visual_description.strip() and \
-                   question.visual_description.lower() not in ["none", "no visual elements", "no visual elements required"]:
-                    api_question["visual_description"] = question.visual_description
-                api_questions.append(api_question)
-            
-            # Extract passage text from first question (temporary - needs proper passage generation)
-            first_question = api_questions[0] if api_questions else {}
-            passage_text = first_question.get("text", "Sample passage text would go here...")
+            from app.generator import generate_reading_passage_async
+            passage_result = await generate_reading_passage_async(ssat_request, llm=provider_name)
         else:
-            # For synchronous generation - use existing method
-            section_result = await self.generate_questions(section_request)
-            api_questions = section_result["questions"]
+            # For synchronous generation
+            from app.generator import generate_reading_passage
+            passage_result = generate_reading_passage(ssat_request, llm=provider_name)
+        
+        # Extract passage data and questions from result
+        passage_data = passage_result["passage"]
+        questions = passage_result["questions"]
+        
+        # Convert questions to API format
+        api_questions = []
+        for question in questions:
+            api_question = {
+                "id": question.id,
+                "question_type": question.question_type.value,
+                "difficulty": question.difficulty.value,
+                "text": question.text,
+                "options": [
+                    {"letter": opt.letter, "text": opt.text} 
+                    for opt in question.options
+                ],
+                "correct_answer": question.correct_answer,
+                "explanation": question.explanation,
+                "cognitive_level": question.cognitive_level,
+                "tags": question.tags,
+                "metadata": question.metadata
+            }
             
-            # Extract passage text from first question (temporary - needs proper passage generation)
-            first_question = section_result["questions"][0]
-            passage_text = first_question.get("text", "Sample passage text would go here...")
+            if question.visual_description and question.visual_description.strip() and \
+               question.visual_description.lower() not in ["none", "no visual elements", "no visual elements required"]:
+                api_question["visual_description"] = question.visual_description
+            api_questions.append(api_question)
+        
+        # Use passage text from the dedicated passage data
+        passage_text = passage_data.get("text", "Sample passage text")
         
         # Create passage ID and metadata
         passage_id = str(uuid.uuid4())
         
         return ReadingPassage(
             id=passage_id,
-            title=f"Passage {passage_number}",
+            title=passage_data.get("title") or f"Passage {passage_number}",
             text=passage_text,
-            passage_type=passage_type,
-            grade_level="3-4",
-            topic=f"Elementary Reading - {passage_type}",
+            passage_type=passage_data.get("passage_type", passage_type),
+            grade_level=passage_data.get("grade_level", "3-4"),
+            topic=passage_data.get("topic", f"Elementary Reading - {passage_type}"),
             questions=api_questions,
             metadata={"passage_number": passage_number, "difficulty": difficulty.value}
         )
