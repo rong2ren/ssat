@@ -40,7 +40,7 @@ interface JobStatus {
 
 export function ProgressiveTestGenerator({ 
   showChinese, 
-  onBack, 
+  onBack,
   testRequest 
 }: ProgressiveTestGeneratorProps) {
   const [jobId, setJobId] = useState<string | null>(null)
@@ -51,6 +51,44 @@ export function ProgressiveTestGenerator({
   const [elapsedTime, setElapsedTime] = useState<string>('0s')
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
   const elapsedTimerRef = useRef<number | null>(null)
+
+  // UI translations
+  const translations = {
+    'Generate Another Test': '生成另一个测试',
+    'Back to Form': '返回表单',
+    'Complete Test Generation': '完整测试生成',
+    'Test sections appear as they complete': '各测试部分将在完成后依次显示',
+    'Cancel': '取消',
+    'Generation Progress': '进度',
+    'Elapsed': '已用时间',
+    'Status': '状态',
+    'Sections Complete': '完成部分',
+    'Quantitative': '数学',
+    'Reading': '阅读',
+    'Writing': '写作',
+    'Verbal - Analogies': '语言 - 类比',
+    'Verbal - Synonyms': '语言 - 同义词',
+    'Verbal (Mixed)': '语言（混合）',
+    'Complete': '完成',
+    'Generating...': '生成中...',
+    'Waiting': '等待中',
+    'Test Generation Complete!': '测试生成完成！',
+    'Generated': '已生成',
+    'sections in': '个部分，用时',
+    'Your complete SSAT practice test is ready.': '您的完整SSAT练习测试已准备就绪。',
+    'Generation Error': '生成错误',
+    'pending': '等待中',
+    'running': '运行中',
+    'completed': '已完成',
+    'failed': '失败',
+    'cancelled': '已取消',
+    'questions': '题',
+    'question': '题',
+    'Sections appear as they complete': '各部分完成后显示',
+    'Complete SSAT Practice Test': '完整SSAT练习测试',
+    'Test sections': '包含'
+  }
+  const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
 
   // Default test configuration - Official SSAT Elementary sections with proper verbal distribution
   const defaultTestRequest = {
@@ -287,14 +325,22 @@ export function ProgressiveTestGenerator({
     const detail = jobStatus.section_details[sectionType]
     switch (detail.status) {
       case 'completed':
-        return 'Complete'
+        return t('Complete')
       case 'generating':
-        return 'Generating...'
+        return t('Generating...')
       case 'failed':
         return `Failed: ${detail.error || 'Unknown error'}`
       default:
-        return 'Waiting'
+        return t('Waiting')
     }
+  }
+
+  const getSectionCount = (section: string) => {
+    return (finalTestRequest.custom_counts as Record<string, number>)[section] || 0
+  }
+
+  const getQuestionText = (count: number) => {
+    return count === 1 ? t('question') : t('questions')
   }
 
 
@@ -304,21 +350,14 @@ export function ProgressiveTestGenerator({
       <div className="bg-white rounded-lg shadow-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-2xl font-semibold text-gray-800">Complete Test Generation</h2>
-            <p className="text-gray-600">
-              Sections appear as they complete
-            </p>
+            <h2 className="text-2xl font-semibold text-gray-800">{t('Complete SSAT Practice Test')}</h2>
           </div>
           
-          {onBack && (
-            <Button variant="outline" onClick={onBack}>
-              ← Back
-            </Button>
-          )}
         </div>
 
         {/* Controls */}
         <div className="flex items-center space-x-4">
+          {/* Cancel button - only during generation */}
           {isPolling && (
             <Button 
               variant="outline" 
@@ -326,20 +365,34 @@ export function ProgressiveTestGenerator({
               className="flex items-center space-x-2"
             >
               <Square className="h-4 w-4" />
-              <span>Cancel</span>
+              <span>{t('Cancel')}</span>
             </Button>
           )}
           
-          {jobStatus && !isPolling && (
-            <Button 
-              variant="outline" 
-              onClick={resetGenerator}
-              className="flex items-center space-x-2"
-            >
-              <RefreshCw className="h-4 w-4" />
-              <span>Generate New Test</span>
-            </Button>
+          {/* Post-completion buttons */}
+          {jobStatus?.status === 'completed' && (
+            <>
+              <Button 
+                variant="outline" 
+                onClick={resetGenerator}
+                className="flex items-center space-x-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span>{t('Generate Another Test')}</span>
+              </Button>
+              
+              {onBack && (
+                <Button 
+                  variant="outline" 
+                  onClick={onBack}
+                  className="flex items-center space-x-2"
+                >
+                  <span>← {t('Back to Form')}</span>
+                </Button>
+              )}
+            </>
           )}
+          
         </div>
       </div>
 
@@ -347,17 +400,34 @@ export function ProgressiveTestGenerator({
       {jobStatus && (
         <div className="bg-white rounded-lg shadow-lg p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-800">Generation Progress</h3>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800">{t('Generation Progress')}</h3>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <span className="text-sm text-gray-600">{t('Test sections')}:</span>
+                {finalTestRequest.include_sections.map((section) => {
+                  const count = getSectionCount(section)
+                  const sectionName = getSectionDisplayName(section)
+                  return (
+                    <div
+                      key={section}
+                      className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700"
+                    >
+                      {sectionName}: {count} {getQuestionText(count)}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
             <div className="flex items-center space-x-4 text-sm text-gray-600">
-              <span>Elapsed: {elapsedTime}</span>
-              <span>Status: {jobStatus.status}</span>
+              <span>{t('Elapsed')}: {elapsedTime}</span>
+              <span>{t('Status')}: {t(jobStatus.status)}</span>
             </div>
           </div>
           
           {/* Progress Bar */}
           <div className="mb-6">
             <div className="flex justify-between text-sm text-gray-600 mb-2">
-              <span>Sections Complete: {jobStatus.progress.completed}/{jobStatus.progress.total}</span>
+              <span>{t('Sections Complete')}: {jobStatus.progress.completed}/{jobStatus.progress.total}</span>
               <span>{jobStatus.progress.percentage}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
@@ -369,7 +439,7 @@ export function ProgressiveTestGenerator({
           </div>
           
           {/* Section Status */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             {Object.keys(jobStatus.section_details).map((sectionType) => (
               <div key={sectionType} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                 {getSectionStatusIcon(sectionType)}
@@ -380,6 +450,9 @@ export function ProgressiveTestGenerator({
               </div>
             ))}
           </div>
+          
+          {/* Explanatory text at bottom */}
+          <p className="text-gray-500 text-sm">{t('Test sections appear as they complete')}</p>
         </div>
       )}
 
@@ -389,7 +462,7 @@ export function ProgressiveTestGenerator({
           <div className="flex items-center">
             <AlertCircle className="h-5 w-5 text-red-500 mr-3" />
             <div>
-              <h3 className="font-medium text-red-800">Generation Error</h3>
+              <h3 className="font-medium text-red-800">{t('Generation Error')}</h3>
               <p className="text-sm text-red-700">{error}</p>
             </div>
           </div>
@@ -410,10 +483,10 @@ export function ProgressiveTestGenerator({
           <div className="flex items-center">
             <CheckCircle className="h-6 w-6 text-green-500 mr-3" />
             <div>
-              <h3 className="font-medium text-green-800">Test Generation Complete!</h3>
+              <h3 className="font-medium text-green-800">{t('Test Generation Complete!')}</h3>
               <p className="text-sm text-green-700">
-                Generated {jobStatus.progress.total} sections in {elapsedTime}. 
-                Your complete SSAT practice test is ready.
+                {t('Generated')} {jobStatus.progress.total} {t('sections in')} {elapsedTime}. 
+                {t('Your complete SSAT practice test is ready.')}
               </p>
             </div>
           </div>

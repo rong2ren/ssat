@@ -27,7 +27,7 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
     'Question Type': '题目类型',
     'Difficulty': '难度',
     'Number of Questions': '题目数量',
-    'Topic (Optional)': '主题（选填）',
+    'Topic (Optional)': '主题',
     'Generate Practice Questions': '生成练习题目',
     'Generating...': '生成中...',
     'Specify a topic to focus on (e.g., fractions, geometry, vocabulary)': '指定主题范围（例如：分数、几何、词汇）',

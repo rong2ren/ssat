@@ -16,7 +16,6 @@ export default function QuestionGenerator({ showChinese = false }: QuestionGener
   const [questions, setQuestions] = useState<Question[]>([])
   const [passages, setPassages] = useState<ReadingPassage[]>([])
   const [contentType, setContentType] = useState<'questions' | 'passages' | 'prompts'>('questions')
-  const [isProgressiveMode, setIsProgressiveMode] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeMode, setActiveMode] = useState('practice')
@@ -26,15 +25,17 @@ export default function QuestionGenerator({ showChinese = false }: QuestionGener
     custom_counts: Record<string, number>
     originalSelection?: string[] // What user actually selected for display
   } | null>(null)
+  const [showCompleteTest, setShowCompleteTest] = useState(false)
 
   // UI translations mapping
   const translations = {
-    'Practice Questions': '练习题目',
+    'Custom Practice': '自定义练习',
     'Complete Test': '完整测试',
-    'Generate 1-20 individual questions for targeted practice and skill building': '生成1-20道个人题目，进行针对性练习和技能培养',
-    'Generate a comprehensive SSAT practice test with multiple sections': '生成完整的SSAT模拟考试',
+    'Generate 1-20 individual questions for targeted practice and skill building': '生成1-20道同类型练习题目，进行针对性训练',
+    'Generate a comprehensive SSAT practice test with multiple sections': '生成完整的SSAT模拟考试测试',
     'Generating questions...': '正在生成题目...',
-    'Error generating questions': '生成题目时出错'
+    'Error generating questions': '生成题目时出错',
+    'Generate Another Test': '生成另一个测试'
   }
 
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
@@ -71,7 +72,7 @@ export default function QuestionGenerator({ showChinese = false }: QuestionGener
         setContentType('passages')
       } else if (data.prompts) {
         // Writing prompts - convert to question-like format for display
-        const promptQuestions = data.prompts.map((prompt, index) => ({
+        const promptQuestions = data.prompts.map((prompt: any, index: number) => ({
           id: `writing-${index}`,
           question_type: 'writing',
           difficulty: request.difficulty,
@@ -122,26 +123,31 @@ export default function QuestionGenerator({ showChinese = false }: QuestionGener
       })
     }
     
-    setIsProgressiveMode(true)
+    // Stay on the same page but show complete test generator
+    setShowCompleteTest(true)
     setQuestions([]) // Clear individual questions
+    setPassages([]) // Clear passages
     setError(null)
   }
 
-  // Show progressive test generator when in progressive mode
-  if (isProgressiveMode && testRequest) {
-    return (
-      <ProgressiveTestGenerator 
-        showChinese={showChinese}
-        testRequest={testRequest}
-        onBack={() => setIsProgressiveMode(false)}
-      />
-    )
+  const handleBackToForms = () => {
+    setShowCompleteTest(false)
+    setTestRequest(null)
+  }
+
+  const handleTabChange = (tabId: string) => {
+    setActiveMode(tabId)
+    // Clear complete test when switching away from complete tab
+    if (tabId !== 'complete') {
+      setShowCompleteTest(false)
+      setTestRequest(null)
+    }
   }
 
   const tabs = [
     {
       id: 'practice',
-      label: t('Practice Questions'),
+      label: t('Custom Practice'),
       icon: <span className="text-lg">🎯</span>,
       description: t('Generate 1-20 individual questions for targeted practice and skill building')
     },
@@ -161,7 +167,7 @@ export default function QuestionGenerator({ showChinese = false }: QuestionGener
         <Tabs 
           tabs={tabs} 
           defaultTab="practice"
-          onTabChange={setActiveMode}
+          onTabChange={handleTabChange}
         />
 
         {/* Practice Questions Form */}
@@ -175,11 +181,22 @@ export default function QuestionGenerator({ showChinese = false }: QuestionGener
 
         {/* Complete Test Form */}
         <TabContent activeTab={activeMode} tabId="complete">
-          <CompleteTestForm
-            onSubmit={handleGenerateCompleteTest}
-            loading={loading}
-            showChinese={showChinese}
-          />
+          {!showCompleteTest ? (
+            <CompleteTestForm
+              onSubmit={handleGenerateCompleteTest}
+              loading={loading}
+              showChinese={showChinese}
+            />
+          ) : (
+            <div className="space-y-4">
+              {/* Progressive Test Generator */}
+              <ProgressiveTestGenerator 
+                showChinese={showChinese}
+                testRequest={testRequest || undefined}
+                onBack={handleBackToForms}
+              />
+            </div>
+          )}
         </TabContent>
       </div>
 
@@ -219,6 +236,7 @@ export default function QuestionGenerator({ showChinese = false }: QuestionGener
           )}
         </>
       )}
+
     </div>
   )
 }
