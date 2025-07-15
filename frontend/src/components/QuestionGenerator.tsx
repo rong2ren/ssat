@@ -137,11 +137,7 @@ export default function QuestionGenerator({ showChinese = false }: QuestionGener
 
   const handleTabChange = (tabId: string) => {
     setActiveMode(tabId)
-    // Clear complete test when switching away from complete tab
-    if (tabId !== 'complete') {
-      setShowCompleteTest(false)
-      setTestRequest(null)
-    }
+    // Don't clear test state when switching tabs - preserve it for later viewing
   }
 
   const tabs = [
@@ -181,24 +177,26 @@ export default function QuestionGenerator({ showChinese = false }: QuestionGener
 
         {/* Complete Test Form */}
         <TabContent activeTab={activeMode} tabId="complete">
-          {!showCompleteTest ? (
+          {!showCompleteTest && (
             <CompleteTestForm
               onSubmit={handleGenerateCompleteTest}
               loading={loading}
               showChinese={showChinese}
             />
-          ) : (
-            <div className="space-y-4">
-              {/* Progressive Test Generator */}
-              <ProgressiveTestGenerator 
-                showChinese={showChinese}
-                testRequest={testRequest || undefined}
-                onBack={handleBackToForms}
-              />
-            </div>
           )}
         </TabContent>
       </div>
+
+      {/* Progressive Test Generator - rendered outside tabs to persist across tab switches */}
+      {showCompleteTest && (
+        <div style={{ display: activeMode === 'complete' ? 'block' : 'none' }}>
+          <ProgressiveTestGenerator 
+            showChinese={showChinese}
+            testRequest={testRequest || undefined}
+            onBack={handleBackToForms}
+          />
+        </div>
+      )}
 
       {/* Error Display */}
       {error && (

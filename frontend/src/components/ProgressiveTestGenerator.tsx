@@ -41,7 +41,7 @@ interface JobStatus {
 export function ProgressiveTestGenerator({ 
   showChinese, 
   onBack,
-  testRequest 
+  testRequest
 }: ProgressiveTestGeneratorProps) {
   const [jobId, setJobId] = useState<string | null>(null)
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null)
@@ -86,7 +86,14 @@ export function ProgressiveTestGenerator({
     'question': '题',
     'Sections appear as they complete': '各部分完成后显示',
     'Complete SSAT Practice Test': '完整SSAT练习测试',
-    'Test sections': '包含'
+    'Test sections': '包含',
+    'LIVE': '实时',
+    'Generating Test': '正在生成测试',
+    'Test Complete': '已完成',
+    'Test Failed': '生成失败',
+    'Test Cancelled': '已取消',
+    'elapsed': '已用时',
+    'sections complete': '部分已完成'
   }
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
 
@@ -293,12 +300,12 @@ export function ProgressiveTestGenerator({
   // Get display name for sections with descriptive labels
   const getSectionDisplayName = (sectionType: string) => {
     const nameMap: Record<string, string> = {
-      'quantitative': 'Quantitative',
-      'reading': 'Reading',
-      'writing': 'Writing',
-      'analogy': 'Verbal - Analogies',
-      'synonym': 'Verbal - Synonyms',
-      'verbal': 'Verbal (Mixed)'
+      'quantitative': t('Quantitative'),
+      'reading': t('Reading'),
+      'writing': t('Writing'),
+      'analogy': t('Verbal - Analogies'),
+      'synonym': t('Verbal - Synonyms'),
+      'verbal': t('Verbal (Mixed)')
     }
     return nameMap[sectionType] || sectionType.charAt(0).toUpperCase() + sectionType.slice(1)
   }
@@ -343,6 +350,21 @@ export function ProgressiveTestGenerator({
     return count === 1 ? t('question') : t('questions')
   }
 
+  const getStatusText = () => {
+    if (!jobStatus) return t('Generating Test')
+    
+    switch (jobStatus.status) {
+      case 'completed':
+        return t('Test Complete')
+      case 'failed':
+        return t('Test Failed')
+      case 'cancelled':
+        return t('Test Cancelled')
+      default:
+        return t('Generating Test')
+    }
+  }
+
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -351,6 +373,23 @@ export function ProgressiveTestGenerator({
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-2xl font-semibold text-gray-800">{t('Complete SSAT Practice Test')}</h2>
+            
+            {/* Test Sections Info */}
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <span className="text-sm text-gray-600">{t('Test sections')}:</span>
+              {finalTestRequest.include_sections.map((section) => {
+                const count = getSectionCount(section)
+                const sectionName = getSectionDisplayName(section)
+                return (
+                  <div
+                    key={section}
+                    className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700"
+                  >
+                    {sectionName}: {count} {getQuestionText(count)}
+                  </div>
+                )
+              })}
+            </div>
           </div>
           
         </div>
@@ -399,44 +438,37 @@ export function ProgressiveTestGenerator({
       {/* Progress Tracking */}
       {jobStatus && (
         <div className="bg-white rounded-lg shadow-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-800">{t('Generation Progress')}</h3>
-              <div className="flex flex-wrap gap-2 mt-2">
-                <span className="text-sm text-gray-600">{t('Test sections')}:</span>
-                {finalTestRequest.include_sections.map((section) => {
-                  const count = getSectionCount(section)
-                  const sectionName = getSectionDisplayName(section)
-                  return (
-                    <div
-                      key={section}
-                      className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700"
-                    >
-                      {sectionName}: {count} {getQuestionText(count)}
-                    </div>
-                  )
-                })}
+          {/* Prominent Status Card */}
+          <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-4 mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="font-medium text-sm">{t('LIVE')}</span>
+                </div>
+                <span className="text-lg font-semibold">{getStatusText()}</span>
+                <span className="text-blue-100">• {showChinese ? `${t('elapsed')}：${elapsedTime}` : `${elapsedTime} ${t('elapsed')}`}</span>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold">
+                  {jobStatus.progress.completed}/{jobStatus.progress.total} {t('sections complete')} ({jobStatus.progress.percentage}%)
+                </div>
               </div>
             </div>
-            <div className="flex items-center space-x-4 text-sm text-gray-600">
-              <span>{t('Elapsed')}: {elapsedTime}</span>
-              <span>{t('Status')}: {t(jobStatus.status)}</span>
+            
+            {/* Enhanced Progress Bar */}
+            <div className="mt-3">
+              <div className="w-full bg-blue-400 bg-opacity-30 rounded-full h-3">
+                <div 
+                  className="bg-white h-3 rounded-full transition-all duration-500 ease-out flex items-center justify-end pr-2"
+                  style={{ width: `${Math.max(jobStatus.progress.percentage, 8)}%` }}
+                >
+                  <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                </div>
+              </div>
             </div>
           </div>
-          
-          {/* Progress Bar */}
-          <div className="mb-6">
-            <div className="flex justify-between text-sm text-gray-600 mb-2">
-              <span>{t('Sections Complete')}: {jobStatus.progress.completed}/{jobStatus.progress.total}</span>
-              <span>{jobStatus.progress.percentage}%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
-                style={{ width: `${jobStatus.progress.percentage}%` }}
-              />
-            </div>
-          </div>
+
           
           {/* Section Status */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -477,21 +509,6 @@ export function ProgressiveTestGenerator({
         />
       )}
 
-      {/* Completion Message */}
-      {jobStatus?.status === 'completed' && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-          <div className="flex items-center">
-            <CheckCircle className="h-6 w-6 text-green-500 mr-3" />
-            <div>
-              <h3 className="font-medium text-green-800">{t('Test Generation Complete!')}</h3>
-              <p className="text-sm text-green-700">
-                {t('Generated')} {jobStatus.progress.total} {t('sections in')} {elapsedTime}. 
-                {t('Your complete SSAT practice test is ready.')}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
