@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional
 from loguru import logger
 
 # Import SSAT modules (now local)
-from app.core_models import QuestionRequest, QuestionType as SSATQuestionType, DifficultyLevel as SSATDifficultyLevel
+from app.models import QuestionRequest, QuestionType as SSATQuestionType, DifficultyLevel as SSATDifficultyLevel
 from app.generator import generate_questions, generate_questions_async, SSATGenerator
 from app.settings import settings
 from app.models.requests import QuestionGenerationRequest, CompleteTestRequest, QuestionType, DifficultyLevel

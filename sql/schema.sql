@@ -249,6 +249,34 @@ BEGIN
 END;
 $$;
 
+-- Function to get writing training examples
+CREATE OR REPLACE FUNCTION get_writing_training_examples(
+    topic_filter TEXT DEFAULT NULL,
+    limit_count INT DEFAULT 3
+)
+RETURNS TABLE (
+    id TEXT,
+    prompt TEXT,
+    visual_description TEXT,
+    tags TEXT[]
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        wp.id,
+        wp.prompt,
+        wp.visual_description,
+        wp.tags
+    FROM writing_prompts wp
+    WHERE 
+        (topic_filter IS NULL OR wp.prompt ILIKE '%' || topic_filter || '%')
+    ORDER BY RANDOM()
+    LIMIT limit_count;
+END;
+$$;
+
 -- ========================================
 -- AI TRAINING VIEW
 -- ========================================
@@ -297,5 +325,6 @@ COMMENT ON FUNCTION get_training_examples_by_embedding IS 'Get semantically simi
 COMMENT ON FUNCTION get_training_examples_by_section IS 'Get SSAT questions by section/difficulty when no topic specified';
 COMMENT ON FUNCTION get_reading_training_examples IS 'Get reading comprehension examples for AI training';
 COMMENT ON FUNCTION get_reading_questions_for_passage IS 'Get all questions for a specific reading passage';
+COMMENT ON FUNCTION get_writing_training_examples IS 'Get writing prompt examples for AI training';
 
 COMMENT ON VIEW ai_training_examples IS 'Unified view of all questions for AI training context';

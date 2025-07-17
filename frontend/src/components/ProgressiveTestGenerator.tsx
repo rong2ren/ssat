@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { TestSection } from '@/types/api'
 import { TestDisplay } from './TestDisplay'
 import { Button } from './ui/Button'
-import { Square, RefreshCw, Clock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { RefreshCw, Clock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 
 interface ProgressiveTestGeneratorProps {
   showChinese: boolean
@@ -58,7 +58,6 @@ export function ProgressiveTestGenerator({
     'Back to Form': '返回表单',
     'Complete Test Generation': '完整测试生成',
     'Test sections appear as they complete': '各测试部分将在完成后依次显示',
-    'Cancel': '取消',
     'Generation Progress': '进度',
     'Elapsed': '已用时间',
     'Status': '状态',
@@ -81,7 +80,6 @@ export function ProgressiveTestGenerator({
     'running': '运行中',
     'completed': '已完成',
     'failed': '失败',
-    'cancelled': '已取消',
     'questions': '题',
     'question': '题',
     'Sections appear as they complete': '各部分完成后显示',
@@ -91,7 +89,6 @@ export function ProgressiveTestGenerator({
     'Generating Test': '正在生成测试',
     'Test Complete': '已完成',
     'Test Failed': '生成失败',
-    'Test Cancelled': '已取消',
     'elapsed': '已用时',
     'sections complete': '部分已完成'
   }
@@ -242,25 +239,6 @@ export function ProgressiveTestGenerator({
     poll()
   }
 
-  const cancelGeneration = async () => {
-    if (!jobId) return
-
-    try {
-      const response = await fetch(`/api/generate/complete-test/${jobId}`, {
-        method: 'DELETE',
-      })
-
-      if (response.ok) {
-        setIsPolling(false)
-        stopElapsedTimeCounter()
-        if (pollingRef.current) {
-          clearTimeout(pollingRef.current)
-        }
-      }
-    } catch (err) {
-      console.error('Failed to cancel:', err)
-    }
-  }
 
   const resetGenerator = () => {
     // Clear current state
@@ -358,8 +336,6 @@ export function ProgressiveTestGenerator({
         return t('Test Complete')
       case 'failed':
         return t('Test Failed')
-      case 'cancelled':
-        return t('Test Cancelled')
       default:
         return t('Generating Test')
     }
@@ -391,18 +367,6 @@ export function ProgressiveTestGenerator({
 
         {/* Controls - moved right below header */}
         <div className="flex items-center space-x-4 mb-6">
-          {/* Cancel button - only during generation */}
-          {isPolling && (
-            <Button 
-              variant="outline" 
-              onClick={cancelGeneration}
-              className="flex items-center space-x-2"
-            >
-              <Square className="h-4 w-4" />
-              <span>{t('Cancel')}</span>
-            </Button>
-          )}
-          
           {/* Post-completion buttons */}
           {jobStatus?.status === 'completed' && (
             <>

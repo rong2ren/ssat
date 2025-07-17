@@ -4,10 +4,10 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Union, Literal
 from datetime import datetime
 
-class QuestionOption(BaseModel):
-    """Option for multiple choice questions."""
-    letter: str = Field(..., description="Option letter (A, B, C, D)")
-    text: str = Field(..., description="Option text")
+from .enums import QuestionType
+
+# Import Option from base module to avoid duplication
+from .base import Option
 
 class GeneratedQuestion(BaseModel):
     """A generated SSAT question."""
@@ -15,10 +15,11 @@ class GeneratedQuestion(BaseModel):
     question_type: str = Field(..., description="Type of question")
     difficulty: str = Field(..., description="Difficulty level")
     text: str = Field(..., description="Question text")
-    options: List[QuestionOption] = Field(default_factory=list, description="Answer options")
+    options: List[Option] = Field(default_factory=list, description="Answer options")
     correct_answer: str = Field(..., description="Correct answer (A, B, C, or D)")
     explanation: str = Field(..., description="Detailed explanation")
     cognitive_level: str = Field(..., description="Cognitive complexity level")
+    subsection: Optional[str] = Field(default=None, description="AI-generated subsection categorization")
     tags: List[str] = Field(default_factory=list, description="Question tags")
     visual_description: Optional[str] = Field(default=None, description="Visual elements description")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
@@ -28,6 +29,7 @@ class GenerationMetadata(BaseModel):
     generation_time: float = Field(..., description="Time taken to generate questions (seconds)")
     provider_used: str = Field(..., description="LLM provider used")
     training_examples_count: int = Field(..., description="Number of training examples used")
+    training_example_ids: List[str] = Field(default_factory=list, description="IDs of training examples used")
     request_id: Optional[str] = Field(default=None, description="Unique request identifier")
     timestamp: datetime = Field(default_factory=datetime.now, description="Generation timestamp")
 
@@ -50,6 +52,8 @@ class WritingPrompt(BaseModel):
     grade_level: str = Field(default="3-4", description="Target grade level")
     story_elements: List[str] = Field(default_factory=list, description="Suggested story elements")
     prompt_type: str = Field(default="picture_story", description="Type of writing prompt")
+    tags: List[str] = Field(default_factory=list, description="Writing skills and element tags")
+    subsection: Optional[str] = Field(default=None, description="AI-generated subsection categorization")
     
     def model_dump(self, **kwargs):
         """Custom serialization to exclude empty visual descriptions."""
@@ -66,21 +70,21 @@ class WritingPrompt(BaseModel):
 
 class StandaloneSection(BaseModel):
     """Section with independent questions (math, verbal, analogy, synonym)."""
-    section_type: Literal["quantitative", "verbal", "analogy", "synonym"] = Field(..., description="Type of standalone section")
+    section_type: Literal[QuestionType.QUANTITATIVE, QuestionType.VERBAL, QuestionType.ANALOGY, QuestionType.SYNONYM] = Field(..., description="Type of standalone section")
     questions: List[GeneratedQuestion] = Field(..., description="Independent questions")
     time_limit_minutes: int = Field(..., description="Time limit for this section")
     instructions: str = Field(..., description="Section instructions")
 
 class ReadingSection(BaseModel):
     """Reading comprehension section with passages and questions."""
-    section_type: Literal["reading"] = Field(..., description="Reading section identifier")
+    section_type: Literal[QuestionType.READING] = Field(..., description="Reading section identifier")
     passages: List[ReadingPassage] = Field(..., description="Reading passages with questions")
     time_limit_minutes: int = Field(..., description="Time limit for this section")
     instructions: str = Field(..., description="Section instructions")
 
 class WritingSection(BaseModel):
     """Writing section with a single prompt."""
-    section_type: Literal["writing"] = Field(..., description="Writing section identifier")
+    section_type: Literal[QuestionType.WRITING] = Field(..., description="Writing section identifier")
     prompt: WritingPrompt = Field(..., description="Writing prompt")
     time_limit_minutes: int = Field(..., description="Time limit for this section")
     instructions: str = Field(..., description="Section instructions")

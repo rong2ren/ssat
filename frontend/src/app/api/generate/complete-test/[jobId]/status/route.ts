@@ -35,35 +35,3 @@ export async function GET(
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ jobId: string }> }
-) {
-  try {
-    const { jobId } = await params
-    
-    const response = await fetch(`${BACKEND_URL}/generate/complete-test/${jobId}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      return NextResponse.json(
-        { error: `Backend error: ${response.status} - ${errorText}` },
-        { status: response.status }
-      )
-    }
-
-    const data = await response.json()
-    return NextResponse.json(data)
-  } catch (error) {
-    console.error('API proxy error:', error)
-    return NextResponse.json(
-      { error: 'Failed to connect to backend' },
-      { status: 500 }
-    )
-  }
-}

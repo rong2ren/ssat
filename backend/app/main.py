@@ -29,6 +29,7 @@ from app.services.question_service import QuestionService
 from app.services.unified_content_service import UnifiedContentService
 from app.services.llm_service import LLMService
 from app.services.ssat_test_service import ssat_test_service
+from app.services.ai_content_service import AIContentService
 
 # Loguru is configured automatically
 
@@ -54,6 +55,7 @@ app.add_middleware(
 question_service = QuestionService()  # Keep for complete test generation
 content_service = UnifiedContentService()  # New unified service for individual content
 llm_service = LLMService()
+ai_content_service = AIContentService()  # Service for saving AI-generated content
 
 @app.get("/", response_model=HealthResponse)
 async def root():
@@ -105,6 +107,104 @@ async def generate_content(request: QuestionGenerationRequest):
         # Use unified content service for proper type-specific generation
         result = await content_service.generate_content(request)
         
+        # Save AI-generated content to database
+        try:
+            import uuid
+            session_id = str(uuid.uuid4())
+            
+            # Create session for single content generation
+            await ai_content_service.create_generation_session(session_id, {
+                "question_type": request.question_type.value,
+                "count": request.count,
+                "difficulty": request.difficulty.value if request.difficulty else None,
+                "topic": request.topic,
+                "provider": request.provider.value if request.provider else None
+            })
+            
+            # Save the generated content based on actual response type (using proper type narrowing)
+            training_example_ids = result.metadata.training_example_ids if hasattr(result.metadata, 'training_example_ids') else []
+            
+            if isinstance(result, WritingGenerationResponse):
+                # WritingGenerationResponse has .prompts
+                logger.info(f"Saving writing prompts to database - session: {session_id}, prompts count: {len(result.prompts)}")
+                await ai_content_service.save_writing_prompts(session_id, {"writing_prompts": result.prompts}, training_example_ids)
+                logger.info(f"Successfully saved writing prompts to database")
+            elif isinstance(result, ReadingGenerationResponse):
+                # ReadingGenerationResponse has .passages
+                logger.info(f"Saving reading content to database - session: {session_id}, passages count: {len(result.passages)}")
+                await ai_content_service.save_reading_content(
+                    session_id, 
+                    {"reading_sections": result.passages}, 
+                    training_example_ids,
+                    topic=request.topic  # Pass the topic for tagging
+                )
+                logger.info(f"Successfully saved reading content to database")
+            elif isinstance(result, QuestionGenerationResponse):
+                # Regular questions (quantitative, analogy, synonym, verbal)
+                # QuestionGenerationResponse has .questions
+                section_name = "Quantitative" if request.question_type.value == "quantitative" else "Verbal"
+                
+                # Use AI-determined subsection - DO NOT OVERRIDE the AI's intelligent categorization
+                if request.question_type.value == "analogy":
+                    subsection = "Analogies"  # Fixed subsection for analogy questions
+                elif request.question_type.value == "synonym":
+                    subsection = "Synonyms"  # Fixed subsection for synonym questions
+                else:
+                    # For quantitative and verbal questions, ALWAYS use AI-determined subsection
+                    # The AI has analyzed the content and provided specific, educational categorization
+                    subsection = None  # Will be extracted per question in save_generated_questions
+                
+                # Get training example IDs by fetching recent examples for this question type
+                try:
+                    from app.generator import SSATGenerator
+                    from app.models import QuestionRequest, QuestionType as SSATQuestionType, DifficultyLevel as SSATDifficultyLevel
+                    
+                    # Map API types to internal types
+                    ssat_type_mapping = {
+                        "quantitative": SSATQuestionType.QUANTITATIVE,
+                        "analogy": SSATQuestionType.ANALOGY,
+                        "synonym": SSATQuestionType.SYNONYM,
+                        "verbal": SSATQuestionType.VERBAL
+                    }
+                    ssat_difficulty_mapping = {
+                        "Easy": SSATDifficultyLevel.EASY,
+                        "Medium": SSATDifficultyLevel.MEDIUM,
+                        "Hard": SSATDifficultyLevel.HARD
+                    }
+                    
+                    # Create internal request to get training examples
+                    ssat_request = QuestionRequest(
+                        question_type=ssat_type_mapping.get(request.question_type.value, SSATQuestionType.VERBAL),
+                        difficulty=ssat_difficulty_mapping.get(request.difficulty.value if request.difficulty else "Medium", SSATDifficultyLevel.MEDIUM),
+                        topic=request.topic,
+                        count=request.count
+                    )
+                    
+                    generator = SSATGenerator()
+                    training_examples = generator.get_training_examples(ssat_request)
+                    training_example_ids = [ex.get('id', '') for ex in training_examples if ex.get('id')]
+                    
+                    logger.info(f"Captured training example IDs for saving: {training_example_ids}")
+                except Exception as e:
+                    logger.warning(f"Could not capture training example IDs: {e}")
+                    training_example_ids = []
+                
+                await ai_content_service.save_generated_questions(
+                    session_id, 
+                    result.questions,
+                    section_name, 
+                    subsection or "",  # Convert None to empty string
+                    training_example_ids
+                )
+            
+            # Update session as completed
+            await ai_content_service.update_session_status(session_id, "completed", request.count)
+            logger.info(f"Saved single content generation to database: session {session_id}")
+            
+        except Exception as save_error:
+            logger.error(f"Failed to save single content generation: {save_error}")
+            # Continue without failing the request
+        
         # Return the type-specific response (QuestionGenerationResponse, ReadingGenerationResponse, or WritingGenerationResponse)
         return result
         
@@ -138,6 +238,14 @@ async def start_progressive_test_generation(request: CompleteTestRequest):
         
         # Create job with request data
         job_id = job_manager.create_job({
+            "difficulty": request.difficulty.value,
+            "include_sections": [section.value for section in request.include_sections],
+            "custom_counts": request.custom_counts,
+            "provider": request.provider.value if request.provider else None
+        })
+        
+        # Create AI generation session for tracking
+        await ai_content_service.create_generation_session(job_id, {
             "difficulty": request.difficulty.value,
             "include_sections": [section.value for section in request.include_sections],
             "custom_counts": request.custom_counts,
@@ -191,33 +299,14 @@ async def get_test_generation_status(job_id: str):
         logger.error(f"Failed to get job status: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get job status: {str(e)}")
 
-@app.delete("/generate/complete-test/{job_id}")
-async def cancel_test_generation(job_id: str):
-    """Cancel a progressive test generation job."""
-    try:
-        from app.services.job_manager import job_manager
-        
-        job = job_manager.get_job(job_id)
-        if not job:
-            raise HTTPException(status_code=404, detail="Job not found")
-        
-        job_manager.cancel_job(job_id)
-        
-        return {
-            "job_id": job_id,
-            "status": "cancelled",
-            "message": "Test generation cancelled successfully"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to cancel job: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to cancel job: {str(e)}")
 
 async def generate_test_sections_background(job_id: str, request: CompleteTestRequest):
     """Background task to generate test sections in parallel."""
     from app.services.job_manager import job_manager, JobStatus
+    
+    start_time = time.time()
+    providers_used = set()
+    total_questions = 0
     
     try:
         job_manager.update_job_status(job_id, JobStatus.RUNNING)
@@ -233,15 +322,46 @@ async def generate_test_sections_background(job_id: str, request: CompleteTestRe
         # Wait for all sections to complete (or fail)
         await asyncio.gather(*section_tasks, return_exceptions=True)
         
-        # Check final job status
+        # Check final job status and update AI session
         job = job_manager.get_job(job_id)
         if job and job.completed_sections == job.total_sections:
             job_manager.update_job_status(job_id, JobStatus.COMPLETED)
-            logger.info(f"All sections completed for job {job_id}")
+            
+            # Count total questions and providers used
+            for section_progress in job.sections.values():
+                if section_progress.section_data:
+                    section_data = section_progress.section_data
+                    if 'questions' in section_data:
+                        total_questions += len(section_data['questions'])
+                    elif 'reading_sections' in section_data:
+                        for reading_section in section_data['reading_sections']:
+                            total_questions += len(reading_section.get('questions', []))
+                    elif 'writing_prompts' in section_data:
+                        total_questions += len(section_data['writing_prompts'])
+                    
+                    # Track provider used
+                    if 'metadata' in section_data and 'provider_used' in section_data['metadata']:
+                        providers_used.add(section_data['metadata']['provider_used'])
+            
+            # Update AI session with final statistics
+            generation_time_ms = int((time.time() - start_time) * 1000)
+            await ai_content_service.update_session_status(
+                job_id, 
+                "completed", 
+                total_questions, 
+                list(providers_used), 
+                generation_time_ms
+            )
+            
+            logger.info(f"All sections completed for job {job_id}: {total_questions} questions, {generation_time_ms}ms")
+        else:
+            # Update session as failed
+            await ai_content_service.update_session_status(job_id, "failed")
         
     except Exception as e:
         logger.error(f"Background generation failed for job {job_id}: {e}")
         job_manager.update_job_status(job_id, JobStatus.FAILED, str(e))
+        await ai_content_service.update_session_status(job_id, "failed")
 
 async def generate_single_section_background(job_id: str, section_type, request: CompleteTestRequest):
     """Generate a single section in the background."""
@@ -283,6 +403,14 @@ async def generate_single_section_background(job_id: str, section_type, request:
             section_data = section.model_dump()
         else:
             section_data = section.__dict__
+        
+        # Save AI-generated content to database
+        try:
+            saved_ids = await ai_content_service.save_test_section(job_id, section)
+            logger.info(f"Saved AI content for section {section_type.value}: {saved_ids}")
+        except Exception as e:
+            logger.error(f"Failed to save AI content for section {section_type.value}: {e}")
+            # Continue with job completion even if saving fails
         
         job_manager.complete_section(job_id, section_type.value, section_data)
         logger.info(f"Completed section {section_type.value} for job {job_id}")
@@ -384,4 +512,5 @@ async def general_exception_handler(request, exc):
     )
 
 if __name__ == "__main__":
+    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)

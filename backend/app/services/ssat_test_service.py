@@ -2,7 +2,7 @@
 
 import random
 from typing import List, Dict, Any
-from ..core_models import CompleteSSATTest, TestSection, WritingPrompt, Question, QuestionRequest
+from ..models import CompleteSSATTest, TestSection, WritingPrompt, Question, QuestionRequest, QuestionType
 from ..generator import generate_questions
 from ..specifications import OFFICIAL_ELEMENTARY_SPECS, ELEMENTARY_WRITING_PROMPTS
 from ..models.requests import CompleteElementaryTestRequest
@@ -149,7 +149,7 @@ class SSATTestService:
         for topic, count in topics_counts:
             if count > 0:
                 topic_request = QuestionRequest(
-                    question_type="quantitative",
+                    question_type=QuestionType.QUANTITATIVE,
                     difficulty=difficulty,
                     topic=topic,
                     count=count
@@ -179,7 +179,7 @@ class SSATTestService:
         
         # Generate synonym questions
         synonym_request = QuestionRequest(
-            question_type="synonym",
+            question_type=QuestionType.SYNONYM,
             difficulty=difficulty,
             count=synonym_count
         )
@@ -188,7 +188,7 @@ class SSATTestService:
         
         # Generate analogy questions
         analogy_request = QuestionRequest(
-            question_type="analogy", 
+            question_type=QuestionType.ANALOGY, 
             difficulty=difficulty,
             count=analogy_count
         )
@@ -207,7 +207,7 @@ class SSATTestService:
         target_count = 3 if testing_mode else 28
         
         reading_request = QuestionRequest(
-            question_type="reading",
+            question_type=QuestionType.READING,
             difficulty=difficulty,
             count=target_count
         )

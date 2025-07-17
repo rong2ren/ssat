@@ -9,15 +9,22 @@ This module provides the correct architecture for generating different types of 
 
 import time
 import uuid
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional, Union, NamedTuple
 from loguru import logger
 
-from app.core_models import QuestionRequest, QuestionType, DifficultyLevel, Question, Option
+from app.models import QuestionRequest, QuestionType, DifficultyLevel, Question, Option
 from app.generator import SSATGenerator, generate_questions, generate_reading_passage
 from app.llm import llm_client, LLMProvider
 from app.util import extract_json_from_text
 from app.specifications import OFFICIAL_ELEMENTARY_SPECS, ELEMENTARY_WRITING_PROMPTS
 import random
+
+
+class GenerationResult(NamedTuple):
+    """Result of content generation with metadata."""
+    content: Union[List[Question], List['ReadingPassage'], List['WritingPrompt']]
+    training_example_ids: List[str]
+    provider_used: str
 
 
 class ReadingPassage:
@@ -59,6 +66,8 @@ class WritingPrompt:
         self.grade_level = prompt_data.get("grade_level", "3-4")
         self.story_elements = prompt_data.get("story_elements", [])
         self.prompt_type = prompt_data.get("prompt_type", "picture_story")
+        self.subsection = prompt_data.get("subsection", "Picture Story")  # AI-determined subsection
+        self.tags = prompt_data.get("tags", [])  # AI-determined tags
 
 
 # Type-specific generation functions
@@ -77,14 +86,25 @@ def generate_standalone_questions(request: QuestionRequest, llm: Optional[str] =
     return questions
 
 
-def generate_reading_passages(request: QuestionRequest, llm: Optional[str] = None) -> List[ReadingPassage]:
-    """Generate reading passages with 4 questions each."""
-    logger.info(f"Generating {request.count} reading passages")
+def generate_reading_passages_with_metadata(request: QuestionRequest, llm: Optional[str] = None) -> GenerationResult:
+    """Generate reading passages with training examples metadata.
+    
+    Returns GenerationResult with content, training_example_ids, and provider_used.
+    """
+    logger.info(f"Generating {request.count} reading passages with metadata")
     
     if request.question_type.value != "reading":
         raise ValueError("This function only generates reading passages")
     
     passages = []
+    all_training_example_ids = []
+    provider_used = "auto-selected"
+    
+    # Get training examples once to capture IDs
+    from app.generator import SSATGenerator
+    generator = SSATGenerator()
+    training_examples = generator.get_reading_training_examples()
+    training_example_ids = [ex.get('question_id', '') for ex in training_examples if ex.get('question_id')]
     
     # Official SSAT: 7 passages × 4 questions = 28 questions
     # For individual requests, generate requested number of passages
@@ -102,18 +122,35 @@ def generate_reading_passages(request: QuestionRequest, llm: Optional[str] = Non
         passage_data = result["passage"]
         questions = result["questions"]
         
+        # Capture provider used (from the result if available)
+        if "provider_used" in result:
+            provider_used = result["provider_used"]
+        elif llm:
+            provider_used = llm
+        
         # Create ReadingPassage object
         passage = ReadingPassage(passage_data, questions)
         passages.append(passage)
         
         logger.info(f"Generated reading passage {i+1}/{request.count} with {len(questions)} questions")
     
-    logger.info(f"Generated {len(passages)} reading passages total")
-    return passages
+    logger.info(f"Generated {len(passages)} reading passages total with {len(training_example_ids)} training examples")
+    return GenerationResult(
+        content=passages,
+        training_example_ids=training_example_ids,
+        provider_used=provider_used
+    )
 
+def generate_reading_passages(request: QuestionRequest, llm: Optional[str] = None) -> List[ReadingPassage]:
+    """Generate reading passages with 4 questions each. (Backward compatibility wrapper)"""
+    result = generate_reading_passages_with_metadata(request, llm)
+    return result.content
 
-def generate_writing_prompts(request: QuestionRequest, llm: Optional[str] = None) -> List[WritingPrompt]:
-    """Generate writing prompts using AI with real SSAT training examples."""
+def generate_writing_prompts_with_metadata(request: QuestionRequest, llm: Optional[str] = None) -> GenerationResult:
+    """Generate writing prompts using AI with real SSAT training examples.
+    
+    Returns GenerationResult with content, training_example_ids, and provider_used.
+    """
     logger.info(f"Generating {request.count} writing prompts with AI")
     
     if request.question_type.value != "writing":
@@ -127,9 +164,13 @@ def generate_writing_prompts(request: QuestionRequest, llm: Optional[str] = None
         training_examples = generator.get_writing_training_examples(request.topic)
         system_message = generator.build_writing_few_shot_prompt(request, training_examples)
         
+        # Extract training example IDs
+        training_example_ids = [ex.get('id', '') for ex in training_examples if ex.get('id')]
+        
         # Log training info
         if training_examples:
             logger.info(f"Using {len(training_examples)} real SSAT writing examples for training")
+            logger.info(f"Training example IDs: {training_example_ids}")
         else:
             logger.info("No writing training examples found, using generic AI prompt")
         
@@ -177,13 +218,27 @@ def generate_writing_prompts(request: QuestionRequest, llm: Optional[str] = None
             prompts.append(prompt)
         
         logger.info(f"Successfully generated {len(prompts)} writing prompts using {'real SSAT examples' if training_examples else 'generic AI prompt'}")
-        return prompts
+        return GenerationResult(
+            content=prompts, 
+            training_example_ids=training_example_ids,
+            provider_used=provider.value
+        )
         
     except Exception as e:
         logger.error(f"Error in AI writing prompt generation: {e}")
         # Fallback to static prompts
         logger.info("Falling back to static writing prompts")
-        return generate_static_writing_prompts(request)
+        static_prompts = generate_static_writing_prompts(request)
+        return GenerationResult(
+            content=static_prompts,
+            training_example_ids=[],  # No training examples for static prompts
+            provider_used="static"
+        )
+
+def generate_writing_prompts(request: QuestionRequest, llm: Optional[str] = None) -> List[WritingPrompt]:
+    """Generate writing prompts using AI with real SSAT training examples. (Backward compatibility wrapper)"""
+    result = generate_writing_prompts_with_metadata(request, llm)
+    return result.content
 
 def generate_static_writing_prompts(request: QuestionRequest) -> List[WritingPrompt]:
     """Fallback function that uses the current static approach."""

@@ -6,7 +6,7 @@ from typing import List, Optional, Dict, Any
 from supabase import create_client, Client
 from sentence_transformers import SentenceTransformer
 
-from app.core_models import Question, Option, QuestionRequest
+from app.models import Question, Option, QuestionRequest
 from loguru import logger
 from app.llm import llm_client, LLMProvider
 from app.util import extract_json_from_text
@@ -122,33 +122,38 @@ class SSATGenerator:
     def get_writing_training_examples(self, topic: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get writing prompt training examples from database."""
         try:
-            # For now, return empty list since we don't have real writing training data
-            # This function is ready for when writing prompts are properly uploaded to database
-            logger.info("Writing training examples not yet available in database")
-            return []
+            if topic:
+                # Use topic-filtered search for specific topics
+                response = self.supabase.rpc('get_writing_training_examples', {
+                    'topic_filter': topic,
+                    'limit_count': 3
+                }).execute()
+                
+                if response.data:
+                    logger.info(f"Found {len(response.data)} writing training examples for topic '{topic}'")
+                    return response.data
             
-            # TODO: Implement when database has writing training examples
-            # if topic:
-            #     # Use embedding-based similarity search for specific topics
-            #     topic_query = f"writing prompt {topic}"
-            #     query_embedding = self.generate_embedding(topic_query)
-            #     
-            #     if query_embedding:
-            #         response = self.supabase.rpc('get_writing_training_examples', {
-            #             'query_embedding': query_embedding,
-            #             'topic_filter': topic,
-            #             'limit_count': 3
-            #         }).execute()
-            #         
-            #         if response.data:
-            #             return response.data
-            # 
-            # # Fallback: get random examples
-            # response = self.supabase.rpc('get_writing_training_examples', {
-            #     'limit_count': 3
-            # }).execute()
-            # 
-            # return response.data if response.data else []
+            # Fallback: get random examples
+            response = self.supabase.rpc('get_writing_training_examples', {
+                'limit_count': 3
+            }).execute()
+            
+            training_examples = response.data if response.data else []
+            
+            # Log each real SSAT writing example for debugging
+            for i, example in enumerate(training_examples, 1):
+                logger.info(f"REAL SSAT WRITING EXAMPLE {i}:")
+                logger.info(f"  Prompt: {example.get('prompt', 'N/A')}")
+                logger.info(f"  Visual Description: {example.get('visual_description', 'N/A')}")
+                logger.info(f"  Tags: {example.get('tags', 'N/A')}")
+                logger.info("---")
+            
+            if training_examples:
+                logger.info(f"📚 WRITING TRAINING SUMMARY: Using {len(training_examples)} real SSAT writing examples")
+            else:
+                logger.warning("No writing training examples found in database")
+            
+            return training_examples
             
         except Exception as e:
             logger.warning(f"Failed to get writing training examples: {e}")
@@ -202,22 +207,73 @@ CRITICAL REQUIREMENTS:
 
 """
         
+        topic_instruction_number = 6
         if request.topic:
-            system_prompt += f"6. Focus specifically on the topic: {request.topic}\n"
+            system_prompt += f"{topic_instruction_number}. Focus specifically on the topic: {request.topic}\n"
+            topic_instruction_number += 1
         
-        system_prompt += """
+        system_prompt += f"""
+
+CRITICAL CATEGORIZATION REQUIREMENTS:
+
+{topic_instruction_number}. SUBSECTION ANALYSIS: Create a SPECIFIC subsection that captures both the writing task type AND the skills it develops.
+
+SUBSECTION CREATION RULES:
+- Be SPECIFIC about the writing task and skills (NEVER use "Picture Story", "Creative Writing" alone)
+- Capture what makes this prompt unique for writing instruction
+- Consider the specific narrative/writing skills this prompt develops
+
+GOOD SUBSECTION EXAMPLES:
+- "Character-Driven Visual Narratives" (for picture prompts focusing on character development)
+- "Problem-Solution Adventure Stories" (for prompts with clear conflict resolution)
+- "Descriptive Setting-Based Writing" (for prompts emphasizing scene and atmosphere)
+- "Dialogue-Rich Character Interaction" (for prompts emphasizing conversation and relationships)
+- "Sequential Event Storytelling" (for prompts with clear beginning-middle-end structure)
+
+{topic_instruction_number + 1}. WRITING TAGS ANALYSIS: Create 2-4 specific tags that capture different aspects of the writing skills and elements this prompt encourages.
+
+TAG CATEGORIES (choose from different categories):
+- Writing Skills: ["character-development", "dialogue-writing", "descriptive-language", "narrative-structure", "plot-development"]
+- Creative Elements: ["visual-inspiration", "imaginative-thinking", "creative-problem-solving", "world-building", "sensory-details"]
+- Themes/Content: ["friendship-themes", "adventure-elements", "family-relationships", "overcoming-challenges", "discovery-learning"]
+- Cognitive Processes: ["sequential-thinking", "cause-effect-reasoning", "perspective-taking", "emotional-expression", "conflict-resolution"]
+
+TAGS QUALITY RULES:
+- Each tag should capture a DIFFERENT aspect of the writing task
+- Make tags specific enough for writing curriculum planning
+- Include both skills and content/theme elements
+
+EXAMPLE ANALYSIS:
+Prompt: "Picture showing children working together to build something"
+SUBSECTION: "Collaborative Problem-Solving Narratives"
+TAGS: ["teamwork-themes", "problem-solving-process", "character-interaction", "descriptive-language"]
+
 OUTPUT FORMAT - Return ONLY a JSON object:
-{
+{{
   "prompts": [
-    {
+    {{
       "prompt": "Complete writing prompt text here (JUST the creative prompt, NO instructions)",
       "visual_description": "Description of the picture that would accompany this prompt",
       "grade_level": "3-4",
       "story_elements": ["element1", "element2", "element3"],
-      "prompt_type": "picture_story"
-    }
+      "prompt_type": "picture_story",
+      "subsection": "Collaborative Problem-Solving Narratives",
+      "tags": ["teamwork-themes", "problem-solving-process", "character-interaction", "descriptive-language"]
+    }}
   ]
-}
+}}
+
+CRITICAL VALIDATION REQUIREMENTS:
+- subsection: MUST be specific and educationally useful (NO generic "Picture Story", "Creative Writing")
+- tags: MUST be exactly 2-4 specific writing skill/element descriptors
+- prompt: MUST NOT include instructions like "Write a story..." - those are added separately
+- EVERY prompt MUST have specific, educational categorizations - NOT optional
+
+QUALITY CHECK: Before finalizing, ask yourself:
+1. Would a writing teacher find this subsection useful for lesson planning?
+2. Do the tags clearly identify what writing skills this prompt develops?
+3. Could someone search for these specific writing elements?
+If any answer is NO, improve your categorization.
 
 IMPORTANT: Generate ONLY the creative writing prompt. Do NOT include instructions like "Write a story with beginning, middle, and end" - those will be added separately."""
         
@@ -238,22 +294,63 @@ REQUIREMENTS:
 
 """
         
+        topic_instruction_number = 6
         if request.topic:
-            system_prompt += f"6. Focus specifically on the topic: {request.topic}\n"
+            system_prompt += f"{topic_instruction_number}. Focus specifically on the topic: {request.topic}\n"
+            topic_instruction_number += 1
         
-        system_prompt += """
+        system_prompt += f"""
+
+CRITICAL CATEGORIZATION REQUIREMENTS:
+
+{topic_instruction_number}. SUBSECTION ANALYSIS: Create a SPECIFIC subsection that captures both the writing task type AND the skills it develops.
+
+SUBSECTION CREATION RULES:
+- Be SPECIFIC about the writing task and skills (NEVER use "Picture Story", "Creative Writing" alone)
+- Capture what makes this prompt unique for writing instruction
+- Consider the specific narrative/writing skills this prompt develops
+
+GOOD SUBSECTION EXAMPLES:
+- "Character-Driven Visual Narratives" (for picture prompts focusing on character development)
+- "Problem-Solution Adventure Stories" (for prompts with clear conflict resolution)
+- "Descriptive Setting-Based Writing" (for prompts emphasizing scene and atmosphere)
+- "Dialogue-Rich Character Interaction" (for prompts emphasizing conversation and relationships)
+- "Sequential Event Storytelling" (for prompts with clear beginning-middle-end structure)
+
+{topic_instruction_number + 1}. WRITING TAGS ANALYSIS: Create 2-4 specific tags that capture different aspects of the writing skills and elements this prompt encourages.
+
+TAG CATEGORIES (choose from different categories):
+- Writing Skills: ["character-development", "dialogue-writing", "descriptive-language", "narrative-structure", "plot-development"]
+- Creative Elements: ["visual-inspiration", "imaginative-thinking", "creative-problem-solving", "world-building", "sensory-details"]
+- Themes/Content: ["friendship-themes", "adventure-elements", "family-relationships", "overcoming-challenges", "discovery-learning"]
+- Cognitive Processes: ["sequential-thinking", "cause-effect-reasoning", "perspective-taking", "emotional-expression", "conflict-resolution"]
+
 OUTPUT FORMAT - Return ONLY a JSON object:
-{
+{{
   "prompts": [
-    {
+    {{
       "prompt": "Complete writing prompt text here (JUST the creative prompt, NO instructions)",
       "visual_description": "Description of the picture that would accompany this prompt",
       "grade_level": "3-4",
       "story_elements": ["element1", "element2", "element3"],
-      "prompt_type": "picture_story"
-    }
+      "prompt_type": "picture_story",
+      "subsection": "Character-Driven Visual Narratives",
+      "tags": ["character-development", "visual-inspiration", "emotional-expression", "narrative-structure"]
+    }}
   ]
-}
+}}
+
+CRITICAL VALIDATION REQUIREMENTS:
+- subsection: MUST be specific and educationally useful (NO generic "Picture Story", "Creative Writing")
+- tags: MUST be exactly 2-4 specific writing skill/element descriptors
+- prompt: MUST NOT include instructions like "Write a story..." - those are added separately
+- EVERY prompt MUST have specific, educational categorizations - NOT optional
+
+QUALITY CHECK: Before finalizing, ask yourself:
+1. Would a writing teacher find this subsection useful for lesson planning?
+2. Do the tags clearly identify what writing skills this prompt develops?
+3. Could someone search for these specific writing elements?
+If any answer is NO, improve your categorization.
 
 IMPORTANT: Generate ONLY the creative writing prompt. Do NOT include instructions like "Write a story with beginning, middle, and end" - those will be added separately."""
         
@@ -320,8 +417,117 @@ CRITICAL REQUIREMENTS:
 
 """
         
+        topic_instruction_number = 7
         if request.topic:
-            system_prompt += f"7. Focus specifically on the topic: {request.topic}\n"
+            system_prompt += f"{topic_instruction_number}. Focus specifically on the topic: {request.topic}\n"
+            topic_instruction_number += 1
+        
+        # Add intelligent categorization guidance for all question types
+        if request.question_type.value == "quantitative":
+            system_prompt += f"""
+
+CRITICAL CATEGORIZATION REQUIREMENTS:
+
+{topic_instruction_number}. SUBSECTION ANALYSIS: After generating each question, analyze its mathematical content deeply and create a SPECIFIC subsection name that captures the core mathematical concept and approach. 
+
+SUBSECTION CREATION RULES:
+- Be SPECIFIC, not generic (NEVER use "General Math", "Basic Math", "Arithmetic")
+- Capture the MAIN mathematical skill being tested
+- Include complexity level when relevant
+- Consider the problem-solving approach required
+
+GOOD SUBSECTION EXAMPLES:
+- "Multi-Step Algebraic Word Problems" (for problems requiring variable setup and equation solving)
+- "Fraction Operations with Visual Models" (for fraction problems with diagrams)
+- "Geometry with Measurement Applications" (for shape problems involving area/perimeter)
+- "Data Analysis and Interpretation" (for problems involving charts, graphs, statistics)
+- "Money and Decimal Calculations" (for real-world money problems)
+- "Ratio and Proportion Reasoning" (for problems involving relationships between quantities)
+
+BAD SUBSECTION EXAMPLES:
+- "Word Problems" (too generic - what KIND of word problem?)
+- "Fractions" (too broad - what ABOUT fractions?)
+- "Math" or "General Math" (completely useless)
+
+{topic_instruction_number + 1}. TAGS ANALYSIS: Create 2-4 highly descriptive tags that capture DIFFERENT aspects of the question:
+
+TAG CATEGORIES (choose from different categories):
+- Mathematical Content: ["algebraic-thinking", "geometric-reasoning", "number-sense", "measurement-concepts", "data-analysis", "fraction-concepts", "decimal-operations"]
+- Problem Type: ["word-problem", "computational-fluency", "conceptual-understanding", "application-problem", "reasoning-proof"]
+- Context/Setting: ["real-world-application", "abstract-mathematical", "visual-representation", "practical-scenario", "academic-context"]
+- Cognitive Demand: ["multi-step-solution", "single-step-direct", "requires-strategy", "pattern-recognition", "logical-reasoning"]
+- Skills Required: ["equation-setup", "diagram-interpretation", "unit-conversion", "estimation", "mental-math", "calculator-appropriate"]
+
+TAGS QUALITY RULES:
+- Each tag should describe a DIFFERENT aspect of the question
+- Be specific enough that a teacher could search by tag and find relevant questions
+- Include at least one content tag and one skill/process tag
+- Make tags useful for curriculum planning and assessment
+
+EXAMPLE ANALYSIS:
+Question: "A bakery sells 3 times as many chocolate cupcakes as vanilla cupcakes..."
+SUBSECTION: "Multi-Step Algebraic Word Problems"
+TAGS: ["algebraic-thinking", "word-problem", "real-world-application", "equation-setup"]
+
+Think like an expert math curriculum specialist - what would make these categorizations most useful for teachers planning lessons and assessments?
+
+"""
+        elif request.question_type.value == "verbal":
+            system_prompt += f"""
+
+CRITICAL CATEGORIZATION REQUIREMENTS:
+
+{topic_instruction_number}. SUBSECTION ANALYSIS: Analyze the verbal content and create a SPECIFIC subsection that captures the exact language skill being tested.
+
+SUBSECTION CREATION RULES:
+- Be SPECIFIC about the vocabulary/language skill (NEVER use "General Vocabulary", "Basic Verbal")
+- Capture the complexity and context of the words
+- Consider the cognitive process required
+
+GOOD SUBSECTION EXAMPLES:
+- "Advanced Academic Vocabulary" (for sophisticated, school-specific terms)
+- "Context-Based Word Meaning" (for vocabulary requiring context clues)
+- "Precise Language Selection" (for nuanced word choice questions)
+- "Abstract Concept Vocabulary" (for complex, conceptual terms)
+- "Technical and Scientific Terms" (for subject-specific vocabulary)
+
+{topic_instruction_number + 1}. TAGS ANALYSIS: Create 2-4 specific tags that capture different aspects:
+
+TAG CATEGORIES:
+- Vocabulary Type: ["academic-vocabulary", "everyday-language", "technical-terms", "abstract-concepts", "descriptive-language"]
+- Cognitive Process: ["meaning-recognition", "context-analysis", "precision-selection", "conceptual-understanding", "inference-required"]
+- Word Characteristics: ["multi-syllabic", "grade-appropriate", "challenging-vocabulary", "subject-specific", "nuanced-meaning"]
+- Application: ["reading-comprehension", "writing-enhancement", "verbal-reasoning", "language-precision"]
+
+"""
+        elif request.question_type.value == "analogy":
+            system_prompt += f"""
+
+CRITICAL CATEGORIZATION REQUIREMENTS:
+
+{topic_instruction_number}. TAGS ANALYSIS: Create 2-4 specific tags that capture the analogy's characteristics:
+
+TAG CATEGORIES:
+- Relationship Type: ["part-to-whole", "cause-and-effect", "function-relationship", "category-classification", "degree-intensity", "opposite-relationship"]
+- Cognitive Demand: ["pattern-recognition", "logical-reasoning", "abstract-thinking", "relationship-analysis", "conceptual-connections"]
+- Vocabulary Level: ["basic-vocabulary", "challenging-vocabulary", "academic-terms", "everyday-concepts"]
+- Context: ["concrete-concepts", "abstract-ideas", "real-world-connections", "academic-knowledge", "familiar-objects"]
+
+"""
+        elif request.question_type.value == "synonym":
+            system_prompt += f"""
+
+CRITICAL CATEGORIZATION REQUIREMENTS:
+
+{topic_instruction_number}. TAGS ANALYSIS: Create 2-4 specific tags that capture the vocabulary characteristics:
+
+TAG CATEGORIES:
+- Vocabulary Type: ["academic-vocabulary", "descriptive-words", "action-verbs", "emotion-words", "precise-language", "technical-terms"]
+- Difficulty Level: ["basic-vocabulary", "challenging-vocabulary", "advanced-terms", "nuanced-meaning"]
+- Word Function: ["descriptive-language", "expressive-vocabulary", "technical-precision", "everyday-usage"]
+- Cognitive Process: ["meaning-recognition", "vocabulary-recall", "word-discrimination", "language-precision"]
+
+"""
         
         system_prompt += """
 OUTPUT FORMAT - Return ONLY a JSON object:
@@ -337,12 +543,53 @@ OUTPUT FORMAT - Return ONLY a JSON object:
       ],
       "correct_answer": "A",
       "explanation": "detailed explanation",
-      "cognitive_level": "REMEMBER",
-      "tags": ["tag1", "tag2"],
+      "cognitive_level": "UNDERSTAND",
+      "tags": ["real-world", "problem-solving", "elementary"],
       "visual_description": "Description of any diagrams, charts, or visual elements (if applicable)"
-    }
+      """
+        
+        if request.question_type.value in ["quantitative", "verbal"]:
+            if request.question_type.value == "quantitative":
+                subsection_example = "Multi-Step Algebraic Word Problems"
+                tags_example = '["algebraic-thinking", "word-problem", "real-world-application", "equation-setup"]'
+            else:
+                subsection_example = "Advanced Academic Vocabulary" 
+                tags_example = '["academic-vocabulary", "meaning-recognition", "challenging-vocabulary", "verbal-reasoning"]'
+                
+            system_prompt += f""",
+      "subsection": "{subsection_example}",
+      "tags": {tags_example}
+    }}
   ]
-}"""
+}}
+
+CRITICAL VALIDATION REQUIREMENTS:
+- subsection: MUST be specific and educational useful (NO generic terms like "General Math", "Basic Vocabulary")
+- tags: MUST be exactly 2-4 descriptive tags from different categories above
+- cognitive_level: MUST be one of: REMEMBER, UNDERSTAND, APPLY, ANALYZE
+- EVERY question MUST have both subsection and tags - these are NOT optional
+
+QUALITY CHECK: Before finalizing, ask yourself:
+1. Would a teacher find this subsection useful for curriculum planning?
+2. Do the tags help identify what skills this question tests?
+3. Could someone search by these categories and find relevant content?
+If any answer is NO, improve your categorization."""
+        else:
+            system_prompt += f""",
+      "tags": ["pattern-recognition", "logical-reasoning", "elementary-appropriate", "relationship-analysis"]
+    }}
+  ]
+}}
+
+CRITICAL VALIDATION REQUIREMENTS:
+- tags: MUST be exactly 2-4 descriptive tags from different categories above
+- cognitive_level: MUST be one of: REMEMBER, UNDERSTAND, APPLY, ANALYZE
+- EVERY question MUST have tags - this is NOT optional
+
+QUALITY CHECK: Before finalizing, ask yourself:
+1. Do the tags help identify what skills this question tests?
+2. Could someone search by these categories and find relevant content?
+If any answer is NO, improve your categorization."""
         
         return system_prompt
     
@@ -406,36 +653,88 @@ CRITICAL REQUIREMENTS:
 
 """
         
+        topic_instruction_number = 8 
         if request.topic:
-            system_prompt += f"8. Focus the passage topic on: {request.topic}\n"
+            system_prompt += f"{topic_instruction_number}. Focus the passage topic on: {request.topic}\n"
+            topic_instruction_number += 1
         
-        system_prompt += """
+        system_prompt += f"""
+
+CRITICAL CATEGORIZATION REQUIREMENTS:
+
+{topic_instruction_number}. PASSAGE TYPE ANALYSIS: Create a SPECIFIC, descriptive passage type that captures both content and genre.
+
+PASSAGE TYPE RULES:
+- Be SPECIFIC about both content and genre (NEVER use "Fiction", "Non-fiction" alone)
+- Capture what makes this passage unique for reading instruction
+- Consider the specific skills this passage type develops
+
+GOOD PASSAGE TYPE EXAMPLES:
+- "Character-Driven Adventure Fiction" (for stories focusing on character development through adventure)
+- "Scientific Process Informational" (for science texts explaining how things work)
+- "Historical Biography Narrative" (for life stories with historical context)
+- "Animal Behavior Science Text" (for factual texts about animal characteristics)
+- "Problem-Solution Social Studies" (for texts about social issues and solutions)
+
+{topic_instruction_number + 1}. READING TAGS ANALYSIS: For each question, create 2-4 specific tags that capture the EXACT reading comprehension skills being tested.
+
+TAG CATEGORIES (choose from different categories):
+- Comprehension Skills: ["main-idea-identification", "supporting-details", "inference-making", "conclusion-drawing", "author-purpose"]
+- Text Analysis: ["character-analysis", "plot-development", "cause-and-effect", "compare-contrast", "sequence-understanding"]  
+- Vocabulary Skills: ["context-clues", "word-meaning", "vocabulary-development", "technical-terms", "figurative-language"]
+- Critical Thinking: ["evidence-evaluation", "perspective-analysis", "prediction-making", "connection-building", "interpretation-skills"]
+
+TAGS QUALITY RULES:
+- Each tag should specify the EXACT skill being tested
+- Make tags specific enough for reading assessment planning
+- Include both comprehension level and skill type
+
+EXAMPLE ANALYSIS:
+Passage: Character-driven story about overcoming challenges
+Question: "What motivated Sarah to continue despite the difficulties?"
+SUBSECTION: "Character-Driven Adventure Fiction"
+TAGS: ["character-motivation", "inference-making", "text-analysis", "emotional-understanding"]
+
 OUTPUT FORMAT - Return ONLY a JSON object with SEPARATE passage and questions:
-{
-  "passage": {
+{{
+  "passage": {{
     "text": "The complete reading passage goes here (similar length to examples)",
-    "title": "Optional passage title",
-    "passage_type": "fiction",
+    "title": "Optional passage title", 
+    "passage_type": "Character-Driven Adventure Fiction",
     "grade_level": "3-4",
     "topic": "passage topic"
-  },
+  }},
   "questions": [
-    {
+    {{
       "text": "Question about the passage (without repeating the passage)",
       "options": [
-        {"letter": "A", "text": "option text"},
-        {"letter": "B", "text": "option text"},
-        {"letter": "C", "text": "option text"},
-        {"letter": "D", "text": "option text"}
+        {{"letter": "A", "text": "option text"}},
+        {{"letter": "B", "text": "option text"}},
+        {{"letter": "C", "text": "option text"}},
+        {{"letter": "D", "text": "option text"}}
       ],
       "correct_answer": "A",
       "explanation": "detailed explanation",
       "cognitive_level": "UNDERSTAND",
-      "tags": ["reading", "comprehension"],
+      "tags": ["character-motivation", "inference-making", "text-analysis", "emotional-understanding"],
+      "subsection": "Character-Driven Adventure Fiction",
       "visual_description": "Description of any visual elements in the passage"
-    }
+    }}
   ]
-}"""
+}}
+
+CRITICAL VALIDATION REQUIREMENTS:
+- passage_type: MUST be specific and descriptive (NO generic "Fiction", "Non-fiction")
+- All questions.subsection: MUST match the passage_type exactly
+- tags: MUST be exactly 2-4 specific reading skill descriptors
+- cognitive_level: MUST be one of: REMEMBER, UNDERSTAND, APPLY, ANALYZE
+- EVERY question MUST have specific, educational tags - NOT optional
+
+QUALITY CHECK: Before finalizing, ask yourself:
+1. Would a reading teacher find this passage type useful for lesson planning?
+2. Do the tags clearly identify what reading skills are being assessed?
+3. Could someone search for these specific comprehension skills?
+If any answer is NO, improve your categorization."""
         
         return system_prompt
     
@@ -567,7 +866,8 @@ def generate_questions(request: QuestionRequest, llm: Optional[str] = "deepseek"
                 explanation=q_data["explanation"],
                 cognitive_level=cognitive_level,
                 tags=q_data.get("tags", []),
-                visual_description=q_data.get("visual_description")
+                visual_description=q_data.get("visual_description"),
+                subsection=q_data.get("subsection")  # Extract AI-determined subsection
             )
             questions.append(question)
         
@@ -658,7 +958,7 @@ def generate_reading_passage(request: QuestionRequest, llm: Optional[str] = "dee
         questions_data = data["questions"]
         
         # Parse questions into proper format
-        from app.core_models import Option, Question
+        from app.models import Option, Question
         questions = []
         for q_data in questions_data:
             options = [Option(letter=opt["letter"], text=opt["text"]) for opt in q_data["options"]]
@@ -765,7 +1065,7 @@ async def generate_reading_passage_async(request: QuestionRequest, llm: Optional
         questions_data = data["questions"]
         
         # Parse questions into proper format
-        from app.core_models import Option, Question
+        from app.models import Option, Question
         questions = []
         for q_data in questions_data:
             options = [Option(letter=opt["letter"], text=opt["text"]) for opt in q_data["options"]]
@@ -881,7 +1181,8 @@ async def generate_questions_async(request: QuestionRequest, llm: Optional[str] 
                 explanation=q_data["explanation"],
                 cognitive_level=cognitive_level,
                 tags=q_data.get("tags", []),
-                visual_description=q_data.get("visual_description")
+                visual_description=q_data.get("visual_description"),
+                subsection=q_data.get("subsection")  # Extract AI-determined subsection
             )
             questions.append(question)
         

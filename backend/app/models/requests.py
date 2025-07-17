@@ -1,29 +1,9 @@
 """Request models for the SSAT Question Generator API."""
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Literal
-from enum import Enum
 
-class QuestionType(str, Enum):
-    """Types of SSAT questions."""
-    QUANTITATIVE = "quantitative"
-    READING = "reading"
-    VERBAL = "verbal"
-    ANALOGY = "analogy"
-    SYNONYM = "synonym"
-    WRITING = "writing"
-
-class DifficultyLevel(str, Enum):
-    """Difficulty levels for elementary SSAT."""
-    EASY = "Easy"
-    MEDIUM = "Medium"
-    HARD = "Hard"
-
-class LLMProvider(str, Enum):
-    """Available LLM providers."""
-    OPENAI = "openai"
-    GEMINI = "gemini"
-    DEEPSEEK = "deepseek"
+from .enums import QuestionType, DifficultyLevel, LLMProvider
 
 class QuestionGenerationRequest(BaseModel):
     """Request model for generating individual questions."""
@@ -56,7 +36,8 @@ class QuestionGenerationRequest(BaseModel):
         description="Educational level (elementary, middle, high)"
     )
     
-    @validator('topic')
+    @field_validator('topic')
+    @classmethod
     def validate_topic(cls, v):
         """Validate topic input."""
         if v is not None:
@@ -85,20 +66,22 @@ class CompleteTestRequest(BaseModel):
         description="Custom question counts per section (e.g., {'math': 10, 'verbal': 8})"
     )
     
-    @validator('include_sections')
+    @field_validator('include_sections')
+    @classmethod
     def validate_sections(cls, v):
         """Ensure at least one section is included."""
         if not v or len(v) == 0:
             raise ValueError("At least one section must be included")
         return v
     
-    @validator('custom_counts')
-    def validate_custom_counts(cls, v, values):
+    @field_validator('custom_counts')
+    @classmethod
+    def validate_custom_counts(cls, v, info):
         """Validate custom counts if provided."""
         if v is not None:
-            if 'include_sections' in values:
+            if hasattr(info.data, 'include_sections'):
                 # Ensure all included sections have counts
-                for section in values['include_sections']:
+                for section in info.data['include_sections']:
                     if section.value not in v:
                         raise ValueError(f"Custom count missing for section: {section.value}")
                 
@@ -129,11 +112,3 @@ class CompleteElementaryTestRequest(BaseModel):
         max_length=100
     )
     
-    @validator('test_focus')
-    def validate_test_focus(cls, v):
-        """Validate test focus input."""
-        if v is not None:
-            v = v.strip()
-            if len(v) == 0:
-                return None
-        return v

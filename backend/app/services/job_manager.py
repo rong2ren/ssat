@@ -14,7 +14,6 @@ class JobStatus(str, Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
-    CANCELLED = "cancelled"
 
 class SectionStatus(str, Enum):
     WAITING = "waiting"
@@ -211,20 +210,6 @@ class JobManager:
         
         return completed_sections
     
-    def cancel_job(self, job_id: str):
-        """Cancel a job and all its pending sections."""
-        if job_id in self.jobs:
-            job = self.jobs[job_id]
-            job.status = JobStatus.CANCELLED
-            job.updated_at = datetime.utcnow()
-            
-            # Mark all waiting sections as cancelled
-            for section in job.sections.values():
-                if section.status == SectionStatus.WAITING:
-                    section.status = SectionStatus.FAILED
-                    section.error = "Job cancelled"
-            
-            logger.info(f"Cancelled job {job_id}")
 
 # Global job manager instance
 job_manager = JobManager()

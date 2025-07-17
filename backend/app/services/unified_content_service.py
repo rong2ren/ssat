@@ -10,7 +10,7 @@ import uuid
 from typing import Dict, Any, Union, List
 from loguru import logger
 
-from app.core_models import QuestionRequest, QuestionType as SSATQuestionType, DifficultyLevel as SSATDifficultyLevel
+from app.models import QuestionRequest, QuestionType as SSATQuestionType, DifficultyLevel as SSATDifficultyLevel
 from app.models.requests import QuestionGenerationRequest, QuestionType, DifficultyLevel
 from app.models.responses import (
     QuestionGenerationResponse, ReadingGenerationResponse, WritingGenerationResponse,
@@ -18,8 +18,11 @@ from app.models.responses import (
 )
 from app.content_generators import (
     generate_content, generate_content_async, 
+    generate_writing_prompts_with_metadata,
+    generate_reading_passages_with_metadata,
     ReadingPassage as GeneratorReadingPassage,
-    WritingPrompt as GeneratorWritingPrompt
+    WritingPrompt as GeneratorWritingPrompt,
+    GenerationResult
 )
 
 
@@ -80,6 +83,10 @@ class UnifiedContentService:
             if question.visual_description and question.visual_description.strip() and \
                question.visual_description.lower() not in ["none", "no visual elements", "no visual elements required"]:
                 api_question["visual_description"] = question.visual_description
+            
+            # Include subsection if provided by AI
+            if hasattr(question, 'subsection') and question.subsection:
+                api_question["subsection"] = question.subsection
             api_questions.append(api_question)
         
         return api_questions
@@ -104,7 +111,9 @@ class UnifiedContentService:
             "instructions": prompt.instructions,
             "grade_level": prompt.grade_level,
             "story_elements": prompt.story_elements,
-            "prompt_type": prompt.prompt_type
+            "prompt_type": prompt.prompt_type,
+            "tags": prompt.tags,  # Include AI-generated tags
+            "subsection": prompt.subsection  # Include AI-generated subsection
         }
         
         # Only include visual_description if it has meaningful content
@@ -127,16 +136,33 @@ class UnifiedContentService:
             ssat_request = self._convert_to_ssat_request(request)
             provider = request.provider.value if request.provider else None
             
-            # Generate content using unified generator
-            content = generate_content(ssat_request, llm=provider)
+            # Generate content with proper metadata capture
+            if request.question_type == QuestionType.WRITING:
+                # Use the metadata-returning function for writing prompts
+                generation_result = generate_writing_prompts_with_metadata(ssat_request, llm=provider)
+                content = generation_result.content
+                training_example_ids = generation_result.training_example_ids
+                actual_provider = generation_result.provider_used
+            elif request.question_type == QuestionType.READING:
+                # Use the metadata-returning function for reading passages
+                generation_result = generate_reading_passages_with_metadata(ssat_request, llm=provider)
+                content = generation_result.content
+                training_example_ids = generation_result.training_example_ids
+                actual_provider = generation_result.provider_used
+            else:
+                # Use existing unified generator for other question types
+                content = generate_content(ssat_request, llm=provider)
+                training_example_ids = []  # TODO: Add similar logic for question types
+                actual_provider = provider or "auto-selected"
             
             generation_time = time.time() - start_time
             
             # Create metadata
             metadata = GenerationMetadata(
                 generation_time=generation_time,
-                provider_used=provider or "auto-selected",
-                training_examples_count=5,  # TODO: Get actual count from generators
+                provider_used=actual_provider,
+                training_examples_count=len(training_example_ids),
+                training_example_ids=training_example_ids,
                 request_id=request_id
             )
             
@@ -202,6 +228,7 @@ class UnifiedContentService:
                 generation_time=generation_time,
                 provider_used=provider or "auto-selected",
                 training_examples_count=5,  # TODO: Get actual count from generators
+                training_example_ids=[],  # TODO: Get actual IDs from generators
                 request_id=request_id
             )
             

@@ -36,7 +36,6 @@ npm run dev            # Start development server
 ```bash
 cd scripts
 pip install -r requirements.txt  # Install dependencies
-python test_connection.py        # Test database
 python upload_data.py            # Upload training data
 ```
 
@@ -125,27 +124,5 @@ Environment variables handled via Next.js configuration.
 - `scripts/README.md` - DevOps utilities documentation
 - `docs/` - Additional project documentation
 
-## 🤝 Contributing
-
-1. Choose your area: Frontend (npm), Backend (uv), or Scripts (pip)
-2. Follow the setup instructions for that project
-3. Make changes and test in isolation
-4. Submit pull requests
-
-## 📋 Development Commands Summary
-
-```bash
-# Backend
-cd backend && uv sync && uv run uvicorn app.main:app --reload
-
-# Frontend  
-cd frontend && npm install && npm run dev
-
-# Scripts
-cd scripts && pip install -r requirements.txt && python script_name.py
-
-# Database
-cd scripts && python test_connection.py
-```
 
 Each project is independent and can be developed, tested, and deployed separately while maintaining coordination through the shared API contract.
