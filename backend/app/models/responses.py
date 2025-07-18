@@ -68,29 +68,43 @@ class WritingPrompt(BaseModel):
         
         return data
 
-class StandaloneSection(BaseModel):
-    """Section with independent questions (math, verbal, analogy, synonym)."""
-    section_type: Literal[QuestionType.QUANTITATIVE, QuestionType.VERBAL, QuestionType.ANALOGY, QuestionType.SYNONYM] = Field(..., description="Type of standalone section")
-    questions: List[GeneratedQuestion] = Field(..., description="Independent questions")
+class QuantitativeSection(BaseModel):
+    """Mathematics section - arithmetic, fractions, geometry, word problems."""
+    section_type: Literal[QuestionType.QUANTITATIVE] = QuestionType.QUANTITATIVE
+    questions: List[GeneratedQuestion] = Field(..., description="Math questions")
+    time_limit_minutes: int = Field(..., description="Time limit for this section")
+    instructions: str = Field(..., description="Section instructions")
+
+class SynonymSection(BaseModel):
+    """Vocabulary section - word meaning and definition questions."""
+    section_type: Literal[QuestionType.SYNONYM] = QuestionType.SYNONYM
+    questions: List[GeneratedQuestion] = Field(..., description="Synonym questions")
+    time_limit_minutes: int = Field(..., description="Time limit for this section")
+    instructions: str = Field(..., description="Section instructions")
+
+class AnalogySection(BaseModel):
+    """Word relationship section - logical reasoning with word pairs."""
+    section_type: Literal[QuestionType.ANALOGY] = QuestionType.ANALOGY
+    questions: List[GeneratedQuestion] = Field(..., description="Analogy questions")
     time_limit_minutes: int = Field(..., description="Time limit for this section")
     instructions: str = Field(..., description="Section instructions")
 
 class ReadingSection(BaseModel):
     """Reading comprehension section with passages and questions."""
-    section_type: Literal[QuestionType.READING] = Field(..., description="Reading section identifier")
+    section_type: Literal[QuestionType.READING] = QuestionType.READING
     passages: List[ReadingPassage] = Field(..., description="Reading passages with questions")
     time_limit_minutes: int = Field(..., description="Time limit for this section")
     instructions: str = Field(..., description="Section instructions")
 
 class WritingSection(BaseModel):
     """Writing section with a single prompt."""
-    section_type: Literal[QuestionType.WRITING] = Field(..., description="Writing section identifier")
+    section_type: Literal[QuestionType.WRITING] = QuestionType.WRITING
     prompt: WritingPrompt = Field(..., description="Writing prompt")
     time_limit_minutes: int = Field(..., description="Time limit for this section")
     instructions: str = Field(..., description="Section instructions")
 
 # Union type for polymorphic sections
-TestSection = Union[StandaloneSection, ReadingSection, WritingSection]
+TestSection = Union[QuantitativeSection, SynonymSection, AnalogySection, ReadingSection, WritingSection]
 
 # Content generation response models (now that data models are defined)
 class QuestionGenerationResponse(BaseModel):
@@ -118,24 +132,6 @@ class WritingGenerationResponse(BaseModel):
 # Union type for polymorphic content generation responses
 ContentGenerationResponse = Union[QuestionGenerationResponse, ReadingGenerationResponse, WritingGenerationResponse]
 
-class CompleteTestResponse(BaseModel):
-    """Response for complete SSAT test generation."""
-    test_id: Optional[str] = Field(default=None, description="Unique test identifier")
-    sections: List[TestSection] = Field(..., description="Test sections")
-    metadata: GenerationMetadata = Field(..., description="Generation metadata")
-    status: str = Field(default="success", description="Generation status")
-    total_questions: int = Field(..., description="Total number of questions in test")
-    estimated_time_minutes: int = Field(..., description="Estimated completion time")
-    
-    # Test formatting information
-    test_info: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "test_type": "SSAT Elementary Level Practice Test",
-            "instructions": "This is a practice test for SSAT Elementary Level. Answer all questions to the best of your ability.",
-            "format": "Multiple choice with detailed explanations"
-        },
-        description="Test information and instructions"
-    )
 
 class ProviderInfo(BaseModel):
     """Information about an LLM provider."""

@@ -6,6 +6,13 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     
+    if (!body || Object.keys(body).length === 0) {
+      return NextResponse.json(
+        { error: 'Request body is empty' },
+        { status: 400 }
+      )
+    }
+    
     const response = await fetch(`${BACKEND_URL}/generate/complete-test/start`, {
       method: 'POST',
       headers: {

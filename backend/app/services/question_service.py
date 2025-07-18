@@ -2,7 +2,7 @@
 
 import time
 import uuid
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from loguru import logger
 
 # Import SSAT modules (now local)
@@ -10,7 +10,7 @@ from app.models import QuestionRequest, QuestionType as SSATQuestionType, Diffic
 from app.generator import generate_questions, generate_questions_async, SSATGenerator
 from app.settings import settings
 from app.models.requests import QuestionGenerationRequest, CompleteTestRequest, QuestionType, DifficultyLevel
-from app.models.responses import StandaloneSection, ReadingSection, WritingSection, ReadingPassage, WritingPrompt
+from app.models.responses import QuantitativeSection, SynonymSection, AnalogySection, ReadingSection, WritingSection, ReadingPassage, WritingPrompt
 
 # Loguru logger imported above
 
@@ -135,69 +135,7 @@ class QuestionService:
             raise e
     
     
-    async def generate_complete_test(self, request: CompleteTestRequest) -> Dict[str, Any]:
-        """Generate a complete SSAT practice test."""
-        start_time = time.time()
-        test_id = str(uuid.uuid4())
-        
-        try:
-            # Define default question counts for each section
-            default_counts = {
-                QuestionType.QUANTITATIVE: 25,
-                QuestionType.VERBAL: 30,
-                QuestionType.READING: 7,  # Usually fewer reading passages with multiple questions each
-                QuestionType.WRITING: 1   # Usually one writing prompt
-            }
-            
-            # Use custom counts if provided, otherwise use defaults
-            section_counts = {}
-            for section in request.include_sections:
-                if request.custom_counts and section.value in request.custom_counts:
-                    section_counts[section] = request.custom_counts[section.value]
-                else:
-                    section_counts[section] = default_counts.get(section, 10)
-            
-            # Generate questions for each section
-            sections = []
-            total_questions = 0
-            
-            for section_type, count in section_counts.items():
-                logger.info(f"Generating {section_type.value} section")
-                
-                # Generate different content types based on section
-                if section_type == QuestionType.WRITING:
-                    section = await self._generate_writing_section(request.difficulty)
-                    total_questions += 1  # Writing counts as 1 "item"
-                elif section_type == QuestionType.READING:
-                    section = await self._generate_reading_section(request.difficulty, count, request.provider)
-                    total_questions += len(section.passages) * 4  # 4 questions per passage
-                else:
-                    # Standalone sections (math, verbal, analogy, synonym)
-                    section = await self._generate_standalone_section(section_type, request.difficulty, count, request.provider)
-                    total_questions += len(section.questions)
-                
-                sections.append(section)
-            
-            generation_time = time.time() - start_time
-            estimated_time = sum(section.time_limit_minutes for section in sections)
-            
-            return {
-                "test_id": test_id,
-                "sections": sections,
-                "metadata": {
-                    "generation_time": generation_time,
-                    "provider_used": request.provider.value if request.provider else "auto-selected",
-                    "training_examples_count": 5 * len(sections),  # Approximate
-                    "request_id": test_id
-                },
-                "status": "success",
-                "total_questions": total_questions,
-                "estimated_time_minutes": estimated_time
-            }
-            
-        except Exception as e:
-            logger.error(f"Complete test generation failed: {e}")
-            raise e
+
     
     def _get_section_instructions(self, section_type: QuestionType) -> str:
         """Get instructions for a specific test section."""
@@ -257,27 +195,57 @@ class QuestionService:
         return topic_suggestions.get(question_type, [])
     
     async def _generate_writing_prompt(self, difficulty: DifficultyLevel) -> Dict[str, Any]:
-        """Generate a writing prompt for the writing section."""
-        from app.specifications import ELEMENTARY_WRITING_PROMPTS
-        import random
+        """Generate a writing prompt using AI with real SSAT training examples."""
+        from app.models import QuestionRequest, QuestionType as SSATQuestionType, DifficultyLevel as SSATDifficultyLevel
+        from app.content_generators import generate_writing_prompts_with_metadata
         
-        # Select a random prompt appropriate for elementary level
-        prompt_data = random.choice(ELEMENTARY_WRITING_PROMPTS)
+        # Create request for AI generation (same as individual writing generation)
+        ssat_request = QuestionRequest(
+            question_type=SSATQuestionType.WRITING,
+            difficulty=SSATDifficultyLevel.MEDIUM if difficulty == DifficultyLevel.MEDIUM else SSATDifficultyLevel.EASY,
+            topic=None,  # No specific topic for complete tests
+            count=1      # Generate one prompt
+        )
         
-        # Create writing prompt response
-        writing_prompt = {
-            "prompt_text": prompt_data["prompt"],
-            "instructions": "Write a story based on the prompt. Use proper grammar, punctuation, and spelling. Your story should have a clear beginning, middle, and end.",
-            "time_limit_minutes": 15,
-            "visual_description": prompt_data.get("visual_description", ""),
-            "grade_level": prompt_data.get("grade_level", "3-4"),
-            "story_elements": prompt_data.get("story_elements", [])
-        }
-        
-        return writing_prompt
+        try:
+            # Use the same AI generation logic as individual writing generation
+            generation_result = generate_writing_prompts_with_metadata(ssat_request, llm=None)
+            
+            if generation_result.content and len(generation_result.content) > 0:
+                # Convert WritingPrompt object to dict format
+                writing_prompt = generation_result.content[0]  # type: ignore[attr-defined]
+                return {
+                    "prompt_text": writing_prompt.prompt_text,  # type: ignore[attr-defined]
+                    "instructions": writing_prompt.instructions,  # type: ignore[attr-defined]
+                    "visual_description": writing_prompt.visual_description,  # type: ignore[attr-defined]
+                    "grade_level": writing_prompt.grade_level,  # type: ignore[attr-defined]
+                    "story_elements": writing_prompt.story_elements,  # type: ignore[attr-defined]
+                    "prompt_type": writing_prompt.prompt_type,  # type: ignore[attr-defined]
+                    "subsection": writing_prompt.subsection,  # type: ignore[attr-defined]
+                    "tags": writing_prompt.tags  # type: ignore[attr-defined]
+                }
+            else:
+                raise ValueError("AI generation returned no writing prompts")
+                
+        except Exception as e:
+            logger.warning(f"AI writing prompt generation failed: {e}, falling back to static prompts")
+            
+            # Fallback to static prompts if AI generation fails
+            from app.specifications import ELEMENTARY_WRITING_PROMPTS
+            import random
+            
+            prompt_data = random.choice(ELEMENTARY_WRITING_PROMPTS)
+            return {
+                "prompt_text": prompt_data["prompt"],
+                "instructions": "Write a story based on the prompt. Use proper grammar, punctuation, and spelling. Your story should have a clear beginning, middle, and end.",
+                "time_limit_minutes": 15,
+                "visual_description": prompt_data.get("visual_description", ""),
+                "grade_level": prompt_data.get("grade_level", "3-4"),
+                "story_elements": prompt_data.get("story_elements", [])
+            }
     
-    async def _generate_standalone_section(self, section_type: QuestionType, difficulty: DifficultyLevel, count: int, provider: Optional[Any], use_async: bool = False) -> StandaloneSection:
-        """Generate a standalone section (math, verbal, analogy, synonym)."""
+    async def _generate_standalone_section(self, section_type: QuestionType, difficulty: DifficultyLevel, count: int, provider: Optional[Any], use_async: bool = False) -> Union[QuantitativeSection, SynonymSection, AnalogySection]:
+        """Generate a section for individual question types (quantitative, synonym, analogy)."""
         # Create request for this section
         section_request = QuestionGenerationRequest(
             question_type=section_type,
@@ -325,12 +293,27 @@ class QuestionService:
         instructions = self._get_section_instructions(section_type)
         time_limit = self._get_section_time_limit(section_type, count)
         
-        return StandaloneSection(
-            section_type=section_type.value,
-            questions=api_questions,
-            time_limit_minutes=time_limit,
-            instructions=instructions
-        )
+        # Route to appropriate section type based on question type
+        if section_type == QuestionType.QUANTITATIVE:
+            return QuantitativeSection(
+                questions=api_questions,
+                time_limit_minutes=time_limit,
+                instructions=instructions
+            )
+        elif section_type == QuestionType.SYNONYM:
+            return SynonymSection(
+                questions=api_questions,
+                time_limit_minutes=time_limit,
+                instructions=instructions
+            )
+        elif section_type == QuestionType.ANALOGY:
+            return AnalogySection(
+                questions=api_questions,
+                time_limit_minutes=time_limit,
+                instructions=instructions
+            )
+        else:
+            raise ValueError(f"Unsupported section type for standalone generation: {section_type}")
     
     async def _generate_reading_section(self, difficulty: DifficultyLevel, total_questions: int, provider: Optional[Any], use_async: bool = False) -> ReadingSection:
         """Generate a reading section with passages and questions."""
@@ -346,7 +329,7 @@ class QuestionService:
         time_limit = self._get_section_time_limit(QuestionType.READING, total_questions)
         
         return ReadingSection(
-            section_type="reading",
+            section_type=QuestionType.READING,
             passages=passages,
             time_limit_minutes=time_limit,
             instructions=instructions
@@ -370,7 +353,7 @@ class QuestionService:
         time_limit = self._get_section_time_limit(QuestionType.WRITING, 1)
         
         return WritingSection(
-            section_type="writing",
+            section_type=QuestionType.WRITING,
             prompt=writing_prompt,
             time_limit_minutes=time_limit,
             instructions=instructions

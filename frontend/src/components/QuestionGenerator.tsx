@@ -106,22 +106,25 @@ export default function QuestionGenerator({ showChinese = false }: QuestionGener
     counts: Record<string, number>
     difficulty: string
   }) => {
+    let newTestRequest
     if (customConfig) {
       // Use custom configuration - send individual sections to backend for better training
-      setTestRequest({
+      newTestRequest = {
         difficulty: customConfig.difficulty,
         include_sections: customConfig.sections, // Send original sections directly
         custom_counts: customConfig.counts,
         originalSelection: customConfig.sections
-      })
+      }
     } else {
-      // Use default configuration with separate analogy/synonym for better quality
-      setTestRequest({
+      // Use official SSAT Elementary format
+      newTestRequest = {
         difficulty: 'Medium',
-        include_sections: ['quantitative', 'analogy', 'synonym', 'reading', 'writing'],
-        custom_counts: { quantitative: 10, analogy: 4, synonym: 6, reading: 7, writing: 1 }
-      })
+        include_sections: ['quantitative', 'verbal', 'reading', 'writing'],
+        custom_counts: { quantitative: 30, verbal: 30, reading: 28, writing: 1 }
+      }
     }
+    
+    setTestRequest(newTestRequest)
     
     // Stay on the same page but show complete test generator
     setShowCompleteTest(true)
@@ -188,11 +191,11 @@ export default function QuestionGenerator({ showChinese = false }: QuestionGener
       </div>
 
       {/* Progressive Test Generator - rendered outside tabs to persist across tab switches */}
-      {showCompleteTest && (
+      {showCompleteTest && testRequest && (
         <div style={{ display: activeMode === 'complete' ? 'block' : 'none' }}>
           <ProgressiveTestGenerator 
             showChinese={showChinese}
-            testRequest={testRequest || undefined}
+            testRequest={testRequest}
             onBack={handleBackToForms}
           />
         </div>

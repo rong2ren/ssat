@@ -137,3 +137,4 @@ local/
 # Data and example files
 data/examples/
 data/extracted/
+minimax/

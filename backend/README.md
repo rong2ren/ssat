@@ -15,7 +15,8 @@ This is the FastAPI backend for the SSAT Question Generator web application.
 ### Core Endpoints
 
 - `POST /generate` - Generate individual questions
-- `POST /generate/complete-test` - Generate complete SSAT practice test
+- `POST /generate/complete-test/start` - Start progressive complete test generation
+- `GET /generate/complete-test/{jobId}/status` - Get test generation progress
 - `GET /providers/status` - Check LLM provider availability
 - `GET /health` - API health check
 - `GET /topics/suggestions?question_type=quantitative` - Get topic suggestions
@@ -35,15 +36,19 @@ curl -X POST "http://localhost:8000/generate" \
   }'
 ```
 
-#### Generate Complete Test
+#### Start Progressive Complete Test
 ```bash
-curl -X POST "http://localhost:8000/generate/complete-test" \
+# Start test generation
+curl -X POST "http://localhost:8000/generate/complete-test/start" \
   -H "Content-Type: application/json" \
   -d '{
     "difficulty": "Medium",
     "include_sections": ["quantitative", "analogy", "synonym", "reading"],
     "custom_counts": {"quantitative": 15, "analogy": 8, "synonym": 12, "reading": 5}
   }'
+
+# Poll for progress (replace {job_id} with returned job ID)
+curl -X GET "http://localhost:8000/generate/complete-test/{job_id}/status"
 ```
 
 ## Setup & Development

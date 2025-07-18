@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import time
 import asyncio
+import uuid
 from datetime import datetime
 from loguru import logger
 
@@ -19,7 +20,6 @@ from app.models.responses import (
     QuestionGenerationResponse,
     ReadingGenerationResponse,
     WritingGenerationResponse,
-    CompleteTestResponse,
     CompleteElementaryTestResponse,
     ProviderStatusResponse,
     HealthResponse,
@@ -28,8 +28,8 @@ from app.models.responses import (
 from app.services.question_service import QuestionService
 from app.services.unified_content_service import UnifiedContentService
 from app.services.llm_service import LLMService
-from app.services.ssat_test_service import ssat_test_service
 from app.services.ai_content_service import AIContentService
+from app.models import QuestionType
 
 # Loguru is configured automatically
 
@@ -136,13 +136,18 @@ async def generate_content(request: QuestionGenerationRequest):
                     session_id, 
                     {"reading_sections": result.passages}, 
                     training_example_ids,
-                    topic=request.topic  # Pass the topic for tagging
+                    topic=request.topic or ""  # Pass the topic for tagging, default to empty string
                 )
                 logger.info(f"Successfully saved reading content to database")
             elif isinstance(result, QuestionGenerationResponse):
-                # Regular questions (quantitative, analogy, synonym, verbal)
+                # Regular questions (quantitative, analogy, synonym)
                 # QuestionGenerationResponse has .questions
-                section_name = "Quantitative" if request.question_type.value == "quantitative" else "Verbal"
+                section_mapping = {
+                    "quantitative": "Quantitative",
+                    "analogy": "Verbal",    # Analogies are part of Verbal section in database
+                    "synonym": "Verbal"     # Synonyms are part of Verbal section in database
+                }
+                section_name = section_mapping.get(request.question_type.value, "Verbal")
                 
                 # Use AI-determined subsection - DO NOT OVERRIDE the AI's intelligent categorization
                 if request.question_type.value == "analogy":
@@ -211,20 +216,6 @@ async def generate_content(request: QuestionGenerationRequest):
     except Exception as e:
         logger.error(f"Content generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Content generation failed: {str(e)}")
-
-@app.post("/generate/complete-test", response_model=CompleteTestResponse)
-async def generate_complete_test(request: CompleteTestRequest):
-    """Generate a complete SSAT practice test with all sections."""
-    try:
-        logger.info(f"Generating complete SSAT test - difficulty: {request.difficulty}")
-        
-        result = await question_service.generate_complete_test(request)
-        
-        return CompleteTestResponse(**result)
-        
-    except Exception as e:
-        logger.error(f"Complete test generation failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Complete test generation failed: {str(e)}")
 
 # Progressive Test Generation Endpoints (Smart Polling)
 
@@ -436,29 +427,92 @@ async def generate_complete_elementary_test(request: CompleteElementaryTestReque
         logger.info(f"Generating official SSAT Elementary test: {request}")
         start_time = time.time()
         
-        # Generate the complete test
-        complete_test = await ssat_test_service.generate_complete_elementary_test(request)
+        # Convert to progressive test request with minimal counts for testing
+        # TODO: Make this configurable for production (use testing_mode flag)
+        testing_mode = True  # Set to False for production
         
-        # Validate official structure
-        validation_results = ssat_test_service.validate_generated_test(complete_test)
-        if not validation_results["overall_valid"]:
-            logger.warning(f"Generated test validation failed: {validation_results}")
+        if testing_mode:
+            # Minimal counts for testing to save tokens
+            custom_counts = {
+                "quantitative": 1,  # Testing: 1 question
+                "verbal": 1,        # Testing: 1 question
+                "reading": 1,       # Testing: 1 question (1 passage × 1 question)
+                "writing": 1        # Testing: 1 prompt
+            }
+        else:
+            # Official SSAT Elementary spec for production
+            custom_counts = {
+                "quantitative": 30,  # Official SSAT Elementary spec
+                "verbal": 30,        # Official SSAT Elementary spec  
+                "reading": 28,       # Official SSAT Elementary spec (7 passages × 4 questions)
+                "writing": 1         # Official SSAT Elementary spec
+            }
         
-        # Create sections summary
+        progressive_request = CompleteTestRequest(
+            difficulty=request.difficulty,
+            include_sections=[QuestionType.QUANTITATIVE, QuestionType.VERBAL, QuestionType.READING, QuestionType.WRITING],
+            custom_counts=custom_counts,
+            provider=None  # Use best available provider
+        )
+        
+        # Use the SAME generation logic as progressive tests for consistency
+        job_id = str(uuid.uuid4())
+        
+        # Create AI generation session for tracking
+        await ai_content_service.create_generation_session(job_id, {
+            "test_type": "official_elementary",
+            "difficulty": request.difficulty.value,
+            "include_sections": [section.value for section in progressive_request.include_sections],
+            "custom_counts": progressive_request.custom_counts,
+            "student_grade": request.student_grade,
+            "test_focus": request.test_focus
+        })
+        
+        # Generate all sections using the same background logic (but synchronously for official test)
+        sections_data = {}
+        
+        # Generate sections in parallel using the same logic as progressive tests
+        from app.services.job_manager import job_manager
+        
+        # Create a temporary job for tracking (but don't expose it as progressive)
+        temp_job_id = job_manager.create_job({
+            "difficulty": progressive_request.difficulty.value,
+            "include_sections": [section.value for section in progressive_request.include_sections],
+            "custom_counts": progressive_request.custom_counts,
+            "provider": None
+        })
+        
+        # Generate sections in parallel
+        section_tasks = []
+        for section_type in progressive_request.include_sections:
+            task = asyncio.create_task(
+                generate_single_section_background(temp_job_id, section_type, progressive_request)
+            )
+            section_tasks.append(task)
+        
+        # Wait for all sections to complete
+        await asyncio.gather(*section_tasks, return_exceptions=True)
+        
+        # Get completed sections from job manager
+        completed_sections_list = job_manager.get_completed_sections(temp_job_id)
+        
+        # Convert list to dict format for easier processing
+        completed_sections = {}
+        for section in completed_sections_list:
+            section_name = section.get("section_name", "").lower()
+            completed_sections[section_name] = section
+        
+        # Convert to official test format
         sections_summary = {}
-        for section in complete_test.sections:
-            sections_summary[section.section_name] = section.question_count
-        sections_summary["Writing"] = 1  # Add writing prompt
+        test_instructions = {}
         
-        # Create test instructions
-        test_instructions = {
-            section.section_name: section.instructions 
-            for section in complete_test.sections
-        }
-        test_instructions["Writing"] = complete_test.writing_prompt.instructions
+        for section_name, section_data in completed_sections.items():
+            sections_summary[section_name] = len(section_data.get("questions", [])) if section_name != "writing" else 1
+            test_instructions[section_name] = section_data.get("instructions", "")
         
-        # Official timing: 30+20+15+30+15 = 110 minutes
-        estimated_time = complete_test.total_time_minutes
+        # Calculate totals
+        total_questions = sum(count for section, count in sections_summary.items() if section != "writing") + 1  # +1 for writing
+        estimated_time = 110  # Official SSAT Elementary timing: 30+20+15+30+15 = 110 minutes
         
         # Create metadata
         generation_time = time.time() - start_time
@@ -466,16 +520,20 @@ async def generate_complete_elementary_test(request: CompleteElementaryTestReque
             generation_time=generation_time,
             provider_used="mixed",  # Multiple providers used across sections
             training_examples_count=0,  # Will be updated by individual generators
+            training_example_ids=[],
+            request_id=job_id,
             timestamp=datetime.utcnow()
         )
         
+        # Format as official test response
         response = CompleteElementaryTestResponse(
-            test=complete_test.model_dump(),  # Convert to dict for response
+            test=dict(completed_sections),  # Convert to proper dict format
             sections_summary=sections_summary,
-            total_questions=complete_test.total_scored_questions,
+            total_questions=total_questions,
             estimated_completion_time=estimated_time,
             test_instructions=test_instructions,
-            metadata=metadata
+            metadata=metadata,
+            status="success"
         )
         
         logger.info(f"Successfully generated official SSAT test: {sections_summary} in {generation_time:.2f}s")
@@ -484,16 +542,6 @@ async def generate_complete_elementary_test(request: CompleteElementaryTestReque
     except Exception as e:
         logger.error(f"Official SSAT test generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Test generation failed: {str(e)}")
-
-@app.get("/generate/official-ssat-specs")
-async def get_official_ssat_specifications():
-    """Get official SSAT Elementary Level test specifications"""
-    try:
-        specs = ssat_test_service.get_test_specifications()
-        return specs
-    except Exception as e:
-        logger.error(f"Failed to get SSAT specifications: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get specifications: {str(e)}")
 
 # Error handlers
 @app.exception_handler(HTTPException)

@@ -7,7 +7,7 @@ different content types appropriately.
 
 import time
 import uuid
-from typing import Dict, Any, Union, List
+from typing import Dict, Any, Union, List, cast
 from loguru import logger
 
 from app.models import QuestionRequest, QuestionType as SSATQuestionType, DifficultyLevel as SSATDifficultyLevel
@@ -17,13 +17,14 @@ from app.models.responses import (
     GenerationMetadata, GeneratedQuestion, ReadingPassage, WritingPrompt
 )
 from app.content_generators import (
-    generate_content, generate_content_async, 
+    generate_content_async, 
     generate_writing_prompts_with_metadata,
     generate_reading_passages_with_metadata,
     ReadingPassage as GeneratorReadingPassage,
     WritingPrompt as GeneratorWritingPrompt,
     GenerationResult
 )
+from app.models import Question
 
 
 class UnifiedContentService:
@@ -136,71 +137,86 @@ class UnifiedContentService:
             ssat_request = self._convert_to_ssat_request(request)
             provider = request.provider.value if request.provider else None
             
-            # Generate content with proper metadata capture
+            # Handle each question type completely in its own branch to avoid union types
             if request.question_type == QuestionType.WRITING:
-                # Use the metadata-returning function for writing prompts
+                # Generate writing prompts with metadata
                 generation_result = generate_writing_prompts_with_metadata(ssat_request, llm=provider)
-                content = generation_result.content
+                writing_content = cast(List[GeneratorWritingPrompt], generation_result.content)
                 training_example_ids = generation_result.training_example_ids
                 actual_provider = generation_result.provider_used
-            elif request.question_type == QuestionType.READING:
-                # Use the metadata-returning function for reading passages
-                generation_result = generate_reading_passages_with_metadata(ssat_request, llm=provider)
-                content = generation_result.content
-                training_example_ids = generation_result.training_example_ids
-                actual_provider = generation_result.provider_used
-            else:
-                # Use existing unified generator for other question types
-                content = generate_content(ssat_request, llm=provider)
-                training_example_ids = []  # TODO: Add similar logic for question types
-                actual_provider = provider or "auto-selected"
-            
-            generation_time = time.time() - start_time
-            
-            # Create metadata
-            metadata = GenerationMetadata(
-                generation_time=generation_time,
-                provider_used=actual_provider,
-                training_examples_count=len(training_example_ids),
-                training_example_ids=training_example_ids,
-                request_id=request_id
-            )
-            
-            # Return type-specific response
-            if request.question_type in [QuestionType.QUANTITATIVE, QuestionType.VERBAL, QuestionType.ANALOGY, QuestionType.SYNONYM]:
-                # Standalone questions
-                api_questions = self._convert_questions_to_api_format(content)
-                return QuestionGenerationResponse(
-                    questions=api_questions,
+                
+                # Create metadata
+                generation_time = time.time() - start_time
+                metadata = GenerationMetadata(
+                    generation_time=generation_time,
+                    provider_used=actual_provider,
+                    training_examples_count=len(training_example_ids),
+                    training_example_ids=training_example_ids,
+                    request_id=request_id
+                )
+                
+                # Convert and return writing response
+                api_prompts = [self._convert_writing_prompt_to_api_format(prompt) for prompt in writing_content]
+                return WritingGenerationResponse(
+                    prompts=cast(List[WritingPrompt], api_prompts),
                     metadata=metadata,
                     status="success",
-                    count=len(api_questions)
+                    count=len(api_prompts)
                 )
-            
+                
             elif request.question_type == QuestionType.READING:
-                # Reading passages
-                api_passages = [self._convert_reading_passage_to_api_format(passage) for passage in content]
+                # Generate reading passages with metadata
+                generation_result = generate_reading_passages_with_metadata(ssat_request, llm=provider)
+                reading_content = cast(List[GeneratorReadingPassage], generation_result.content)
+                training_example_ids = generation_result.training_example_ids
+                actual_provider = generation_result.provider_used
+                
+                # Create metadata
+                generation_time = time.time() - start_time
+                metadata = GenerationMetadata(
+                    generation_time=generation_time,
+                    provider_used=actual_provider,
+                    training_examples_count=len(training_example_ids),
+                    training_example_ids=training_example_ids,
+                    request_id=request_id
+                )
+                
+                # Convert and return reading response
+                api_passages = [self._convert_reading_passage_to_api_format(passage) for passage in reading_content]
                 total_questions = sum(len(passage["questions"]) for passage in api_passages)
                 return ReadingGenerationResponse(
-                    passages=api_passages,
+                    passages=cast(List[ReadingPassage], api_passages),
                     metadata=metadata,
                     status="success",
                     count=len(api_passages),
                     total_questions=total_questions
                 )
-            
-            elif request.question_type == QuestionType.WRITING:
-                # Writing prompts
-                api_prompts = [self._convert_writing_prompt_to_api_format(prompt) for prompt in content]
-                return WritingGenerationResponse(
-                    prompts=api_prompts,
+                
+            else:
+                # For math/verbal questions, generate using direct approach
+                from app.generator import generate_questions
+                question_content = generate_questions(ssat_request, llm=provider)
+                training_example_ids = []  # TODO: Get actual training example IDs
+                actual_provider = provider or "auto-selected"
+                
+                # Create metadata
+                generation_time = time.time() - start_time
+                metadata = GenerationMetadata(
+                    generation_time=generation_time,
+                    provider_used=actual_provider,
+                    training_examples_count=len(training_example_ids),
+                    training_example_ids=training_example_ids,
+                    request_id=request_id
+                )
+                
+                # Convert and return question response
+                api_questions = self._convert_questions_to_api_format(question_content)
+                return QuestionGenerationResponse(
+                    questions=cast(List[GeneratedQuestion], api_questions),
                     metadata=metadata,
                     status="success",
-                    count=len(api_prompts)
+                    count=len(api_questions)
                 )
-            
-            else:
-                raise ValueError(f"Unknown question type: {request.question_type}")
                 
         except Exception as e:
             logger.error(f"Content generation failed: {e}")
@@ -237,7 +253,7 @@ class UnifiedContentService:
                 # Standalone questions
                 api_questions = self._convert_questions_to_api_format(content)
                 return QuestionGenerationResponse(
-                    questions=api_questions,
+                    questions=api_questions,  # type: ignore[arg-type]
                     metadata=metadata,
                     status="success",
                     count=len(api_questions)
@@ -245,10 +261,10 @@ class UnifiedContentService:
             
             elif request.question_type == QuestionType.READING:
                 # Reading passages
-                api_passages = [self._convert_reading_passage_to_api_format(passage) for passage in content]
+                api_passages = [self._convert_reading_passage_to_api_format(passage) for passage in content]  # type: ignore[arg-type]
                 total_questions = sum(len(passage["questions"]) for passage in api_passages)
                 return ReadingGenerationResponse(
-                    passages=api_passages,
+                    passages=api_passages,  # type: ignore[arg-type]
                     metadata=metadata,
                     status="success",
                     count=len(api_passages),
@@ -257,9 +273,9 @@ class UnifiedContentService:
             
             elif request.question_type == QuestionType.WRITING:
                 # Writing prompts
-                api_prompts = [self._convert_writing_prompt_to_api_format(prompt) for prompt in content]
+                api_prompts = [self._convert_writing_prompt_to_api_format(prompt) for prompt in content]  # type: ignore[arg-type]
                 return WritingGenerationResponse(
-                    prompts=api_prompts,
+                    prompts=api_prompts,  # type: ignore[arg-type]
                     metadata=metadata,
                     status="success",
                     count=len(api_prompts)

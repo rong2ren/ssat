@@ -141,11 +141,6 @@ def generate_reading_passages_with_metadata(request: QuestionRequest, llm: Optio
         provider_used=provider_used
     )
 
-def generate_reading_passages(request: QuestionRequest, llm: Optional[str] = None) -> List[ReadingPassage]:
-    """Generate reading passages with 4 questions each. (Backward compatibility wrapper)"""
-    result = generate_reading_passages_with_metadata(request, llm)
-    return result.content
-
 def generate_writing_prompts_with_metadata(request: QuestionRequest, llm: Optional[str] = None) -> GenerationResult:
     """Generate writing prompts using AI with real SSAT training examples.
     
@@ -235,11 +230,6 @@ def generate_writing_prompts_with_metadata(request: QuestionRequest, llm: Option
             provider_used="static"
         )
 
-def generate_writing_prompts(request: QuestionRequest, llm: Optional[str] = None) -> List[WritingPrompt]:
-    """Generate writing prompts using AI with real SSAT training examples. (Backward compatibility wrapper)"""
-    result = generate_writing_prompts_with_metadata(request, llm)
-    return result.content
-
 def generate_static_writing_prompts(request: QuestionRequest) -> List[WritingPrompt]:
     """Fallback function that uses the current static approach."""
     logger.info(f"Generating {request.count} static writing prompts (fallback)")
@@ -268,28 +258,6 @@ def generate_static_writing_prompts(request: QuestionRequest) -> List[WritingPro
     
     logger.info(f"Generated {len(prompts)} unique static writing prompts total")
     return prompts
-
-
-# Unified content generation function
-def generate_content(request: QuestionRequest, llm: Optional[str] = None) -> Union[List[Question], List[ReadingPassage], List[WritingPrompt]]:
-    """
-    Generate content based on question type.
-    
-    Returns:
-    - List[Question] for math, verbal, analogy, synonym
-    - List[ReadingPassage] for reading comprehension  
-    - List[WritingPrompt] for writing tasks
-    """
-    logger.info(f"Generating content for {request.question_type.value}")
-    
-    if request.question_type.value in ["quantitative", "verbal", "analogy", "synonym"]:
-        return generate_standalone_questions(request, llm)
-    elif request.question_type.value == "reading":
-        return generate_reading_passages(request, llm)
-    elif request.question_type.value == "writing":
-        return generate_writing_prompts(request, llm)
-    else:
-        raise ValueError(f"Unknown question type: {request.question_type.value}")
 
 
 # Async versions for parallel generation
@@ -343,9 +311,87 @@ async def generate_reading_passages_async(request: QuestionRequest, llm: Optiona
 
 
 async def generate_writing_prompts_async(request: QuestionRequest, llm: Optional[str] = None) -> List[WritingPrompt]:
-    """Async version of generate_writing_prompts."""
-    # Writing prompts are currently selected from predefined list, so no async needed
-    return generate_writing_prompts(request, llm)
+    """Async version of generate_writing_prompts using AI with real SSAT training examples."""
+    logger.info(f"Generating {request.count} writing prompts with AI (async)")
+    
+    if request.question_type.value != "writing":
+        raise ValueError("This function only generates writing prompts")
+    
+    # Initialize generator
+    generator = SSATGenerator()
+    
+    try:
+        # Get writing training examples from database
+        training_examples = generator.get_writing_training_examples(request.topic)
+        system_message = generator.build_writing_few_shot_prompt(request, training_examples)
+        
+        # Log training info
+        if training_examples:
+            logger.info(f"Using {len(training_examples)} real SSAT writing examples for training (async)")
+        else:
+            logger.info("No writing training examples found, using generic AI prompt (async)")
+        
+        # Generate prompts using async LLM (same pattern as other question types)
+        available_providers = llm_client.get_available_providers()
+        if not available_providers:
+            raise ValueError("No LLM providers available")
+        
+        # Use specified provider or fall back to preferred order
+        if llm:
+            provider_name = llm.lower()
+        else:
+            preferred_order = ['deepseek', 'gemini', 'openai']
+            provider_name = None
+            for preferred in preferred_order:
+                if any(p.value == preferred for p in available_providers):
+                    provider_name = preferred
+                    break
+            if not provider_name:
+                provider_name = available_providers[0].value
+        
+        try:
+            provider = LLMProvider(provider_name)
+        except ValueError:
+            available_names = [p.value for p in available_providers]
+            raise ValueError(f"Unsupported LLM provider: {llm}. Available providers: {available_names}")
+        
+        if provider not in available_providers:
+            available_names = [p.value for p in available_providers]
+            raise ValueError(f"Provider {provider.value} not available. Available providers: {available_names}")
+        
+        logger.info(f"Using LLM provider: {provider.value} (async)")
+        
+        # Generate prompts using async LLM call for true parallelism
+        content = await llm_client.call_llm_async(
+            provider=provider,
+            system_message=system_message,
+            prompt="Generate the writing prompts as specified.",
+        )
+        
+        if content is None:
+            raise ValueError(f"Async LLM call to {provider.value} failed - no content returned")
+        
+        data = extract_json_from_text(content)
+        if data is None:
+            raise ValueError("Failed to extract JSON from async LLM response")
+        
+        # Parse generated prompts
+        prompts = []
+        for prompt_data in data["prompts"]:
+            # Add standard instructions
+            prompt_data["instructions"] = "Look at the picture and write a story with a beginning, middle, and end. Use proper grammar, punctuation, and spelling."
+            prompt = WritingPrompt(prompt_data)
+            prompts.append(prompt)
+        
+        logger.info(f"Successfully generated {len(prompts)} writing prompts using async AI with {'real SSAT examples' if training_examples else 'generic AI prompt'}")
+        return prompts
+        
+    except Exception as e:
+        logger.error(f"Error in async AI writing prompt generation: {e}")
+        # Fallback to static prompts for reliability
+        logger.info("Falling back to static writing prompts (async)")
+        static_prompts = generate_static_writing_prompts(request)
+        return static_prompts
 
 
 async def generate_content_async(request: QuestionRequest, llm: Optional[str] = None) -> Union[List[Question], List[ReadingPassage], List[WritingPrompt]]:

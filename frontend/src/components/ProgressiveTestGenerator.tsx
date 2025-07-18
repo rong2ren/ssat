@@ -46,11 +46,13 @@ export function ProgressiveTestGenerator({
   const [jobId, setJobId] = useState<string | null>(null)
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null)
   const [isPolling, setIsPolling] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [startTime, setStartTime] = useState<Date | null>(null)
   const [elapsedTime, setElapsedTime] = useState<string>('0s')
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
   const elapsedTimerRef = useRef<number | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   // UI translations
   const translations = {
@@ -63,11 +65,11 @@ export function ProgressiveTestGenerator({
     'Status': '状态',
     'Sections Complete': '完成部分',
     'Quantitative': '数学',
+    'Verbal': '语言',
     'Reading': '阅读',
     'Writing': '写作',
     'Verbal - Analogies': '语言 - 类比',
     'Verbal - Synonyms': '语言 - 同义词',
-    'Verbal (Mixed)': '语言（混合）',
     'Complete': '完成',
     'Generating...': '生成中',
     'Waiting': '等待',
@@ -94,18 +96,50 @@ export function ProgressiveTestGenerator({
   }
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
 
-  // Default test configuration - Official SSAT Elementary sections with proper verbal distribution
+  // Official SSAT Elementary format
   const defaultTestRequest = {
     difficulty: 'Medium',
-    include_sections: ['quantitative', 'analogy', 'synonym', 'reading', 'writing'],
-    custom_counts: { quantitative: 10, analogy: 4, synonym: 6, reading: 7, writing: 1 }
+    include_sections: ['quantitative', 'verbal', 'reading', 'writing'],
+    custom_counts: { quantitative: 30, verbal: 30, reading: 28, writing: 1 }
   }
 
   const finalTestRequest = testRequest || defaultTestRequest
 
+  // Cleanup function to stop all active operations
+  const cleanup = () => {
+    // Cancel any ongoing requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    
+    // Stop polling
+    if (pollingRef.current) {
+      clearTimeout(pollingRef.current)
+      pollingRef.current = null
+    }
+    
+    // Stop elapsed timer
+    stopElapsedTimeCounter()
+    
+    // Reset polling state
+    setIsPolling(false)
+  }
+
   const startGeneration = async () => {
+    // Prevent duplicate submissions
+    if (isSubmitting) {
+      console.log('Generation already in progress, skipping duplicate request')
+      return
+    }
+
     try {
+      setIsSubmitting(true)
       setError(null)
+      
+      // Cleanup any previous operations
+      cleanup()
+      
       const now = new Date()
       setStartTime(now)
       
@@ -145,13 +179,29 @@ export function ProgressiveTestGenerator({
       // Show progress section immediately
       setJobStatus(initialJobStatus)
       
+      // Create abort controller for this request
+      abortControllerRef.current = new AbortController()
+      
+      // Add timeout to prevent hanging
+      const timeoutId = setTimeout(() => {
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort()
+        }
+      }, 10000) // 10 second timeout for job creation
+      
+      // Send request to start test generation
+      const requestBody = JSON.stringify(finalTestRequest)
+      
       const response = await fetch('/api/generate/complete-test/start', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(finalTestRequest),
+        body: requestBody,
+        signal: abortControllerRef.current.signal
       })
+
+      clearTimeout(timeoutId)
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -167,11 +217,19 @@ export function ProgressiveTestGenerator({
       startPolling(data.job_id)
       
     } catch (err) {
+      // Handle abort differently from real errors
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.log('Request was cancelled')
+        return
+      }
+      
       setError(err instanceof Error ? err.message : 'Failed to start test generation')
       // Reset job status on error
       setJobStatus(null)
       // Stop elapsed timer on error
-      stopElapsedTimeCounter()
+      cleanup()
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -207,7 +265,19 @@ export function ProgressiveTestGenerator({
   const startPolling = (jobId: string) => {
     const poll = async () => {
       try {
-        const response = await fetch(`/api/generate/complete-test/${jobId}/status`)
+        // Create abort controller for polling requests
+        const pollAbortController = new AbortController()
+        
+        // Set timeout for individual polling requests (5 seconds)
+        const timeoutId = setTimeout(() => {
+          pollAbortController.abort()
+        }, 5000)
+        
+        const response = await fetch(`/api/generate/complete-test/${jobId}/status`, {
+          signal: pollAbortController.signal
+        })
+        
+        clearTimeout(timeoutId)
         
         if (!response.ok) {
           throw new Error(`Failed to get status: ${response.statusText}`)
@@ -221,6 +291,7 @@ export function ProgressiveTestGenerator({
           stopElapsedTimeCounter()
           if (pollingRef.current) {
             clearTimeout(pollingRef.current)
+            pollingRef.current = null
           }
           return
         }
@@ -229,6 +300,14 @@ export function ProgressiveTestGenerator({
         pollingRef.current = setTimeout(poll, 2000) as NodeJS.Timeout
         
       } catch (err) {
+        // Handle timeout and abort errors gracefully
+        if (err instanceof Error && err.name === 'AbortError') {
+          console.log('Polling request timed out, retrying...')
+          // Retry after 3 seconds on timeout
+          pollingRef.current = setTimeout(poll, 3000) as NodeJS.Timeout
+          return
+        }
+        
         console.error('Polling error:', err)
         setError(err instanceof Error ? err.message : 'Failed to get status')
         setIsPolling(false)
@@ -239,21 +318,18 @@ export function ProgressiveTestGenerator({
     poll()
   }
 
-
   const resetGenerator = () => {
     // Clear current state
     setJobId(null)
     setJobStatus(null)
-    setIsPolling(false)
     setError(null)
     setStartTime(null)
     setElapsedTime('0s')
-    stopElapsedTimeCounter()
-    if (pollingRef.current) {
-      clearTimeout(pollingRef.current)
-    }
     
-    // Immediately start new generation with same settings
+    // Use cleanup function
+    cleanup()
+    
+    // Auto-start new generation with same settings
     setTimeout(() => {
       startGeneration()
     }, 100) // Small delay to ensure state is cleared
@@ -262,18 +338,14 @@ export function ProgressiveTestGenerator({
   // Cleanup polling and timers on unmount
   useEffect(() => {
     return () => {
-      if (pollingRef.current) {
-        clearTimeout(pollingRef.current)
-      }
-      stopElapsedTimeCounter()
+      cleanup()
     }
   }, [])
 
-  // Auto-start generation when component mounts
+  // Auto-start generation when component mounts (user clicked "Generate Complete Test")
   useEffect(() => {
     startGeneration()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, []) // Only run once on mount
 
   // Get display name for sections with descriptive labels
   const getSectionDisplayName = (sectionType: string) => {
@@ -283,7 +355,7 @@ export function ProgressiveTestGenerator({
       'writing': t('Writing'),
       'analogy': t('Verbal - Analogies'),
       'synonym': t('Verbal - Synonyms'),
-      'verbal': t('Verbal (Mixed)')
+      'verbal': t('Verbal')
     }
     return nameMap[sectionType] || sectionType.charAt(0).toUpperCase() + sectionType.slice(1)
   }
@@ -365,7 +437,9 @@ export function ProgressiveTestGenerator({
           })}
         </div>
 
-        {/* Controls - moved right below header */}
+
+
+        {/* Controls - show after generation is complete */}
         <div className="flex items-center space-x-4 mb-6">
           {/* Post-completion buttons */}
           {jobStatus?.status === 'completed' && (
@@ -373,22 +447,36 @@ export function ProgressiveTestGenerator({
               <Button 
                 variant="outline" 
                 onClick={resetGenerator}
+                disabled={isSubmitting}
                 className="flex items-center space-x-2"
               >
-                <RefreshCw className="h-4 w-4" />
-                <span>{t('Generate Another Test')}</span>
+                {isSubmitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                <span>{isSubmitting ? 'Starting...' : t('Generate Another Test')}</span>
               </Button>
               
               {onBack && (
                 <Button 
                   variant="outline" 
                   onClick={onBack}
+                  disabled={isSubmitting}
                   className="flex items-center space-x-2"
                 >
                   <span>← {t('Back to Form')}</span>
                 </Button>
               )}
             </>
+          )}
+          
+          {/* Show loading state during initial submission */}
+          {isSubmitting && !jobStatus && (
+            <div className="flex items-center space-x-2 text-blue-600">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-sm font-medium">Starting test generation...</span>
+            </div>
           )}
         </div>
 

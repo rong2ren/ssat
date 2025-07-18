@@ -21,10 +21,10 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
   const [useCustomization, setUseCustomization] = useState(false)
   const [selectedSections, setSelectedSections] = useState(['quantitative', 'analogy', 'synonym', 'reading', 'writing'])
   const [customCounts, setCustomCounts] = useState<Record<string, number>>({
-    quantitative: 10,
-    reading: 7,
-    analogy: 4,
-    synonym: 6,
+    quantitative: 15,
+    reading: 10,
+    analogy: 6,
+    synonym: 9,
     writing: 1
   })
 
@@ -38,12 +38,13 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
     'Customize Sections': '自定义',
     'Select Test Sections': '选择题型',
     'Questions per Section': '每部分题目数',
-    'Official test format with standard question counts': '官方测试格式，标准题目数量',
+    'Official test format with standard question counts (89 total)': '官方测试格式，标准题目数量（共89题）',
     'Pick sections and question counts': '自由选择题型和数量',
     'Applied to all sections in the test': '应用于测试的所有部分',
     'Recommended': '推荐',
     'Questions:': '题目数：',
     'Quantitative': '数学',
+    'Verbal': '语言',
     'Reading': '阅读',
     'Analogies': '类比',
     'Synonyms': '同义词',
@@ -56,6 +57,7 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
     'Easy': '简单',
     'Medium': '中等',
     'Hard': '困难',
+    'Total': '总计',
     'Please select at least one section': '请至少选择一个部分',
     'Question counts must be between 1 and 30': '题目数量必须在1到30之间'
   }
@@ -88,7 +90,7 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
         difficulty: difficulty
       })
     } else {
-      // Use default configuration
+      // Use official SSAT Elementary format
       onSubmit()
     }
   }
@@ -100,10 +102,10 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
   ]
 
   const sectionTypes = [
-    { value: 'quantitative', label: t('Quantitative'), defaultCount: 10, description: t('Math problems and numerical reasoning') },
-    { value: 'analogy', label: t('Analogies'), defaultCount: 4, description: t('Word relationship patterns') },
-    { value: 'synonym', label: t('Synonyms'), defaultCount: 6, description: t('Word meaning identification') },
-    { value: 'reading', label: t('Reading'), defaultCount: 7, description: t('Reading comprehension passages') },
+    { value: 'quantitative', label: t('Quantitative'), defaultCount: 15, description: t('Math problems and numerical reasoning') },
+    { value: 'analogy', label: t('Analogies'), defaultCount: 6, description: t('Word relationship patterns') },
+    { value: 'synonym', label: t('Synonyms'), defaultCount: 9, description: t('Word meaning identification') },
+    { value: 'reading', label: t('Reading'), defaultCount: 10, description: t('Reading comprehension passages') },
     { value: 'writing', label: t('Writing'), defaultCount: 1, description: t('Creative writing prompt') }
   ]
 
@@ -146,11 +148,11 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
               </div>
               
               <p className="text-sm text-gray-600 mb-3">
-                ✓ {t('Official test format with standard question counts')}
+                ✓ {t('Official test format with standard question counts (89 total)')}
               </p>
               
               <div className="text-xs text-gray-500">
-                {t('Quantitative')} (10) • {t('Analogies')} (4) • {t('Synonyms')} (6) • {t('Reading')} (7) • {t('Writing')} (1)
+                {t('Quantitative')} (30) • {t('Verbal')} (30) • {t('Reading')} (28) • {t('Writing')} (1) • {t('Total')}: 89
               </div>
             </div>
 
