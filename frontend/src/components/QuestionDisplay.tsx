@@ -132,10 +132,10 @@ export function QuestionDisplay({
   }
 
   return (
-    <div className={showHeader ? "bg-white rounded-lg shadow-lg" : ""}>
+    <div className={showHeader ? "bg-white rounded-xl shadow-sm border border-gray-200" : ""}>
       {/* Header - Only show in standalone mode */}
       {showHeader && (
-        <div className="border-b border-gray-200 p-6">
+        <div className="border-b border-gray-200 p-8 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-xl">
           <div className="flex justify-between items-center">
             <div>
               {(() => {

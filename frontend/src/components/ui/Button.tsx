@@ -11,11 +11,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <button
         className={clsx(
-          'inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:pointer-events-none disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed',
+          'inline-flex items-center justify-center rounded-lg font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed shadow-sm hover:shadow-md',
           {
-            'bg-blue-600 text-white hover:bg-blue-700': variant === 'default',
-            'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50': variant === 'outline',
-            'text-gray-700 hover:bg-gray-100': variant === 'ghost',
+            'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 shadow-blue-200/50': variant === 'default',
+            'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100': variant === 'outline',
+            'text-gray-700 hover:bg-gray-100 active:bg-gray-200 rounded-md': variant === 'ghost',
           },
           {
             'h-6 px-2 text-xs': size === 'xs',

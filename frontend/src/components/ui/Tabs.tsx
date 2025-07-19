@@ -27,24 +27,24 @@ export function Tabs({ tabs, defaultTab, onTabChange, className }: TabsProps) {
 
   return (
     <div className={clsx('w-full', className)}>
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-1">
+        <nav className="flex space-x-1" aria-label="Tabs">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => handleTabChange(tab.id)}
               className={clsx(
-                'group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-colors cursor-pointer',
+                'group inline-flex items-center py-3 px-6 rounded-lg font-semibold text-sm transition-all duration-200 cursor-pointer flex-1 justify-center',
                 activeTab === tab.id
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               )}
               aria-current={activeTab === tab.id ? 'page' : undefined}
             >
               {tab.icon && (
                 <span className={clsx(
                   'mr-2',
-                  activeTab === tab.id ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'
+                  activeTab === tab.id ? 'text-white' : 'text-gray-400 group-hover:text-gray-600'
                 )}>
                   {tab.icon}
                 </span>
@@ -56,12 +56,14 @@ export function Tabs({ tabs, defaultTab, onTabChange, className }: TabsProps) {
       </div>
       
       {/* Tab descriptions */}
-      <div className="mt-4">
+      <div className="mt-6">
         {tabs.map((tab) => (
           activeTab === tab.id && tab.description && (
-            <p key={tab.id} className="text-sm text-gray-600 mb-6">
-              {tab.description}
-            </p>
+            <div key={tab.id} className="text-center">
+              <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
+                {tab.description}
+              </p>
+            </div>
           )
         ))}
       </div>

@@ -215,10 +215,26 @@ export default function QuestionGenerator({ showChinese = false }: QuestionGener
 
       {/* Loading State */}
       {loading && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-8">
-          <div className="flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <span className="ml-3 text-blue-700">{t('Generating questions...')}</span>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12">
+          <div className="flex flex-col items-center justify-center text-center">
+            <div className="relative mb-6">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
+              <div className="absolute inset-0 rounded-full bg-blue-100 opacity-20"></div>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {t('Generating questions...')}
+            </h3>
+            <p className="text-gray-600 max-w-md">
+              Our AI is creating personalized SSAT questions based on your requirements. This may take a few moments.
+            </p>
+            <div className="mt-6 flex items-center space-x-2 text-sm text-gray-500">
+              <div className="flex space-x-1">
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+              </div>
+              <span>Processing...</span>
+            </div>
           </div>
         </div>
       )}

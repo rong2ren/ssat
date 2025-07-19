@@ -110,8 +110,17 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
   ]
 
   return (
-    <div className="space-y-6">
-      <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          {t('Generate Complete Test')}
+        </h2>
+        <p className="text-gray-600">
+          Create a comprehensive SSAT practice test with multiple sections
+        </p>
+      </div>
+      
+      <form onSubmit={handleSubmit} className="space-y-8">
         {/* Overall Difficulty */}
         <div className="space-y-2">
           <Label htmlFor="test-difficulty">{t('Overall Difficulty')} *</Label>
@@ -228,14 +237,23 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
         )}
 
         {/* Submit Button */}
-        <Button 
-          type="submit" 
-          disabled={loading}
-          className="w-full md:w-auto"
-          size="lg"
-        >
-          {loading ? t('Generating...') : t('Generate Complete Test')}
-        </Button>
+        <div className="flex justify-center pt-4">
+          <Button 
+            type="submit" 
+            disabled={loading}
+            className="w-full md:w-auto min-w-48"
+            size="lg"
+          >
+            {loading ? (
+              <div className="flex items-center">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                {t('Generating...')}
+              </div>
+            ) : (
+              t('Generate Complete Test')
+            )}
+          </Button>
+        </div>
       </form>
     </div>
   )

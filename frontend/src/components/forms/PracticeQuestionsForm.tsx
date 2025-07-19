@@ -81,8 +81,17 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
   ]
 
   return (
-    <div className="space-y-6">
-      <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          {t('Generate Practice Questions')}
+        </h2>
+        <p className="text-gray-600">
+          Create targeted practice questions to improve specific skills
+        </p>
+      </div>
+      
+      <form onSubmit={handleSubmit} className="space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Question Type */}
           <div className="space-y-2">
@@ -144,14 +153,23 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
         </div>
 
         {/* Submit Button */}
-        <Button 
-          type="submit" 
-          disabled={loading}
-          className="w-full md:w-auto"
-          size="lg"
-        >
-          {loading ? t('Generating...') : t('Generate Practice Questions')}
-        </Button>
+        <div className="flex justify-center pt-4">
+          <Button 
+            type="submit" 
+            disabled={loading}
+            className="w-full md:w-auto min-w-48"
+            size="lg"
+          >
+            {loading ? (
+              <div className="flex items-center">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                {t('Generating...')}
+              </div>
+            ) : (
+              t('Generate Practice Questions')
+            )}
+          </Button>
+        </div>
       </form>
     </div>
   )
