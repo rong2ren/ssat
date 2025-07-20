@@ -388,16 +388,8 @@ Subsection: {example['subsection']}
 """
             examples_text += example_text
             
-            # Log each real SSAT example for debugging
-            logger.info(f"REAL SSAT TRAINING EXAMPLE {valid_examples}:")
-            logger.info(f"  Question: {example['question']}")
-            logger.info(f"  Choices: {example['choices']}")
-            logger.info(f"  Answer: {chr(65 + example['answer'])}")
-            logger.info(f"  Difficulty: {example['difficulty']}")
-            logger.info(f"  Subsection: {example['subsection']}")
-            if example.get('visual_description'):
-                logger.info(f"  Visual: {example['visual_description']}")
-            logger.info("---")
+            # Log training example summary (not full details)
+            logger.debug(f"Training example {valid_examples}: {example['question'][:50]}...")
         
         logger.info(f"📚 TRAINING SUMMARY: Using {valid_examples} real SSAT examples for {request.question_type.value} questions")
         
@@ -836,11 +828,22 @@ def generate_questions(request: QuestionRequest, llm: Optional[str] = "deepseek"
         
         logger.info(f"Using LLM provider: {provider.value}")
         
+        # Calculate appropriate max_tokens based on question count
+        # Each question with options, explanations, etc. can be ~200-300 tokens
+        # Add buffer for JSON structure and metadata
+        estimated_tokens_per_question = 300
+        base_tokens = 1000  # For JSON structure, metadata, etc.
+        required_tokens = base_tokens + (request.count * estimated_tokens_per_question)
+        max_tokens = min(required_tokens, 8000)  # Cap at 8000 to avoid hitting provider limits
+        
+        logger.debug(f"Generating {request.count} questions, using max_tokens={max_tokens}")
+        
         # Generate questions using LLM
         content = llm_client.call_llm(
             provider=provider,
             system_message=system_message,
             prompt="Generate the questions as specified.",
+            max_tokens=max_tokens
         )
 
         if content is None:
@@ -872,6 +875,8 @@ def generate_questions(request: QuestionRequest, llm: Optional[str] = "deepseek"
             questions.append(question)
         
         logger.info(f"Successfully generated {len(questions)} questions using {'real SSAT examples' if training_examples else 'generic prompt'}")
+        if len(questions) != request.count:
+            logger.warning(f"⚠️ Expected {request.count} questions but got {len(questions)} questions")
         return questions
         
     except (json.JSONDecodeError, KeyError) as e:
@@ -934,11 +939,22 @@ def generate_reading_passage(request: QuestionRequest, llm: Optional[str] = "dee
         
         logger.info(f"Using LLM provider: {provider.value}")
         
+        # Calculate appropriate max_tokens for reading passage + questions
+        # Reading passages can be long (~500-800 tokens) + 4 questions (~1200 tokens)
+        passage_tokens = 800
+        question_tokens = 4 * 300  # 4 questions
+        base_tokens = 1000  # For JSON structure, metadata, etc.
+        required_tokens = base_tokens + passage_tokens + question_tokens
+        max_tokens = min(required_tokens, 8000)  # Cap at 8000 to avoid hitting provider limits
+        
+        logger.debug(f"Generating reading passage with 4 questions, using max_tokens={max_tokens}")
+        
         # Generate passage and questions using LLM
         content = llm_client.call_llm(
             provider=provider,
             system_message=system_message,
             prompt="Generate the reading passage and questions as specified.",
+            max_tokens=max_tokens
         )
 
         if content is None:
@@ -1041,11 +1057,22 @@ async def generate_reading_passage_async(request: QuestionRequest, llm: Optional
         
         logger.info(f"Using LLM provider: {provider.value}")
         
+        # Calculate appropriate max_tokens for reading passage + questions
+        # Reading passages can be long (~500-800 tokens) + 4 questions (~1200 tokens)
+        passage_tokens = 800
+        question_tokens = 4 * 300  # 4 questions
+        base_tokens = 1000  # For JSON structure, metadata, etc.
+        required_tokens = base_tokens + passage_tokens + question_tokens
+        max_tokens = min(required_tokens, 8000)  # Cap at 8000 to avoid hitting provider limits
+        
+        logger.info(f"Generating reading passage with 4 questions, using max_tokens={max_tokens}")
+        
         # Generate passage and questions using async LLM call
         content = await llm_client.call_llm_async(
             provider=provider,
             system_message=system_message,
             prompt="Generate the reading passage and questions as specified.",
+            max_tokens=max_tokens
         )
 
         if content is None:
@@ -1151,11 +1178,22 @@ async def generate_questions_async(request: QuestionRequest, llm: Optional[str] 
         
         logger.info(f"Using LLM provider: {provider.value}")
         
+        # Calculate appropriate max_tokens based on question count
+        # Each question with options, explanations, etc. can be ~200-300 tokens
+        # Add buffer for JSON structure and metadata
+        estimated_tokens_per_question = 300
+        base_tokens = 1000  # For JSON structure, metadata, etc.
+        required_tokens = base_tokens + (request.count * estimated_tokens_per_question)
+        max_tokens = min(required_tokens, 8000)  # Cap at 8000 to avoid hitting provider limits
+        
+        logger.info(f"Generating {request.count} questions, using max_tokens={max_tokens}")
+        
         # Generate questions using async LLM call for true parallelism
         content = await llm_client.call_llm_async(
             provider=provider,
             system_message=system_message,
             prompt="Generate the questions as specified.",
+            max_tokens=max_tokens
         )
 
         if content is None:
@@ -1187,6 +1225,8 @@ async def generate_questions_async(request: QuestionRequest, llm: Optional[str] 
             questions.append(question)
         
         logger.info(f"Successfully generated {len(questions)} questions async using {'real SSAT examples' if training_examples else 'generic prompt'}")
+        if len(questions) != request.count:
+            logger.warning(f"⚠️ Expected {request.count} questions but got {len(questions)} questions")
         return questions
         
     except (json.JSONDecodeError, KeyError) as e:

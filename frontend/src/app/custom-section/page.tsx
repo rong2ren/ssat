@@ -1,16 +1,15 @@
 'use client'
 
-import { useState } from 'react'
 import { QuestionDisplay } from '@/components/QuestionDisplay'
 import { PracticeQuestionsForm } from '@/components/forms/PracticeQuestionsForm'
-import { Question, QuestionRequest, ReadingPassage } from '@/types/api'
+import { QuestionRequest } from '@/types/api'
+import { useCustomSectionState, useCustomSectionActions, usePreferences } from '@/contexts/AppStateContext'
 
 export default function CustomSectionPage() {
-  const [questions, setQuestions] = useState<Question[]>([])
-  const [passages, setPassages] = useState<ReadingPassage[]>([])
-  const [contentType, setContentType] = useState<'questions' | 'passages' | 'prompts'>('questions')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Use global state instead of local state
+  const { questions, passages, contentType, loading, error } = useCustomSectionState()
+  const { setLoading, setError, setQuestions, setPassages } = useCustomSectionActions()
+  const { showChinese } = usePreferences()
 
   // UI translations (for future language support)
   // const t = (key: string, showChinese: boolean = false) => key
@@ -37,14 +36,10 @@ export default function CustomSectionPage() {
       // Handle different response types based on content type
       if (data.questions) {
         // Standalone questions (math, verbal, analogy, synonym)
-        setQuestions(data.questions)
-        setPassages([])
-        setContentType('questions')
+        setQuestions(data.questions, 'questions', request)
       } else if (data.passages) {
         // Reading comprehension - keep passages in their natural structure
-        setPassages(data.passages)
-        setQuestions([])
-        setContentType('passages')
+        setPassages(data.passages, request)
       } else if (data.prompts) {
         // Writing prompts - convert to question-like format for display
         const promptQuestions = data.prompts.map((prompt: { prompt_text: string; visual_description?: string; instructions: string }, index: number) => ({
@@ -63,9 +58,7 @@ export default function CustomSectionPage() {
             instructions: prompt.instructions
           }
         }))
-        setQuestions(promptQuestions)
-        setPassages([])
-        setContentType('prompts')
+        setQuestions(promptQuestions, 'prompts', request)
       } else {
         throw new Error('Invalid response format')
       }
@@ -96,7 +89,7 @@ export default function CustomSectionPage() {
           <PracticeQuestionsForm
             onSubmit={handleGenerateQuestions}
             loading={loading}
-            showChinese={false} // Can add language toggle later if needed
+            showChinese={showChinese}
           />
 
           {/* Error Display */}
@@ -141,13 +134,13 @@ export default function CustomSectionPage() {
           {!loading && (
             <>
               {contentType === 'questions' && questions.length > 0 && (
-                <QuestionDisplay questions={questions} showChinese={false} />
+                <QuestionDisplay questions={questions} showChinese={showChinese} />
               )}
               {contentType === 'passages' && passages.length > 0 && (
-                <QuestionDisplay passages={passages} showChinese={false} />
+                <QuestionDisplay passages={passages} showChinese={showChinese} />
               )}
               {contentType === 'prompts' && questions.length > 0 && (
-                <QuestionDisplay questions={questions} showChinese={false} />
+                <QuestionDisplay questions={questions} showChinese={showChinese} />
               )}
             </>
           )}

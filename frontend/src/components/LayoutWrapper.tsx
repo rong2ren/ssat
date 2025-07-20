@@ -1,24 +1,38 @@
 'use client'
 
-import { useState } from 'react'
-import { usePathname } from 'next/navigation'
 import { Header } from './Header'
+import { AppStateProvider, usePreferences } from '@/contexts/AppStateContext'
 
 interface LayoutWrapperProps {
   children: React.ReactNode
 }
 
-export function LayoutWrapper({ children }: LayoutWrapperProps) {
-  const [showChinese, setShowChinese] = useState<boolean>(false)
+// Inner component that uses the context
+function LayoutContent({ children }: LayoutWrapperProps) {
+  const { showChinese, dispatch } = usePreferences()
 
-  // Show header on all pages for consistent navigation
+  const handleLanguageToggle = () => {
+    dispatch({ type: 'SET_SHOW_CHINESE', payload: !showChinese })
+  }
+
   return (
     <>
       <Header 
         showChinese={showChinese}
-        onLanguageToggle={() => setShowChinese(!showChinese)}
+        onLanguageToggle={handleLanguageToggle}
       />
       {children}
     </>
+  )
+}
+
+// Main wrapper that provides the context
+export function LayoutWrapper({ children }: LayoutWrapperProps) {
+  return (
+    <AppStateProvider>
+      <LayoutContent>
+        {children}
+      </LayoutContent>
+    </AppStateProvider>
   )
 }

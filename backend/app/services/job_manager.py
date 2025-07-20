@@ -14,6 +14,8 @@ class JobStatus(str, Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    PARTIAL = "partial"  # Some sections succeeded, some failed
+    CANCELLED = "cancelled"
 
 class SectionStatus(str, Enum):
     WAITING = "waiting"
@@ -90,7 +92,7 @@ class JobManager:
                 
                 jobs_to_remove = []
                 for job_id, job in self.jobs.items():
-                    if (job.status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED] 
+                    if (job.status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.PARTIAL, JobStatus.CANCELLED] 
                         and job.updated_at < cutoff_time):
                         jobs_to_remove.append(job_id)
                 
@@ -141,6 +143,16 @@ class JobManager:
             if error:
                 job.error = error
             logger.info(f"Updated job {job_id} status to {status}")
+            
+            # When job status becomes RUNNING, set all sections to generating
+            if status == JobStatus.RUNNING:
+                for section_type in job.sections:
+                    if job.sections[section_type].status == SectionStatus.WAITING:
+                        job.sections[section_type].status = SectionStatus.GENERATING
+                        job.sections[section_type].started_at = datetime.utcnow()
+                        job.sections[section_type].progress_percentage = 0
+                        job.sections[section_type].progress_message = "Starting generation..."
+                logger.info(f"Set all sections to generating for job {job_id}")
     
     def start_section(self, job_id: str, section_type: str):
         """Mark a section as started."""
@@ -178,9 +190,11 @@ class JobManager:
                                            if s.status == SectionStatus.COMPLETED)
                 job.updated_at = datetime.utcnow()
                 
-                # Check if all sections are complete
-                if job.completed_sections == job.total_sections:
-                    job.status = JobStatus.COMPLETED
+                # Check if job is finished (all sections done)
+                if self._is_job_finished(job_id):
+                    final_status = self._determine_final_job_status(job_id)
+                    job.status = final_status
+                    logger.info(f"Job {job_id} finished with status: {final_status}")
                 
                 logger.info(f"Completed section {section_type} for job {job_id} "
                            f"({job.completed_sections}/{job.total_sections})")
@@ -193,8 +207,39 @@ class JobManager:
                 job.sections[section_type].status = SectionStatus.FAILED
                 job.sections[section_type].error = error
                 job.updated_at = datetime.utcnow()
+                
+                # Check if job is finished (all sections done)
+                if self._is_job_finished(job_id):
+                    final_status = self._determine_final_job_status(job_id)
+                    job.status = final_status
+                    logger.info(f"Job {job_id} finished with status: {final_status}")
+                
                 logger.error(f"Failed section {section_type} for job {job_id}: {error}")
     
+    def _is_job_finished(self, job_id: str) -> bool:
+        """Check if all sections are done (completed or failed)."""
+        job = self.jobs[job_id]
+        finished_sections = sum(1 for s in job.sections.values() 
+                              if s.status in [SectionStatus.COMPLETED, SectionStatus.FAILED])
+        return finished_sections == job.total_sections
+
+    def _determine_final_job_status(self, job_id: str) -> JobStatus:
+        """Determine final job status when all sections are done."""
+        job = self.jobs[job_id]
+        
+        completed_count = sum(1 for s in job.sections.values() 
+                             if s.status == SectionStatus.COMPLETED)
+        failed_count = sum(1 for s in job.sections.values() 
+                          if s.status == SectionStatus.FAILED)
+        total_sections = job.total_sections
+        
+        if completed_count == total_sections:
+            return JobStatus.COMPLETED
+        elif failed_count == total_sections:
+            return JobStatus.FAILED
+        else:
+            return JobStatus.PARTIAL
+
     def get_completed_sections(self, job_id: str) -> List[Dict[str, Any]]:
         """Get all completed sections for a job."""
         if job_id not in self.jobs:

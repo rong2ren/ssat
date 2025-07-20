@@ -39,7 +39,7 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
     'Easy': '简单',
     'Medium': '中等',
     'Hard': '困难',
-    'Between 1-20 questions': '1-20道题目'
+    'Between 1-15 questions': '1-15道题目'
   }
 
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
@@ -49,7 +49,7 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
     
     // Validate count from current input (in case user didn't blur)
     const inputValue = parseInt(countInput) || 1
-    const validCount = Math.max(1, Math.min(20, inputValue))
+    const validCount = Math.max(1, Math.min(15, inputValue))
     
     // Update the input display to show corrected value
     if (validCount.toString() !== countInput) {
@@ -124,17 +124,17 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
               id="practice-count"
               type="number"
               min="1"
-              max="20"
+              max="15"
               value={countInput}
               onChange={(e) => setCountInput(e.target.value)}
               onBlur={() => {
                 const value = parseInt(countInput) || 1
-                const clampedValue = Math.max(1, Math.min(20, value))
+                const clampedValue = Math.max(1, Math.min(15, value))
                 setCountInput(clampedValue.toString())
                 setFormData(prev => ({ ...prev, count: clampedValue }))
               }}
             />
-            <p className="text-xs text-gray-500">{t('Between 1-20 questions')}</p>
+            <p className="text-xs text-gray-500">{t('Between 1-15 questions')}</p>
           </div>
 
           {/* Topic */}

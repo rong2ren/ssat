@@ -32,6 +32,7 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
   const translations = {
     'Overall Difficulty': '整体难度',
     'Generate Complete Test': '生成完整测试',
+    'Configure Test': '配置测试',
     'Generating...': '生成中...',
     'Test Format': '测试格式',
     'Use Official SSAT Format': '使用官方SSAT格式',
@@ -59,7 +60,7 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
     'Hard': '困难',
     'Total': '总计',
     'Please select at least one section': '请至少选择一个部分',
-    'Question counts must be between 1 and 30': '题目数量必须在1到30之间'
+    'Question counts must be between 1 and 15 for custom generation': '自定义生成题目数量必须在1到15之间'
   }
 
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
@@ -76,11 +77,11 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
       
       const invalidCounts = selectedSections.filter(section => {
         const count = customCounts[section] || 0
-        return count < 1 || count > 30
+        return count < 1 || count > 15
       })
       
       if (invalidCounts.length > 0) {
-        alert(t('Question counts must be between 1 and 30'))
+        alert(t('Question counts must be between 1 and 15 for custom generation'))
         return
       }
       
@@ -161,7 +162,7 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
               </p>
               
               <div className="text-xs text-gray-500">
-                {t('Quantitative')} (30) • {t('Verbal')} (30) • {t('Reading')} (28) • {t('Writing')} (1) • {t('Total')}: 89
+                {t('Quantitative')} (30) • {t('Verbal - Analogies')} (15) • {t('Verbal - Synonyms')} (15) • {t('Reading')} (28) • {t('Writing')} (1)
               </div>
             </div>
 
@@ -219,7 +220,7 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
                       <Input
                         type="number"
                         min="1"
-                        max="30"
+                        max="15"
                         value={customCounts[section.value] || section.defaultCount}
                         onChange={(e) => setCustomCounts(prev => ({
                           ...prev,

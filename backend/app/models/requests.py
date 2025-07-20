@@ -24,8 +24,8 @@ class QuestionGenerationRequest(BaseModel):
     count: int = Field(
         default=1,
         ge=1,
-        le=20,
-        description="Number of questions to generate (1-20)"
+        le=15,
+        description="Number of questions to generate (1-15 for custom generation)"
     )
     provider: Optional[LLMProvider] = Field(
         default=None,
@@ -65,6 +65,10 @@ class CompleteTestRequest(BaseModel):
         default=None,
         description="Custom question counts per section (e.g., {'math': 10, 'verbal': 8})"
     )
+    is_official_format: bool = Field(
+        default=False,
+        description="Whether this is an official SSAT format test (affects question generation strategy)"
+    )
     
     @field_validator('include_sections')
     @classmethod
@@ -85,10 +89,21 @@ class CompleteTestRequest(BaseModel):
                     if section.value not in v:
                         raise ValueError(f"Custom count missing for section: {section.value}")
                 
+                # Check if this is official format
+                is_official = getattr(info.data, 'is_official_format', False)
+                
                 # Ensure counts are reasonable
                 for section, count in v.items():
-                    if not isinstance(count, int) or count < 1 or count > 25:
-                        raise ValueError(f"Invalid count for {section}: must be 1-25")
+                    if not isinstance(count, int) or count < 1:
+                        raise ValueError(f"Invalid count for {section}: must be at least 1")
+                    
+                    # For custom generation, limit to 15 questions per section
+                    if not is_official and count > 15:
+                        raise ValueError(f"Invalid count for {section}: must be 1-15 for custom generation")
+                    
+                    # For official format, allow up to 30 questions per section
+                    if is_official and count > 30:
+                        raise ValueError(f"Invalid count for {section}: must be 1-30 for official format")
         return v
 
 class CompleteElementaryTestRequest(BaseModel):

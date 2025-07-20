@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from './ui/Button'
-import { BookOpen, FileText, Target, Zap, Clock, Award, Globe, ArrowRight } from 'lucide-react'
+import { BookOpen, FileText, Target, Zap, Clock, Award, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 
 interface HomePageProps {

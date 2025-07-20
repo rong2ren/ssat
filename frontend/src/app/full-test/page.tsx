@@ -1,17 +1,14 @@
 'use client'
 
-import { useState } from 'react'
 import { ProgressiveTestGenerator } from '@/components/ProgressiveTestGenerator'
 import { CompleteTestForm } from '@/components/forms/CompleteTestForm'
+import { useFullTestState, useFullTestActions, usePreferences } from '@/contexts/AppStateContext'
 
 export default function FullTestPage() {
-  const [testRequest, setTestRequest] = useState<{
-    difficulty: string
-    include_sections: string[]
-    custom_counts: Record<string, number>
-    originalSelection?: string[] // What user actually selected for display
-  } | null>(null)
-  const [showCompleteTest, setShowCompleteTest] = useState(false)
+  // Use global state for persistent data (testRequest, showCompleteTest, jobStatus)
+  const { testRequest, showCompleteTest, jobStatus } = useFullTestState()
+  const { setTestRequest, setShowCompleteTest, setJobStatus } = useFullTestActions()
+  const { showChinese } = usePreferences()
 
   // UI translations (for future language support)  
   // const t = (key: string, showChinese: boolean = false) => key
@@ -31,11 +28,17 @@ export default function FullTestPage() {
         originalSelection: customConfig.sections
       }
     } else {
-      // Use official SSAT Elementary format
+      // Use official SSAT Elementary format - separate verbal into analogy and synonym
       newTestRequest = {
         difficulty: 'Medium',
-        include_sections: ['quantitative', 'verbal', 'reading', 'writing'],
-        custom_counts: { quantitative: 30, verbal: 30, reading: 28, writing: 1 }
+        include_sections: ['quantitative', 'analogy', 'synonym', 'reading', 'writing'],
+        custom_counts: { 
+          quantitative: 30, 
+          analogy: 15, 
+          synonym: 15, 
+          reading: 28, 
+          writing: 1 
+        }
       }
     }
     
@@ -48,6 +51,7 @@ export default function FullTestPage() {
   const handleBackToForms = () => {
     setShowCompleteTest(false)
     setTestRequest(null)
+    setJobStatus(null) // Clear jobStatus so new generation can start
   }
 
   return (
@@ -69,7 +73,7 @@ export default function FullTestPage() {
             <CompleteTestForm
               onSubmit={handleGenerateCompleteTest}
               loading={false} // Loading is handled by ProgressiveTestGenerator
-              showChinese={false} // Can add language toggle later if needed
+              showChinese={showChinese}
             />
           ) : (
             /* Progressive Test Generator */
@@ -91,7 +95,8 @@ export default function FullTestPage() {
               {testRequest && (
                 <ProgressiveTestGenerator
                   testRequest={testRequest}
-                  showChinese={false} // Can add language toggle later if needed
+                  showChinese={showChinese}
+                  autoStart={!jobStatus} // Only auto-start if no existing job
                 />
               )}
             </div>

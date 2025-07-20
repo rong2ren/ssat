@@ -5,10 +5,12 @@ import { TestSection } from '@/types/api'
 import { TestDisplay } from './TestDisplay'
 import { Button } from './ui/Button'
 import { RefreshCw, Clock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { useFullTestState, useFullTestActions } from '@/contexts/AppStateContext'
 
 interface ProgressiveTestGeneratorProps {
   showChinese: boolean
   onBack?: () => void
+  autoStart?: boolean
   testRequest?: {
     difficulty: string
     include_sections: string[]
@@ -19,7 +21,7 @@ interface ProgressiveTestGeneratorProps {
 
 interface JobStatus {
   job_id: string
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'partial' | 'cancelled'
   progress: {
     completed: number
     total: number
@@ -41,13 +43,24 @@ interface JobStatus {
 export function ProgressiveTestGenerator({ 
   showChinese, 
   onBack,
+  autoStart = false,
   testRequest
 }: ProgressiveTestGeneratorProps) {
+  // Use context for persistent data (jobStatus, completedSections) and local state for active generation
+  const { jobStatus: contextJobStatus, completedSections: contextCompletedSections } = useFullTestState()
+  const { setJobStatus: contextSetJobStatus, addCompletedSection: contextAddCompletedSection } = useFullTestActions()
+  
+  // Local state for active generation (prevents re-render loops)
+  const [jobStatus, setJobStatus] = useState<JobStatus | null>(contextJobStatus)
+  
+
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  
+  // Keep local state for current session-specific data
   const [jobId, setJobId] = useState<string | null>(null)
-  const [jobStatus, setJobStatus] = useState<JobStatus | null>(null)
   const [isPolling, setIsPolling] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [startTime, setStartTime] = useState<Date | null>(null)
   const [elapsedTime, setElapsedTime] = useState<string>('0s')
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
@@ -59,7 +72,7 @@ export function ProgressiveTestGenerator({
     'Generate Another Test': '生成另一个测试',
     'Back to Form': '返回表单',
     'Complete Test Generation': '完整测试生成',
-    'Test sections appear as they complete': '各测试部分将在完成后依次显示',
+    'Sections appear as they complete': '各部分完成后显示',
     'Generation Progress': '进度',
     'Elapsed': '已用时间',
     'Status': '状态',
@@ -84,16 +97,16 @@ export function ProgressiveTestGenerator({
     'failed': '失败',
     'questions': '题',
     'question': '题',
-    'Sections appear as they complete': '各部分完成后显示',
     'Complete SSAT Practice Test': '完整SSAT练习测试',
     'Test sections': '包含',
     'LIVE': '实时',
     'Generating Test': '正在生成测试',
     'Test Complete': '已完成',
-    'Test Failed': '生成失败',
+        'Test Failed': '生成失败',
     'elapsed': '已用时',
-    'sections complete': '部分已完成'
-  }
+    'sections complete': '部分已完成',
+    'Job was deleted or no longer exists. The test generation may have failed or been cleaned up.': '任务已删除或不存在。测试生成可能失败或被清理。'
+    }
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
 
   // Official SSAT Elementary format
@@ -103,7 +116,13 @@ export function ProgressiveTestGenerator({
     custom_counts: { quantitative: 30, verbal: 30, reading: 28, writing: 1 }
   }
 
-  const finalTestRequest = testRequest || defaultTestRequest
+  // Ensure finalTestRequest always has complete required fields
+  const finalTestRequest = {
+    difficulty: testRequest?.difficulty || defaultTestRequest.difficulty,
+    include_sections: testRequest?.include_sections || defaultTestRequest.include_sections,
+    custom_counts: testRequest?.custom_counts || defaultTestRequest.custom_counts,
+    originalSelection: testRequest?.originalSelection
+  }
 
   // Cleanup function to stop all active operations
   const cleanup = () => {
@@ -129,7 +148,23 @@ export function ProgressiveTestGenerator({
   const startGeneration = async () => {
     // Prevent duplicate submissions
     if (isSubmitting) {
-      console.log('Generation already in progress, skipping duplicate request')
+      return
+    }
+    
+    // Prevent starting if there's already any job (running, pending, or completed)
+    if (jobStatus) {
+      return
+    }
+
+    // Validate required fields
+    if (!finalTestRequest.include_sections || finalTestRequest.include_sections.length === 0) {
+      setError('No sections selected for test generation')
+      return
+    }
+
+    // Validate custom_counts
+    if (!finalTestRequest.custom_counts || typeof finalTestRequest.custom_counts !== 'object') {
+      setError('Invalid test configuration')
       return
     }
 
@@ -146,7 +181,7 @@ export function ProgressiveTestGenerator({
       // Start elapsed time counter
       startElapsedTimeCounter(now)
       
-      // Create initial job status to show progress section immediately
+      // Create initial job status with all sections in waiting state
       const initialJobStatus: JobStatus = {
         job_id: '',
         status: 'pending',
@@ -176,7 +211,13 @@ export function ProgressiveTestGenerator({
         updated_at: new Date().toISOString()
       }
       
-      // Show progress section immediately
+      // Set the initial status immediately
+      console.log('🟢 SETTING INITIAL JOBSTATUS:', {
+        sectionsCount: Object.keys(initialJobStatus.section_details).length,
+        sections: Object.keys(initialJobStatus.section_details),
+        progress: initialJobStatus.progress,
+        fullSectionDetails: initialJobStatus.section_details
+      })
       setJobStatus(initialJobStatus)
       
       // Create abort controller for this request
@@ -190,7 +231,17 @@ export function ProgressiveTestGenerator({
       }, 10000) // 10 second timeout for job creation
       
       // Send request to start test generation
-      const requestBody = JSON.stringify(finalTestRequest)
+      let requestBody: string
+      try {
+        requestBody = JSON.stringify(finalTestRequest)
+        if (!requestBody || requestBody === '{}' || requestBody === 'null') {
+          throw new Error('Invalid request data')
+        }
+        // Request body validated and ready
+      } catch (jsonError) {
+        console.error('Failed to serialize request:', jsonError, finalTestRequest)
+        throw new Error('Failed to prepare request data')
+      }
       
       const response = await fetch('/api/generate/complete-test/start', {
         method: 'POST',
@@ -211,26 +262,61 @@ export function ProgressiveTestGenerator({
       setJobId(data.job_id)
       setIsPolling(true)
       
-      // Update the initial status with the real job ID
-      setJobStatus(prev => prev ? { ...prev, job_id: data.job_id, status: 'running' } : null)
+      // Update job status with real job ID and set all sections to generating
+      setJobStatus((prev: JobStatus | null) => {
+        console.log('🔵 UPDATING JOBSTATUS WITH JOB ID:', {
+          hasJobStatus: !!prev,
+          sectionsCount: prev?.section_details ? Object.keys(prev.section_details).length : 0,
+          jobId: data.job_id,
+          newStatus: 'running'
+        })
+        
+        if (!prev) return null
+        
+        // Update all sections to generating status when job starts running
+        const updatedSectionDetails = Object.keys(prev.section_details).reduce((acc, sectionKey) => {
+          acc[sectionKey] = {
+            ...prev.section_details[sectionKey],
+            status: 'generating',
+            progress_percentage: 25,
+            progress_message: 'Preparing generation...'
+          }
+          return acc
+        }, {} as Record<string, {
+          section_type: string
+          status: string
+          progress_percentage: number
+          progress_message: string
+          error?: string
+        }>)
+        
+        return {
+          ...prev,
+          job_id: data.job_id,
+          status: 'running' as const,
+          section_details: updatedSectionDetails
+        }
+      })
       
+      // Start polling for updates
       startPolling(data.job_id)
       
     } catch (err) {
       // Handle abort differently from real errors
       if (err instanceof Error && err.name === 'AbortError') {
-        console.log('Request was cancelled')
         return
       }
       
       setError(err instanceof Error ? err.message : 'Failed to start test generation')
-      // Reset job status on error
+      // Reset job status on error  
+      console.log('🔴 CLEARING JOBSTATUS DUE TO ERROR:', err)
       setJobStatus(null)
       // Stop elapsed timer on error
       cleanup()
-    } finally {
+      // Only reset isSubmitting on error
       setIsSubmitting(false)
     }
+    // Note: isSubmitting stays true until job completes/fails
   }
 
   const startElapsedTimeCounter = (startTime: Date) => {
@@ -280,14 +366,72 @@ export function ProgressiveTestGenerator({
         clearTimeout(timeoutId)
         
         if (!response.ok) {
+          // Handle "Not Found" specifically - job was deleted or doesn't exist
+          if (response.status === 404) {
+            console.log('🔴 Job not found (404), setting status to failed')
+            const failedStatus: JobStatus = {
+              job_id: jobId,
+              status: 'failed',
+              progress: {
+                completed: 0,
+                total: finalTestRequest.include_sections.length,
+                percentage: 0
+              },
+              sections: [],
+              section_details: {},
+              error: t('Job was deleted or no longer exists. The test generation may have failed or been cleaned up.'),
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }
+            setJobStatus(failedStatus)
+            setIsPolling(false)
+            setIsSubmitting(false)
+            stopElapsedTimeCounter()
+            if (pollingRef.current) {
+              clearTimeout(pollingRef.current)
+              pollingRef.current = null
+            }
+            return
+          }
           throw new Error(`Failed to get status: ${response.statusText}`)
         }
 
         const status: JobStatus = await response.json()
-        setJobStatus(status)
+        
+        // Debug: Log what we received from backend
+        console.log('🟢 POLLING RESPONSE:', {
+          jobStatus: status.status,
+          progress: status.progress,
+          sectionDetails: status.section_details ? Object.keys(status.section_details).map(key => ({
+            section: key,
+            status: status.section_details[key].status,
+            progress: status.section_details[key].progress_percentage,
+            message: status.section_details[key].progress_message
+          })) : [],
+          fullSectionDetails: status.section_details,
+          sectionDetailsKeys: status.section_details ? Object.keys(status.section_details) : []
+        })
+        
+        // Debug: Log what we're setting in state
+        console.log('🔵 SETTING JOBSTATUS:', {
+          hasSectionDetails: !!status.section_details,
+          sectionDetailsCount: status.section_details ? Object.keys(status.section_details).length : 0,
+          sectionDetailsKeys: status.section_details ? Object.keys(status.section_details) : []
+        })
+        
+        // Simply use the backend response - it should contain all the data we need
+        const completeStatus: JobStatus = {
+          ...status,
+          sections: status.sections || [],
+          section_details: status.section_details || {},
+          progress: status.progress || { completed: 0, total: 0, percentage: 0 }
+        }
+        
+        setJobStatus(completeStatus)
 
-        if (status.status === 'completed' || status.status === 'failed' || status.status === 'cancelled') {
+        if (status.status === 'completed' || status.status === 'failed' || status.status === 'partial' || status.status === 'cancelled') {
           setIsPolling(false)
+          setIsSubmitting(false)  // Reset isSubmitting when job actually completes
           stopElapsedTimeCounter()
           if (pollingRef.current) {
             clearTimeout(pollingRef.current)
@@ -296,8 +440,8 @@ export function ProgressiveTestGenerator({
           return
         }
 
-        // Continue polling every 2 seconds
-        pollingRef.current = setTimeout(poll, 2000) as NodeJS.Timeout
+        // Continue polling every 1 second to catch more updates
+        pollingRef.current = setTimeout(poll, 1000) as NodeJS.Timeout
         
       } catch (err) {
         // Handle timeout and abort errors gracefully
@@ -308,9 +452,29 @@ export function ProgressiveTestGenerator({
           return
         }
         
-        console.error('Polling error:', err)
-        setError(err instanceof Error ? err.message : 'Failed to get status')
+        // Polling error occurred - set job status to failed
+        console.log('🔴 Polling error occurred, setting status to failed:', err)
+        const errorMessage = err instanceof Error ? err.message : 'Failed to get status'
+        
+        const failedStatus: JobStatus = {
+          job_id: jobId,
+          status: 'failed',
+          progress: {
+            completed: 0,
+            total: finalTestRequest.include_sections.length,
+            percentage: 0
+          },
+          sections: [],
+          section_details: {},
+          error: errorMessage,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+        
+        setJobStatus(failedStatus)
+        setError(errorMessage)
         setIsPolling(false)
+        setIsSubmitting(false)
         stopElapsedTimeCounter()
       }
     }
@@ -319,7 +483,8 @@ export function ProgressiveTestGenerator({
   }
 
   const resetGenerator = () => {
-    // Clear current state
+    // Clear current state (both local and context)
+    console.log('🔴 CLEARING JOBSTATUS DUE TO RESET GENERATOR')
     setJobId(null)
     setJobStatus(null)
     setError(null)
@@ -335,17 +500,39 @@ export function ProgressiveTestGenerator({
     }, 100) // Small delay to ensure state is cleared
   }
 
-  // Cleanup polling and timers on unmount
+    // Cleanup polling and timers on unmount
   useEffect(() => {
     return () => {
       cleanup()
     }
   }, [])
 
-  // Auto-start generation when component mounts (user clicked "Generate Complete Test")
+  // Auto-start generation when autoStart prop is true and no job exists
+  // Remove jobStatus from deps to prevent dependency loop
   useEffect(() => {
-    startGeneration()
-  }, []) // Only run once on mount
+    if (autoStart && testRequest && !jobStatus) {
+      startGeneration()
+    }
+  }, [autoStart, testRequest])
+
+  // Sync context to local state when context changes
+  useEffect(() => {
+    if (contextJobStatus && !jobStatus) {
+      setJobStatus(contextJobStatus)
+    }
+  }, [contextJobStatus, jobStatus])
+
+
+
+  // Update context when jobStatus changes (for persistence across tab switches)
+  useEffect(() => {
+    if (jobStatus !== contextJobStatus) {
+      contextSetJobStatus(jobStatus)
+    }
+  }, [jobStatus, contextJobStatus])
+
+
+
 
   // Get display name for sections with descriptive labels
   const getSectionDisplayName = (sectionType: string) => {
@@ -361,7 +548,7 @@ export function ProgressiveTestGenerator({
   }
 
   const getSectionStatusIcon = (sectionType: string) => {
-    if (!jobStatus?.section_details[sectionType]) return <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+    if (!jobStatus?.section_details[sectionType]) return <Clock className="h-4 w-4 text-gray-400" />
     
     const detail = jobStatus.section_details[sectionType]
     switch (detail.status) {
@@ -377,7 +564,7 @@ export function ProgressiveTestGenerator({
   }
 
   const getSectionStatusText = (sectionType: string) => {
-    if (!jobStatus?.section_details[sectionType]) return 'Waiting'
+    if (!jobStatus?.section_details[sectionType]) return t('Waiting')
     
     const detail = jobStatus.section_details[sectionType]
     switch (detail.status) {
@@ -404,14 +591,24 @@ export function ProgressiveTestGenerator({
     if (!jobStatus) return t('Generating Test')
     
     switch (jobStatus.status) {
+      case 'pending':
+        return t('Starting Generation...')
+      case 'running':
+        return t('Generating Test')
       case 'completed':
         return t('Test Complete')
       case 'failed':
         return t('Test Failed')
+      case 'partial':
+        return t('Test Partially Complete')
+      case 'cancelled':
+        return t('Test Cancelled')
       default:
         return t('Generating Test')
     }
   }
+
+
 
 
   return (
@@ -423,7 +620,7 @@ export function ProgressiveTestGenerator({
         {/* Test Sections Info */}
         <div className="flex flex-wrap items-center gap-2 mb-6">
           <span className="text-sm text-gray-600">{t('Test sections')}:</span>
-          {finalTestRequest.include_sections.map((section) => {
+                      {finalTestRequest.include_sections.map((section) => {
             const count = getSectionCount(section)
             const sectionName = getSectionDisplayName(section)
             return (
@@ -439,10 +636,16 @@ export function ProgressiveTestGenerator({
 
 
 
-        {/* Controls - show after generation is complete */}
+        
+
+
+
+        {/* Controls */}
         <div className="flex items-center space-x-4 mb-6">
+          {/* Empty for now - post-completion buttons below */}
+          
           {/* Post-completion buttons */}
-          {jobStatus?.status === 'completed' && (
+          {(jobStatus?.status === 'completed' || jobStatus?.status === 'partial') && (
             <>
               <Button 
                 variant="outline" 
@@ -470,17 +673,11 @@ export function ProgressiveTestGenerator({
               )}
             </>
           )}
-          
-          {/* Show loading state during initial submission */}
-          {isSubmitting && !jobStatus && (
-            <div className="flex items-center space-x-2 text-blue-600">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-sm font-medium">Starting test generation...</span>
-            </div>
-          )}
+
+
         </div>
 
-        {/* Progress Tracking - integrated into header container */}
+        {/* Progress Tracking - show when generating or completed */}
         {jobStatus && (
           <>
             {/* Prominent Status Card */}
@@ -496,7 +693,7 @@ export function ProgressiveTestGenerator({
                 </div>
                 <div className="text-right">
                   <div className="text-lg font-bold">
-                    {jobStatus.progress.completed}/{jobStatus.progress.total} {t('sections complete')} ({jobStatus.progress.percentage}%)
+                    {jobStatus?.progress?.completed || 0}/{jobStatus?.progress?.total || 0} {t('sections complete')} ({jobStatus?.progress?.percentage || 0}%)
                   </div>
                 </div>
               </div>
@@ -506,7 +703,7 @@ export function ProgressiveTestGenerator({
                 <div className="w-full bg-blue-400 bg-opacity-30 rounded-full h-3">
                   <div 
                     className="bg-white h-3 rounded-full transition-all duration-500 ease-out flex items-center justify-end pr-2"
-                    style={{ width: `${Math.max(jobStatus.progress.percentage, 8)}%` }}
+                    style={{ width: `${Math.max(jobStatus?.progress?.percentage || 0, 8)}%` }}
                   >
                     <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
                   </div>
@@ -516,19 +713,21 @@ export function ProgressiveTestGenerator({
 
             {/* Section Status */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
-              {Object.keys(jobStatus.section_details).map((sectionType) => (
-                <div key={sectionType} className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg">
-                  {getSectionStatusIcon(sectionType)}
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium text-gray-900 text-sm truncate">{getSectionDisplayName(sectionType)}</div>
-                    <div className="text-xs text-gray-600 truncate">{getSectionStatusText(sectionType)}</div>
+              {(() => {
+                return Object.keys(jobStatus?.section_details || {}).map((sectionType) => (
+                  <div key={sectionType} className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg">
+                    {getSectionStatusIcon(sectionType)}
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-gray-900 text-sm truncate">{getSectionDisplayName(sectionType)}</div>
+                      <div className="text-xs text-gray-600 truncate">{getSectionStatusText(sectionType)}</div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              })()}
             </div>
             
             {/* Explanatory text at bottom */}
-            <p className="text-gray-500 text-sm">{t('Test sections appear as they complete')}</p>
+            <p className="text-gray-500 text-sm">{t('Sections appear as they complete')}</p>
           </>
         )}
       </div>
@@ -548,7 +747,7 @@ export function ProgressiveTestGenerator({
       )}
 
       {/* Progressive Test Display */}
-      {jobStatus && jobStatus.sections.length > 0 && (
+      {jobStatus && jobStatus.sections && jobStatus.sections.length > 0 && (
         <TestDisplay 
           sections={jobStatus.sections} 
           showChinese={showChinese}

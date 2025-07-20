@@ -226,6 +226,8 @@ async def start_progressive_test_generation(request: CompleteTestRequest):
         from app.services.job_manager import job_manager
         
         logger.info(f"Starting progressive test generation - difficulty: {request.difficulty}")
+        logger.info(f"🔍 DEBUG: Request include_sections: {[s.value for s in request.include_sections]}")
+        logger.info(f"🔍 DEBUG: Request custom_counts: {request.custom_counts}")
         
         # Create job with request data
         job_id = job_manager.create_job({
@@ -367,9 +369,11 @@ async def generate_single_section_background(job_id: str, section_type, request:
         
         # Get custom count for this section
         custom_counts = request.custom_counts or {}
+        logger.debug(f"🔍 DEBUG: Section {section_type.value}, custom_counts: {custom_counts}")
         section_count = custom_counts.get(section_type.value, {
             "quantitative": 10, "analogy": 4, "synonym": 6, "reading": 7, "writing": 1
         }.get(section_type.value, 5))
+        logger.debug(f"🔍 DEBUG: Final section_count for {section_type.value}: {section_count}")
         
         # Update progress: about to start LLM generation (50% of section progress)
         job_manager.update_section_progress(job_id, section_type.value, 50, f"Generating {section_count} questions...")
@@ -397,6 +401,9 @@ async def generate_single_section_background(job_id: str, section_type, request:
         
         # Save AI-generated content to database
         try:
+            # Log section completion
+            logger.info(f"📝 Completed section {section_type.value}")
+            
             saved_ids = await ai_content_service.save_test_section(job_id, section)
             logger.info(f"Saved AI content for section {section_type.value}: {saved_ids}")
         except Exception as e:
@@ -452,7 +459,8 @@ async def generate_complete_elementary_test(request: CompleteElementaryTestReque
             difficulty=request.difficulty,
             include_sections=[QuestionType.QUANTITATIVE, QuestionType.VERBAL, QuestionType.READING, QuestionType.WRITING],
             custom_counts=custom_counts,
-            provider=None  # Use best available provider
+            provider=None,  # Use best available provider
+            is_official_format=True  # This allows bypassing the 15-question limit
         )
         
         # Use the SAME generation logic as progressive tests for consistency
