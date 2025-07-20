@@ -157,7 +157,7 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
           <Button 
             type="submit" 
             disabled={loading}
-            className="w-full md:w-auto min-w-48"
+            className="w-full sm:w-auto px-8"
             size="lg"
           >
             {loading ? (
@@ -166,7 +166,7 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
                 {t('Generating...')}
               </div>
             ) : (
-              t('Generate Practice Questions')
+              <span className="whitespace-nowrap">{t('Generate Practice Questions')}</span>
             )}
           </Button>
         </div>

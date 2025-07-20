@@ -19,12 +19,13 @@ interface CompleteTestFormProps {
 export function CompleteTestForm({ onSubmit, loading, showChinese = false }: CompleteTestFormProps) {
   const [difficulty, setDifficulty] = useState('Medium')
   const [useCustomization, setUseCustomization] = useState(false)
+  const [showOfficialDetails, setShowOfficialDetails] = useState(false)
   const [selectedSections, setSelectedSections] = useState(['quantitative', 'analogy', 'synonym', 'reading', 'writing'])
   const [customCounts, setCustomCounts] = useState<Record<string, number>>({
-    quantitative: 15,
-    reading: 10,
-    analogy: 6,
-    synonym: 9,
+    quantitative: 1,
+    reading: 1,
+    analogy: 1,
+    synonym: 1,
     writing: 1
   })
 
@@ -60,7 +61,22 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
     'Hard': '困难',
     'Total': '总计',
     'Please select at least one section': '请至少选择一个部分',
-    'Question counts must be between 1 and 15 for custom generation': '自定义生成题目数量必须在1到15之间'
+    'Question counts must be between 1 and 15 for custom generation': '自定义生成题目数量必须在1到15之间',
+    'Math Breakdown': '数学细分',
+    'Number Operations': '数字运算',
+    'Algebra Functions': '代数函数',
+    'Geometry Spatial': '几何空间',
+    'Measurement': '测量',
+    'Probability Data': '概率数据',
+    'addition, subtraction, fractions': '加法、减法、分数',
+    'patterns, sequences, equations': '模式、序列、方程',
+    'shapes, area, spatial reasoning': '形状、面积、空间推理',
+    'length, time, units': '长度、时间、单位',
+    'graphs, data analysis': '图表、数据分析',
+    'Verbal Breakdown': '语言细分',
+    'word meaning, definitions': '词义、定义',
+    'word relationships, patterns': '词汇关系、模式',
+    'Note: Custom tests do not include topic breakdowns for quantitative': '注意：自定义测试不包含数学部分的主题细分'
   }
 
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
@@ -103,11 +119,11 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
   ]
 
   const sectionTypes = [
-    { value: 'quantitative', label: t('Quantitative'), defaultCount: 15, description: t('Math problems and numerical reasoning') },
-    { value: 'analogy', label: t('Analogies'), defaultCount: 6, description: t('Word relationship patterns') },
-    { value: 'synonym', label: t('Synonyms'), defaultCount: 9, description: t('Word meaning identification') },
-    { value: 'reading', label: t('Reading'), defaultCount: 10, description: t('Reading comprehension passages') },
-    { value: 'writing', label: t('Writing'), defaultCount: 1, description: t('Creative writing prompt') }
+    { value: 'quantitative', label: t('Quantitative'), defaultCount: 1 },
+    { value: 'analogy', label: t('Analogies'), defaultCount: 1 },
+    { value: 'synonym', label: t('Synonyms'), defaultCount: 1 },
+    { value: 'reading', label: t('Reading'), defaultCount: 1 },
+    { value: 'writing', label: t('Writing'), defaultCount: 1 }
   ]
 
   return (
@@ -161,9 +177,38 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
                 ✓ {t('Official test format with standard question counts (89 total)')}
               </p>
               
-              <div className="text-xs text-gray-500">
-                {t('Quantitative')} (30) • {t('Verbal - Analogies')} (15) • {t('Verbal - Synonyms')} (15) • {t('Reading')} (28) • {t('Writing')} (1)
+              <div className="text-xs text-gray-500 mb-2">
+                {t('Quantitative')} (30) • {t('Verbal')} (30) • {t('Reading')} (28) • {t('Writing')} (1)
               </div>
+              
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowOfficialDetails(!showOfficialDetails)
+                }}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                {showOfficialDetails ? 'Hide Math & Verbal Breakdown ▼' : 'Show Math & Verbal Breakdown ▼'}
+              </button>
+              
+              {showOfficialDetails && (
+                <div className="text-xs text-gray-600 space-y-1 mt-2">
+                  <div className="font-medium">{t('Math Breakdown')}:</div>
+                  <div className="ml-2">
+                    • {t('Number Operations')} (12) - {t('addition, subtraction, fractions')}<br/>
+                    • {t('Algebra Functions')} (6) - {t('patterns, sequences, equations')}<br/>
+                    • {t('Geometry Spatial')} (8) - {t('shapes, area, spatial reasoning')}<br/>
+                    • {t('Measurement')} (3) - {t('length, time, units')}<br/>
+                    • {t('Probability Data')} (1) - {t('graphs, data analysis')}
+                  </div>
+                  <div className="font-medium mt-2">{t('Verbal Breakdown')}:</div>
+                  <div className="ml-2">
+                    • {t('Synonyms')} (18) - {t('word meaning, definitions')}<br/>
+                    • {t('Analogies')} (12) - {t('word relationships, patterns')}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Custom Format Card */}
@@ -178,8 +223,12 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
                 {t('Customize Sections')}
               </Label>
               
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-600 mb-2">
                 ⚙️ {t('Pick sections and question counts')}
+              </p>
+              
+              <p className="text-xs text-gray-500">
+                {t('Note: Custom tests do not include topic breakdowns for quantitative')}
               </p>
             </div>
           </div>
@@ -191,9 +240,11 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
             {/* Combined Section Selection and Counts */}
             <div>
               <Label className="text-sm font-medium mb-3 block">{t('Select Test Sections')}</Label>
-              <div className="space-y-3">
+              <div className="space-y-1">
                 {sectionTypes.map((section) => (
-                  <div key={section.value} className="flex items-center space-x-4 p-3 border rounded-lg">
+                  <div key={section.value} className={`flex items-center space-x-4 py-1 px-2 border rounded-lg ${
+                    !selectedSections.includes(section.value) ? 'opacity-50 bg-gray-50' : ''
+                  }`}>
                     <input
                       type="checkbox"
                       id={`section-${section.value}`}
@@ -209,10 +260,11 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
                     />
                     
                     <div className="flex-1">
-                      <Label htmlFor={`section-${section.value}`} className="font-medium cursor-pointer">
+                      <Label htmlFor={`section-${section.value}`} className={`font-medium cursor-pointer ${
+                        !selectedSections.includes(section.value) ? 'text-gray-500' : ''
+                      }`}>
                         {t(section.label)}
                       </Label>
-                      <p className="text-sm text-gray-600">{t(section.description)}</p>
                     </div>
                     
                     <div className="flex items-center space-x-2">
@@ -227,7 +279,9 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
                           [section.value]: parseInt(e.target.value) || 1
                         }))}
                         disabled={!selectedSections.includes(section.value)}
-                        className="w-16 text-sm"
+                        className={`w-16 text-sm ${
+                          !selectedSections.includes(section.value) ? 'bg-gray-100 text-gray-400' : ''
+                        }`}
                       />
                     </div>
                   </div>

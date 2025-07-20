@@ -169,41 +169,5 @@ class WritingPromptResponse(BaseModel):
     time_limit_minutes: int = Field(default=15, description="Time limit for writing")
     visual_description: Optional[str] = Field(default=None, description="Description of visual prompt")
 
-class ElementaryTestSectionResponse(BaseModel):
-    """A section of the official SSAT Elementary test."""
-    section_name: str = Field(..., description="Section name (Quantitative, Verbal, Reading)")
-    section_type: str = Field(..., description="Section type (scored or unscored)")
-    questions: List[GeneratedQuestion] = Field(..., description="Questions in this section")
-    question_count: int = Field(..., description="Number of questions in section")
-    time_limit_minutes: int = Field(..., description="Official time limit for section")
-    instructions: str = Field(..., description="Section instructions")
-    break_after: bool = Field(default=False, description="Whether break follows this section")
 
-class CompleteElementaryTestResponse(BaseModel):
-    """Response for complete SSAT Elementary test generation (Official Format)."""
-    test: Dict[str, Any] = Field(..., description="Complete test data")  # Will contain CompleteSSATTest
-    sections_summary: Dict[str, int] = Field(..., description="Question count per section")
-    total_questions: int = Field(..., description="Total questions (should be 89 scored)")
-    estimated_completion_time: int = Field(..., description="Total time including breaks (110 min)")
-    test_instructions: Dict[str, str] = Field(..., description="Instructions per section")
-    metadata: GenerationMetadata = Field(..., description="Generation metadata")
-    status: str = Field(default="success", description="Generation status")
-    
-    # Official test information
-    test_info: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "test_type": "Official SSAT Elementary Level",
-            "grade_levels": ["3", "4"],
-            "total_scored_questions": 89,
-            "total_time_minutes": 110,
-            "sections": [
-                {"name": "Quantitative", "questions": 30, "time": 30, "scored": True},
-                {"name": "Verbal", "questions": 30, "time": 20, "scored": True},
-                {"name": "Break", "questions": 0, "time": 15, "scored": False},
-                {"name": "Reading", "questions": 28, "time": 30, "scored": True},
-                {"name": "Writing", "questions": 1, "time": 15, "scored": False}
-            ],
-            "format": "Official SSAT Elementary Format with exact question counts and timing"
-        },
-        description="Official SSAT Elementary test specifications"
-    )
+

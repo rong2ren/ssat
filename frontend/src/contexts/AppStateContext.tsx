@@ -19,6 +19,7 @@ export interface FullTestState {
     include_sections: string[]
     custom_counts: Record<string, number>
     originalSelection?: string[]
+    is_official_format?: boolean
   } | null
   jobStatus: any | null  // Persist jobStatus across tab switches
   completedSections: TestSection[]

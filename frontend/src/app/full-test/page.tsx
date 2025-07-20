@@ -25,8 +25,10 @@ export default function FullTestPage() {
         difficulty: customConfig.difficulty,
         include_sections: customConfig.sections, // Send original sections directly
         custom_counts: customConfig.counts,
-        originalSelection: customConfig.sections
+        originalSelection: customConfig.sections,
+        is_official_format: false // Custom format
       }
+      console.log('🔧 DEBUG: Using CUSTOM format:', newTestRequest)
     } else {
       // Use official SSAT Elementary format - separate verbal into analogy and synonym
       newTestRequest = {
@@ -34,12 +36,14 @@ export default function FullTestPage() {
         include_sections: ['quantitative', 'analogy', 'synonym', 'reading', 'writing'],
         custom_counts: { 
           quantitative: 30, 
-          analogy: 15, 
-          synonym: 15, 
+          analogy: 12,  // 40% of 30 = 12 questions
+          synonym: 18,  // 60% of 30 = 18 questions
           reading: 28, 
           writing: 1 
-        }
+        },
+        is_official_format: true // Official format
       }
+      console.log('🎯 DEBUG: Using OFFICIAL format:', newTestRequest)
     }
     
     setTestRequest(newTestRequest)

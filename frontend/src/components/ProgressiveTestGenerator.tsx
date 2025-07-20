@@ -16,6 +16,7 @@ interface ProgressiveTestGeneratorProps {
     include_sections: string[]
     custom_counts: Record<string, number>
     originalSelection?: string[]
+    is_official_format?: boolean
   }
 }
 
@@ -113,7 +114,8 @@ export function ProgressiveTestGenerator({
   const defaultTestRequest = {
     difficulty: 'Medium',
     include_sections: ['quantitative', 'verbal', 'reading', 'writing'],
-    custom_counts: { quantitative: 30, verbal: 30, reading: 28, writing: 1 }
+    custom_counts: { quantitative: 30, verbal: 30, reading: 28, writing: 1 },
+    is_official_format: true
   }
 
   // Ensure finalTestRequest always has complete required fields
@@ -121,7 +123,8 @@ export function ProgressiveTestGenerator({
     difficulty: testRequest?.difficulty || defaultTestRequest.difficulty,
     include_sections: testRequest?.include_sections || defaultTestRequest.include_sections,
     custom_counts: testRequest?.custom_counts || defaultTestRequest.custom_counts,
-    originalSelection: testRequest?.originalSelection
+    originalSelection: testRequest?.originalSelection,
+    is_official_format: testRequest?.is_official_format ?? defaultTestRequest.is_official_format
   }
 
   // Cleanup function to stop all active operations
@@ -237,6 +240,7 @@ export function ProgressiveTestGenerator({
         if (!requestBody || requestBody === '{}' || requestBody === 'null') {
           throw new Error('Invalid request data')
         }
+        console.log('📤 DEBUG: Sending request to backend:', finalTestRequest)
         // Request body validated and ready
       } catch (jsonError) {
         console.error('Failed to serialize request:', jsonError, finalTestRequest)

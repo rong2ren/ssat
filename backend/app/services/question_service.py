@@ -244,6 +244,123 @@ class QuestionService:
                 "story_elements": prompt_data.get("story_elements", [])
             }
     
+    async def _generate_quantitative_section_official(self, difficulty: DifficultyLevel, total_count: int, provider: Optional[Any], use_async: bool = False) -> QuantitativeSection:
+        """Generate quantitative section with official SSAT topic distribution."""
+        import random
+        from app.specifications import OFFICIAL_ELEMENTARY_SPECS
+        
+        logger.info(f"🎯 DEBUG: Starting OFFICIAL quantitative generation for {total_count} questions")
+        
+        # Official distribution for quantitative questions
+        distribution = OFFICIAL_ELEMENTARY_SPECS["quantitative_distribution"]
+        logger.info(f"📊 DEBUG: Official distribution: {distribution}")
+        
+        # Calculate question counts based on official distribution
+        topics_counts = [
+            ("number operations", int(total_count * distribution["number_operations"])),      # ~40%
+            ("algebra functions", int(total_count * distribution["algebra_functions"])),      # ~20%
+            ("geometry spatial", int(total_count * distribution["geometry_spatial"])),        # ~25%
+            ("measurement", int(total_count * distribution["measurement"])),                  # ~10%
+            ("probability data", int(total_count * distribution["probability_data"]))         # ~5%
+        ]
+        
+        logger.info(f"📋 DEBUG: Initial topic counts: {topics_counts}")
+        
+        # Ensure we have the right number of questions
+        total_allocated = sum(count for _, count in topics_counts)
+        logger.info(f"📊 DEBUG: Total allocated: {total_allocated}, target: {total_count}")
+        
+        if total_allocated < total_count:
+            # Add remaining questions to geometry (largest flexible category)
+            topics_counts[2] = (topics_counts[2][0], topics_counts[2][1] + (total_count - total_allocated))
+            logger.info(f"➕ DEBUG: Added {total_count - total_allocated} questions to geometry")
+        elif total_allocated > total_count:
+            # Remove from geometry if we have too many
+            excess = total_allocated - total_count
+            topics_counts[2] = (topics_counts[2][0], max(1, topics_counts[2][1] - excess))
+            logger.info(f"➖ DEBUG: Removed {excess} questions from geometry")
+        
+        logger.info(f"📋 DEBUG: Final topic counts: {topics_counts}")
+        
+        # Generate questions by topic
+        all_questions = []
+        for topic, count in topics_counts:
+            if count > 0:
+                logger.info(f"🔧 DEBUG: Generating {count} questions for topic: {topic}")
+                
+                topic_request = QuestionGenerationRequest(
+                    question_type=QuestionType.QUANTITATIVE,
+                    difficulty=difficulty,
+                    topic=topic,
+                    count=count,
+                    provider=provider,
+                    is_official_format=True  # This is the official method, so always True
+                )
+                
+                logger.info(f"✅ DEBUG: Created topic request with count={count}, is_official_format=True")
+                
+                if use_async:
+                    # For progressive generation - use async LLM calls
+                    logger.info(f"⚡ DEBUG: Using async generation for {topic}")
+                    ssat_request = self._convert_to_ssat_request(topic_request)
+                    provider_name = provider.value if provider else None
+                    topic_questions = await generate_questions_async(ssat_request, llm=provider_name)
+                else:
+                    # For synchronous generation
+                    logger.info(f"🔄 DEBUG: Using sync generation for {topic}")
+                    topic_result = await self.generate_questions(topic_request)
+                    topic_questions = topic_result["questions"]
+                
+                # Convert questions to API format
+                for question in topic_questions:
+                    if isinstance(question, dict):
+                        # Already in API format
+                        api_question = question
+                    else:
+                        # Convert from internal format
+                        api_question = {
+                            "id": question.id,
+                            "question_type": question.question_type.value,
+                            "difficulty": question.difficulty.value,
+                            "text": question.text,
+                            "options": [
+                                {"letter": opt.letter, "text": opt.text} 
+                                for opt in question.options
+                            ],
+                            "correct_answer": question.correct_answer,
+                            "explanation": question.explanation,
+                            "cognitive_level": question.cognitive_level,
+                            "tags": question.tags,
+                            "metadata": question.metadata
+                        }
+                        
+                        # Only include visual_description if it has meaningful content
+                        if question.visual_description and question.visual_description.strip() and \
+                           question.visual_description.lower() not in ["none", "no visual elements", "no visual elements required"]:
+                            api_question["visual_description"] = question.visual_description
+                    
+                    all_questions.append(api_question)
+        
+        logger.info(f"📦 DEBUG: Generated {len(all_questions)} total questions")
+        
+        # Shuffle to mix topic types (like real SSAT)
+        random.shuffle(all_questions)
+        all_questions = all_questions[:total_count]  # Ensure exactly right count
+        
+        logger.info(f"🎲 DEBUG: Shuffled and trimmed to {len(all_questions)} questions")
+        
+        # Get section instructions and time limit
+        instructions = self._get_section_instructions(QuestionType.QUANTITATIVE)
+        time_limit = self._get_section_time_limit(QuestionType.QUANTITATIVE, total_count)
+        
+        logger.info(f"✅ DEBUG: OFFICIAL quantitative section complete with {len(all_questions)} questions")
+        
+        return QuantitativeSection(
+            questions=all_questions,
+            time_limit_minutes=time_limit,
+            instructions=instructions
+        )
+    
     async def _generate_standalone_section(self, section_type: QuestionType, difficulty: DifficultyLevel, count: int, provider: Optional[Any], use_async: bool = False) -> Union[QuantitativeSection, SynonymSection, AnalogySection]:
         """Generate a section for individual question types (quantitative, synonym, analogy)."""
         # Create request for this section

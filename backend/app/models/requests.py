@@ -24,8 +24,7 @@ class QuestionGenerationRequest(BaseModel):
     count: int = Field(
         default=1,
         ge=1,
-        le=15,
-        description="Number of questions to generate (1-15 for custom generation)"
+        description="Number of questions to generate"
     )
     provider: Optional[LLMProvider] = Field(
         default=None,
@@ -34,6 +33,10 @@ class QuestionGenerationRequest(BaseModel):
     level: str = Field(
         default="elementary",
         description="Educational level (elementary, middle, high)"
+    )
+    is_official_format: bool = Field(
+        default=False,
+        description="Whether this is for official SSAT format (allows up to 30 questions)"
     )
     
     @field_validator('topic')
@@ -44,6 +47,19 @@ class QuestionGenerationRequest(BaseModel):
             v = v.strip()
             if len(v) == 0:
                 return None
+        return v
+    
+    @field_validator('count')
+    @classmethod
+    def validate_count(cls, v, info):
+        """Validate count based on official format flag."""
+        is_official = getattr(info.data, 'is_official_format', False)
+        
+        if is_official and v > 30:
+            raise ValueError(f"Invalid count: must be 1-30 for official format, got {v}")
+        elif not is_official and v > 15:
+            raise ValueError(f"Invalid count: must be 1-15 for custom generation, got {v}")
+        
         return v
 
 class CompleteTestRequest(BaseModel):
@@ -106,24 +122,5 @@ class CompleteTestRequest(BaseModel):
                         raise ValueError(f"Invalid count for {section}: must be 1-30 for official format")
         return v
 
-class CompleteElementaryTestRequest(BaseModel):
-    """Request model for generating complete SSAT Elementary test (Official Format)."""
-    
-    difficulty: DifficultyLevel = Field(
-        default=DifficultyLevel.MEDIUM,
-        description="Overall difficulty level for the entire test"
-    )
-    include_experimental: bool = Field(
-        default=False,
-        description="Whether to include experimental section (not part of official format)"
-    )
-    student_grade: Optional[Literal["3", "4"]] = Field(
-        default=None,
-        description="Target student grade level (3 or 4)"
-    )
-    test_focus: Optional[str] = Field(
-        default=None,
-        description="Optional topic focus across all sections",
-        max_length=100
-    )
+
     
