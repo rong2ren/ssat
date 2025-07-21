@@ -2,6 +2,7 @@
 
 import json
 import random
+import uuid
 from typing import List, Optional, Dict, Any
 from supabase import create_client, Client
 from sentence_transformers import SentenceTransformer
@@ -11,6 +12,45 @@ from loguru import logger
 from app.llm import llm_client, LLMProvider
 from app.util import extract_json_from_text
 from app.settings import settings
+
+logger = logger
+
+def _select_llm_provider(requested_provider: Optional[str]) -> LLMProvider:
+    """Centralized provider selection logic."""
+    available_providers = llm_client.get_available_providers()
+    
+    if not available_providers:
+        raise ValueError("No LLM providers available. Please configure at least one API key in .env file")
+    
+    # Use specified provider or fall back to preferred provider order
+    if requested_provider:
+        provider_name = requested_provider.lower()
+    else:
+        # Preferred provider order: DeepSeek -> Gemini -> OpenAI
+        preferred_order = ['deepseek', 'gemini', 'openai']
+        provider_name = None
+        
+        for preferred in preferred_order:
+            if any(p.value == preferred for p in available_providers):
+                provider_name = preferred
+                break
+        
+        # Fallback to first available if none of the preferred are available
+        if not provider_name:
+            provider_name = available_providers[0].value
+    
+    try:
+        provider = LLMProvider(provider_name)
+    except ValueError:
+        available_names = [p.value for p in available_providers]
+        raise ValueError(f"Unsupported LLM provider: {requested_provider}. Available providers: {available_names}")
+    
+    if provider not in available_providers:
+        available_names = [p.value for p in available_providers]
+        raise ValueError(f"Provider {provider.value} not available. Available providers: {available_names}")
+    
+    logger.info(f"Using LLM provider: {provider.value}")
+    return provider
 
 class SSATGenerator:
     """SSAT question generator with training examples from database."""
@@ -160,11 +200,12 @@ class SSATGenerator:
             return []
     
     def build_writing_few_shot_prompt(self, request: QuestionRequest, training_examples: List[Dict[str, Any]]) -> str:
-        """Build few-shot prompt for writing prompts with real SSAT examples."""
+        """Build few-shot prompt by extending base writing prompt with examples."""
         
         if not training_examples:
-            # Fallback to generic prompt
-            return self.build_generic_writing_prompt(request)
+            # Use base writing prompt without examples
+            logger.info(f"📚 No writing training examples available, using base writing prompt")
+            return self.build_base_writing_prompt(request)
         
         examples_text = ""
         valid_examples = 0
@@ -357,11 +398,16 @@ IMPORTANT: Generate ONLY the creative writing prompt. Do NOT include instruction
         return system_prompt
     
     def build_few_shot_prompt(self, request: QuestionRequest, training_examples: List[Dict[str, Any]]) -> str:
-        """Build few-shot prompt with real SSAT examples."""
+        """Build few-shot prompt by extending base prompt with examples."""
         
         if not training_examples:
-            # Fallback to generic prompt
-            return self.build_generic_prompt(request)
+            # Use appropriate base prompt based on question type
+            if request.question_type.value == "quantitative":
+                logger.info(f"📚 No training examples available for {request.question_type.value}, using base quantitative prompt")
+                return self.build_base_quantitative_prompt(request)
+            else:
+                logger.info(f"📚 No training examples available for {request.question_type.value}, using base verbal prompt")
+                return self.build_base_verbal_prompt(request)
         
         examples_text = ""
         valid_examples = 0
@@ -393,204 +439,30 @@ Subsection: {example['subsection']}
         
         logger.info(f"📚 TRAINING SUMMARY: Using {valid_examples} real SSAT examples for {request.question_type.value} questions")
         
-        system_prompt = f"""You are an expert SSAT question generator. Study these REAL SSAT questions from official tests:
+        # Get appropriate base prompt based on question type
+        if request.question_type.value == "quantitative":
+            base_prompt = self.build_base_quantitative_prompt(request)
+        else:
+            base_prompt = self.build_base_verbal_prompt(request)
+        
+        # Extend base prompt with examples
+        complete_prompt = f"""{base_prompt}
+
+STUDY THESE REAL SSAT EXAMPLES FROM OFFICIAL TESTS:
 
 {examples_text}
 
-Your task: Generate {request.count} NEW {request.question_type.value} questions that match the EXACT style, difficulty, and format of these examples.
-
-CRITICAL REQUIREMENTS:
-1. Follow the EXACT question structure and phrasing style from the examples
-2. Match the difficulty level: {request.difficulty.value}
-3. Use the same answer choice format (A, B, C, D)
-4. Provide detailed explanations like the examples
-5. Questions must be suitable for elementary level students
-6. Each question should have exactly 4 options
-
-"""
+Generate questions that match the EXACT style, difficulty, and format of these examples."""
         
-        topic_instruction_number = 7
-        if request.topic:
-            system_prompt += f"{topic_instruction_number}. Focus specifically on the topic: {request.topic}\n"
-            topic_instruction_number += 1
-        
-        # Add intelligent categorization guidance for all question types
-        if request.question_type.value == "quantitative":
-            system_prompt += f"""
-
-CRITICAL CATEGORIZATION REQUIREMENTS:
-
-{topic_instruction_number}. SUBSECTION ANALYSIS: After generating each question, analyze its mathematical content deeply and create a SPECIFIC subsection name that captures the core mathematical concept and approach. 
-
-SUBSECTION CREATION RULES:
-- Be SPECIFIC, not generic (NEVER use "General Math", "Basic Math", "Arithmetic")
-- Capture the MAIN mathematical skill being tested
-- Include complexity level when relevant
-- Consider the problem-solving approach required
-
-GOOD SUBSECTION EXAMPLES:
-- "Multi-Step Algebraic Word Problems" (for problems requiring variable setup and equation solving)
-- "Fraction Operations with Visual Models" (for fraction problems with diagrams)
-- "Geometry with Measurement Applications" (for shape problems involving area/perimeter)
-- "Data Analysis and Interpretation" (for problems involving charts, graphs, statistics)
-- "Money and Decimal Calculations" (for real-world money problems)
-- "Ratio and Proportion Reasoning" (for problems involving relationships between quantities)
-
-BAD SUBSECTION EXAMPLES:
-- "Word Problems" (too generic - what KIND of word problem?)
-- "Fractions" (too broad - what ABOUT fractions?)
-- "Math" or "General Math" (completely useless)
-
-{topic_instruction_number + 1}. TAGS ANALYSIS: Create 2-4 highly descriptive tags that capture DIFFERENT aspects of the question:
-
-TAG CATEGORIES (choose from different categories):
-- Mathematical Content: ["algebraic-thinking", "geometric-reasoning", "number-sense", "measurement-concepts", "data-analysis", "fraction-concepts", "decimal-operations"]
-- Problem Type: ["word-problem", "computational-fluency", "conceptual-understanding", "application-problem", "reasoning-proof"]
-- Context/Setting: ["real-world-application", "abstract-mathematical", "visual-representation", "practical-scenario", "academic-context"]
-- Cognitive Demand: ["multi-step-solution", "single-step-direct", "requires-strategy", "pattern-recognition", "logical-reasoning"]
-- Skills Required: ["equation-setup", "diagram-interpretation", "unit-conversion", "estimation", "mental-math", "calculator-appropriate"]
-
-TAGS QUALITY RULES:
-- Each tag should describe a DIFFERENT aspect of the question
-- Be specific enough that a teacher could search by tag and find relevant questions
-- Include at least one content tag and one skill/process tag
-- Make tags useful for curriculum planning and assessment
-
-EXAMPLE ANALYSIS:
-Question: "A bakery sells 3 times as many chocolate cupcakes as vanilla cupcakes..."
-SUBSECTION: "Multi-Step Algebraic Word Problems"
-TAGS: ["algebraic-thinking", "word-problem", "real-world-application", "equation-setup"]
-
-Think like an expert math curriculum specialist - what would make these categorizations most useful for teachers planning lessons and assessments?
-
-"""
-        elif request.question_type.value == "verbal":
-            system_prompt += f"""
-
-CRITICAL CATEGORIZATION REQUIREMENTS:
-
-{topic_instruction_number}. SUBSECTION ANALYSIS: Analyze the verbal content and create a SPECIFIC subsection that captures the exact language skill being tested.
-
-SUBSECTION CREATION RULES:
-- Be SPECIFIC about the vocabulary/language skill (NEVER use "General Vocabulary", "Basic Verbal")
-- Capture the complexity and context of the words
-- Consider the cognitive process required
-
-GOOD SUBSECTION EXAMPLES:
-- "Advanced Academic Vocabulary" (for sophisticated, school-specific terms)
-- "Context-Based Word Meaning" (for vocabulary requiring context clues)
-- "Precise Language Selection" (for nuanced word choice questions)
-- "Abstract Concept Vocabulary" (for complex, conceptual terms)
-- "Technical and Scientific Terms" (for subject-specific vocabulary)
-
-{topic_instruction_number + 1}. TAGS ANALYSIS: Create 2-4 specific tags that capture different aspects:
-
-TAG CATEGORIES:
-- Vocabulary Type: ["academic-vocabulary", "everyday-language", "technical-terms", "abstract-concepts", "descriptive-language"]
-- Cognitive Process: ["meaning-recognition", "context-analysis", "precision-selection", "conceptual-understanding", "inference-required"]
-- Word Characteristics: ["multi-syllabic", "grade-appropriate", "challenging-vocabulary", "subject-specific", "nuanced-meaning"]
-- Application: ["reading-comprehension", "writing-enhancement", "verbal-reasoning", "language-precision"]
-
-"""
-        elif request.question_type.value == "analogy":
-            system_prompt += f"""
-
-CRITICAL CATEGORIZATION REQUIREMENTS:
-
-{topic_instruction_number}. TAGS ANALYSIS: Create 2-4 specific tags that capture the analogy's characteristics:
-
-TAG CATEGORIES:
-- Relationship Type: ["part-to-whole", "cause-and-effect", "function-relationship", "category-classification", "degree-intensity", "opposite-relationship"]
-- Cognitive Demand: ["pattern-recognition", "logical-reasoning", "abstract-thinking", "relationship-analysis", "conceptual-connections"]
-- Vocabulary Level: ["basic-vocabulary", "challenging-vocabulary", "academic-terms", "everyday-concepts"]
-- Context: ["concrete-concepts", "abstract-ideas", "real-world-connections", "academic-knowledge", "familiar-objects"]
-
-"""
-        elif request.question_type.value == "synonym":
-            system_prompt += f"""
-
-CRITICAL CATEGORIZATION REQUIREMENTS:
-
-{topic_instruction_number}. TAGS ANALYSIS: Create 2-4 specific tags that capture the vocabulary characteristics:
-
-TAG CATEGORIES:
-- Vocabulary Type: ["academic-vocabulary", "descriptive-words", "action-verbs", "emotion-words", "precise-language", "technical-terms"]
-- Difficulty Level: ["basic-vocabulary", "challenging-vocabulary", "advanced-terms", "nuanced-meaning"]
-- Word Function: ["descriptive-language", "expressive-vocabulary", "technical-precision", "everyday-usage"]
-- Cognitive Process: ["meaning-recognition", "vocabulary-recall", "word-discrimination", "language-precision"]
-
-"""
-        
-        system_prompt += """
-OUTPUT FORMAT - Return ONLY a JSON object:
-{
-  "questions": [
-    {
-      "text": "Complete question text here",
-      "options": [
-        {"letter": "A", "text": "option text"},
-        {"letter": "B", "text": "option text"},
-        {"letter": "C", "text": "option text"},
-        {"letter": "D", "text": "option text"}
-      ],
-      "correct_answer": "A",
-      "explanation": "detailed explanation",
-      "cognitive_level": "UNDERSTAND",
-      "tags": ["real-world", "problem-solving", "elementary"],
-      "visual_description": "Description of any diagrams, charts, or visual elements (if applicable)"
-      """
-        
-        if request.question_type.value in ["quantitative", "verbal"]:
-            if request.question_type.value == "quantitative":
-                subsection_example = "Multi-Step Algebraic Word Problems"
-                tags_example = '["algebraic-thinking", "word-problem", "real-world-application", "equation-setup"]'
-            else:
-                subsection_example = "Advanced Academic Vocabulary" 
-                tags_example = '["academic-vocabulary", "meaning-recognition", "challenging-vocabulary", "verbal-reasoning"]'
-                
-            system_prompt += f""",
-      "subsection": "{subsection_example}",
-      "tags": {tags_example}
-    }}
-  ]
-}}
-
-CRITICAL VALIDATION REQUIREMENTS:
-- subsection: MUST be specific and educational useful (NO generic terms like "General Math", "Basic Vocabulary")
-- tags: MUST be exactly 2-4 descriptive tags from different categories above
-- cognitive_level: MUST be one of: REMEMBER, UNDERSTAND, APPLY, ANALYZE
-- EVERY question MUST have both subsection and tags - these are NOT optional
-
-QUALITY CHECK: Before finalizing, ask yourself:
-1. Would a teacher find this subsection useful for curriculum planning?
-2. Do the tags help identify what skills this question tests?
-3. Could someone search by these categories and find relevant content?
-If any answer is NO, improve your categorization."""
-        else:
-            system_prompt += f""",
-      "tags": ["pattern-recognition", "logical-reasoning", "elementary-appropriate", "relationship-analysis"]
-    }}
-  ]
-}}
-
-CRITICAL VALIDATION REQUIREMENTS:
-- tags: MUST be exactly 2-4 descriptive tags from different categories above
-- cognitive_level: MUST be one of: REMEMBER, UNDERSTAND, APPLY, ANALYZE
-- EVERY question MUST have tags - this is NOT optional
-
-QUALITY CHECK: Before finalizing, ask yourself:
-1. Do the tags help identify what skills this question tests?
-2. Could someone search by these categories and find relevant content?
-If any answer is NO, improve your categorization."""
-        
-        return system_prompt
+        return complete_prompt
     
     def build_reading_few_shot_prompt(self, request: QuestionRequest, training_examples: List[Dict[str, Any]]) -> str:
-        """Build few-shot prompt specifically for reading comprehension with real SSAT examples."""
+        """Build few-shot prompt by extending base reading prompt with examples."""
         
         if not training_examples:
-            # Fallback to generic prompt
-            return self.build_generic_prompt(request)
+            # Use base reading prompt without examples
+            logger.info(f"📚 No reading training examples available, using base reading prompt")
+            return self.build_base_reading_prompt(request)
         
         examples_text = ""
         valid_examples = 0
@@ -771,6 +643,300 @@ Return JSON format:
   ]
 }}"""
 
+    def build_base_quantitative_prompt(self, request: QuestionRequest) -> str:
+        """Build base prompt for quantitative questions with all instructions and requirements."""
+        
+        system_prompt = f"""You are an expert SSAT quantitative question generator.
+
+Your task: Generate {request.count} NEW quantitative questions that match SSAT Elementary style and format.
+
+CRITICAL REQUIREMENTS:
+1. Follow the EXACT question structure and phrasing style from SSAT Elementary tests
+2. Match the difficulty level: {request.difficulty.value}
+3. Use the same answer choice format (A, B, C, D)
+4. Provide detailed explanations like real SSAT questions
+5. Questions must be suitable for elementary level students
+6. Each question should have exactly 4 options
+
+"""
+        
+        topic_instruction_number = 7
+        if request.topic:
+            system_prompt += f"{topic_instruction_number}. Focus specifically on the topic: {request.topic}\n"
+            topic_instruction_number += 1
+        
+        system_prompt += f"""
+
+CRITICAL CATEGORIZATION REQUIREMENTS:
+
+{topic_instruction_number}. SUBSECTION ANALYSIS: After generating each question, analyze its mathematical content deeply and create a SPECIFIC subsection name that captures the core mathematical concept and approach. 
+
+SUBSECTION CREATION RULES:
+- Be SPECIFIC, not generic (NEVER use "General Math", "Basic Math", "Arithmetic")
+- Capture the MAIN mathematical skill being tested
+- Include complexity level when relevant
+- Consider the problem-solving approach required
+
+GOOD SUBSECTION EXAMPLES:
+- "Multi-Step Algebraic Word Problems" (for problems requiring variable setup and equation solving)
+- "Fraction Operations with Visual Models" (for fraction problems with diagrams)
+- "Geometry with Measurement Applications" (for shape problems involving area/perimeter)
+- "Data Analysis and Interpretation" (for problems involving charts, graphs, statistics)
+- "Money and Decimal Calculations" (for real-world money problems)
+- "Ratio and Proportion Reasoning" (for problems involving relationships between quantities)
+
+{topic_instruction_number + 1}. TAGS ANALYSIS: Create 2-4 highly descriptive tags that capture DIFFERENT aspects of the question:
+
+TAG CATEGORIES (choose from different categories):
+- Mathematical Content: ["algebraic-thinking", "geometric-reasoning", "number-sense", "measurement-concepts", "data-analysis", "fraction-concepts", "decimal-operations"]
+- Problem Type: ["word-problem", "computational-fluency", "conceptual-understanding", "application-problem", "reasoning-proof"]
+- Context/Setting: ["real-world-application", "abstract-mathematical", "visual-representation", "practical-scenario", "academic-context"]
+- Cognitive Demand: ["multi-step-solution", "single-step-direct", "requires-strategy", "pattern-recognition", "logical-reasoning"]
+- Skills Required: ["equation-setup", "diagram-interpretation", "unit-conversion", "estimation", "mental-math", "calculator-appropriate"]
+
+TAGS QUALITY RULES:
+- Each tag should describe a DIFFERENT aspect of the question
+- Be specific enough that a teacher could search by tag and find relevant questions
+- Include at least one content tag and one skill/process tag
+- Make tags useful for curriculum planning and assessment
+
+OUTPUT FORMAT - Return ONLY a JSON object:
+{{
+  "questions": [
+    {{
+      "text": "question text",
+      "options": [{{"letter": "A", "text": "option"}}, {{"letter": "B", "text": "option"}}, {{"letter": "C", "text": "option"}}, {{"letter": "D", "text": "option"}}],
+      "correct_answer": "A",
+      "explanation": "detailed explanation",
+      "cognitive_level": "UNDERSTAND",
+      "tags": ["tag1", "tag2", "tag3"],
+      "subsection": "Specific subsection name",
+      "visual_description": "Description of any visual elements (if applicable)"
+    }}
+  ]
+}}"""
+        
+        return system_prompt
+
+    def build_base_verbal_prompt(self, request: QuestionRequest) -> str:
+        """Build base prompt for verbal questions (analogy/synonym) with all instructions and requirements."""
+        
+        system_prompt = f"""You are an expert SSAT verbal question generator.
+
+Your task: Generate {request.count} NEW {request.question_type.value} questions that match SSAT Elementary style and format.
+
+CRITICAL REQUIREMENTS:
+1. Follow the EXACT question structure and phrasing style from SSAT Elementary tests
+2. Match the difficulty level: {request.difficulty.value}
+3. Use the same answer choice format (A, B, C, D)
+4. Provide detailed explanations like real SSAT questions
+5. Questions must be suitable for elementary level students
+6. Each question should have exactly 4 options
+7. NO visual elements are required for verbal questions - these are text-only questions
+
+"""
+        
+        topic_instruction_number = 8
+        if request.topic:
+            system_prompt += f"{topic_instruction_number}. Focus specifically on the topic: {request.topic}\n"
+            topic_instruction_number += 1
+        
+        system_prompt += f"""
+
+CRITICAL CATEGORIZATION REQUIREMENTS:
+
+{topic_instruction_number}. SUBSECTION ANALYSIS: Create a SPECIFIC subsection that captures the vocabulary skill and relationship type being tested.
+
+SUBSECTION CREATION RULES:
+- Be SPECIFIC about the vocabulary skill (NEVER use "Vocabulary", "Verbal" alone)
+- Capture the specific relationship or skill being tested
+- Consider the cognitive level required
+
+GOOD SUBSECTION EXAMPLES:
+- "Synonym Recognition with Context Clues" (for synonym questions requiring context)
+- "Analogy Relationship Mapping" (for analogy questions testing logical relationships)
+- "Vocabulary in Context" (for questions requiring context understanding)
+- "Word Association Patterns" (for questions testing word relationships)
+
+{topic_instruction_number + 1}. TAGS ANALYSIS: Create 2-4 specific tags that capture different aspects of the vocabulary skill:
+
+TAG CATEGORIES (choose from different categories):
+- Vocabulary Skills: ["context-clues", "word-relationships", "synonym-recognition", "analogy-mapping", "vocabulary-building"]
+- Cognitive Skills: ["logical-reasoning", "pattern-recognition", "inference-making", "comparison-analysis"]
+- Content Areas: ["academic-vocabulary", "everyday-language", "descriptive-words", "action-words"]
+
+TAGS QUALITY RULES:
+- Each tag should capture a DIFFERENT aspect of the vocabulary skill
+- Make tags specific enough for vocabulary assessment planning
+- Include both skill type and content area
+
+OUTPUT FORMAT - Return ONLY a JSON object:
+{{
+  "questions": [
+    {{
+      "text": "question text",
+      "options": [{{"letter": "A", "text": "option"}}, {{"letter": "B", "text": "option"}}, {{"letter": "C", "text": "option"}}, {{"letter": "D", "text": "option"}}],
+      "correct_answer": "A",
+      "explanation": "detailed explanation",
+      "cognitive_level": "UNDERSTAND",
+      "tags": ["tag1", "tag2", "tag3"],
+      "subsection": "Specific subsection name",
+      "visual_description": "None"
+    }}
+  ]
+}}"""
+        
+        return system_prompt
+
+    def build_base_reading_prompt(self, request: QuestionRequest) -> str:
+        """Build base prompt for reading comprehension with all instructions and requirements."""
+        
+        system_prompt = f"""You are an expert SSAT reading comprehension question generator.
+
+Your task: Generate {request.count} NEW reading comprehension questions that match SSAT Elementary style and format.
+
+CRITICAL REQUIREMENTS:
+1. Create a reading passage first (appropriate length and style for elementary students)
+2. Follow SSAT Elementary question structure and phrasing style
+3. Match the difficulty level: {request.difficulty.value}
+4. Use the same answer choice format (A, B, C, D)
+5. Questions must test reading comprehension skills
+6. Suitable for elementary level students (grades 3-4)
+7. Each question should have exactly 4 options
+8. Passage should be engaging and age-appropriate
+
+"""
+        
+        topic_instruction_number = 9
+        if request.topic:
+            system_prompt += f"{topic_instruction_number}. Focus the passage topic on: {request.topic}\n"
+            topic_instruction_number += 1
+        
+        system_prompt += f"""
+
+CRITICAL CATEGORIZATION REQUIREMENTS:
+
+{topic_instruction_number}. PASSAGE TYPE ANALYSIS: Create a SPECIFIC, descriptive passage type that captures both content and genre.
+
+PASSAGE TYPE RULES:
+- Be SPECIFIC about both content and genre (NEVER use "Fiction", "Non-fiction" alone)
+- Capture what makes this passage unique for reading instruction
+- Consider the specific skills this passage type develops
+
+GOOD PASSAGE TYPE EXAMPLES:
+- "Character-Driven Adventure Fiction" (for stories focusing on character development through adventure)
+- "Scientific Process Informational" (for science texts explaining how things work)
+- "Historical Biography Narrative" (for life stories with historical context)
+- "Animal Behavior Science Text" (for factual texts about animal characteristics)
+- "Problem-Solution Social Studies" (for texts about social issues and solutions)
+
+{topic_instruction_number + 1}. READING TAGS ANALYSIS: For each question, create 2-4 specific tags that capture the EXACT reading comprehension skills being tested.
+
+TAG CATEGORIES (choose from different categories):
+- Comprehension Skills: ["main-idea-identification", "supporting-details", "inference-making", "conclusion-drawing", "author-purpose"]
+- Text Analysis: ["character-analysis", "plot-development", "cause-and-effect", "compare-contrast", "sequence-understanding"]  
+- Vocabulary Skills: ["context-clues", "word-meaning", "vocabulary-development", "technical-terms", "figurative-language"]
+- Critical Thinking: ["evidence-evaluation", "perspective-analysis", "prediction-making", "connection-building", "interpretation-skills"]
+
+TAGS QUALITY RULES:
+- Each tag should specify the EXACT skill being tested
+- Make tags specific enough for reading assessment planning
+- Include both comprehension level and skill type
+
+OUTPUT FORMAT - Return ONLY a JSON object:
+{{
+  "passage": {{
+    "text": "Complete reading passage text here",
+    "title": "Passage title",
+    "passage_type": "Specific passage type",
+    "grade_level": "3-4",
+    "topic": "Passage topic"
+  }},
+  "questions": [
+    {{
+      "text": "Question text",
+      "options": [{{"letter": "A", "text": "option"}}, {{"letter": "B", "text": "option"}}, {{"letter": "C", "text": "option"}}, {{"letter": "D", "text": "option"}}],
+      "correct_answer": "A",
+      "explanation": "Detailed explanation",
+      "cognitive_level": "UNDERSTAND",
+      "tags": ["tag1", "tag2"],
+      "subsection": "Passage type"
+    }}
+  ]
+}}"""
+        
+        return system_prompt
+
+    def build_base_writing_prompt(self, request: QuestionRequest) -> str:
+        """Build base prompt for writing prompts with all instructions and requirements."""
+        
+        system_prompt = f"""You are an expert SSAT Elementary writing prompt generator.
+
+Your task: Generate {request.count} NEW writing prompts that match SSAT Elementary style and format.
+
+CRITICAL REQUIREMENTS:
+1. Follow SSAT Elementary prompt structure and style
+2. Create elementary-appropriate prompts (grades 3-4)
+3. Include clear, engaging visual descriptions for picture prompts
+4. Focus on creative storytelling with beginning, middle, and end
+5. Use simple, age-appropriate language and concepts
+6. Prompts should be engaging and inspire creativity
+
+"""
+        
+        topic_instruction_number = 7
+        if request.topic:
+            system_prompt += f"{topic_instruction_number}. Focus specifically on the topic: {request.topic}\n"
+            topic_instruction_number += 1
+        
+        system_prompt += f"""
+
+CRITICAL CATEGORIZATION REQUIREMENTS:
+
+{topic_instruction_number}. SUBSECTION ANALYSIS: Create a SPECIFIC subsection that captures both the writing task type AND the skills it develops.
+
+SUBSECTION CREATION RULES:
+- Be SPECIFIC about the writing task and skills (NEVER use "Picture Story", "Creative Writing" alone)
+- Capture what makes this prompt unique for writing instruction
+- Consider the specific narrative/writing skills this prompt develops
+
+GOOD SUBSECTION EXAMPLES:
+- "Character-Driven Visual Narratives" (for picture prompts focusing on character development)
+- "Problem-Solution Adventure Stories" (for prompts with clear conflict resolution)
+- "Descriptive Setting-Based Writing" (for prompts emphasizing scene and atmosphere)
+- "Dialogue-Rich Character Interaction" (for prompts emphasizing conversation and relationships)
+- "Sequential Event Storytelling" (for prompts with clear beginning-middle-end structure)
+
+{topic_instruction_number + 1}. WRITING TAGS ANALYSIS: Create 2-4 specific tags that capture different aspects of the writing skills and elements this prompt encourages.
+
+TAG CATEGORIES (choose from different categories):
+- Writing Skills: ["character-development", "dialogue-writing", "descriptive-language", "narrative-structure", "plot-development"]
+- Creative Elements: ["visual-inspiration", "imaginative-thinking", "creative-problem-solving", "world-building", "sensory-details"]
+- Themes/Content: ["friendship-themes", "adventure-elements", "family-relationships", "overcoming-challenges", "discovery-learning"]
+- Cognitive Processes: ["sequential-thinking", "cause-effect-reasoning", "perspective-taking", "emotional-expression", "conflict-resolution"]
+
+TAGS QUALITY RULES:
+- Each tag should capture a DIFFERENT aspect of the writing task
+- Make tags specific enough for writing curriculum planning
+- Include both skills and content/theme elements
+
+OUTPUT FORMAT - Return ONLY a JSON object:
+{{
+  "prompts": [
+    {{
+      "prompt": "Complete writing prompt text here (JUST the creative prompt, NO instructions)",
+      "visual_description": "Description of the picture that would accompany this prompt",
+      "grade_level": "3-4",
+      "story_elements": ["element1", "element2", "element3"],
+      "prompt_type": "picture_story",
+      "subsection": "Specific subsection name",
+      "tags": ["tag1", "tag2", "tag3", "tag4"]
+    }}
+  ]
+}}"""
+        
+        return system_prompt
+
 def generate_questions(request: QuestionRequest, llm: Optional[str] = "deepseek") -> List[Question]:
     """Generate questions based on request with real SSAT training examples (non-reading questions only)."""
     logger.info(f"Generating questions for request: {request}")
@@ -794,39 +960,7 @@ def generate_questions(request: QuestionRequest, llm: Optional[str] = "deepseek"
             logger.info("No training examples found, using generic prompt")
         
         # Get available LLM providers
-        available_providers = llm_client.get_available_providers()
-        
-        if not available_providers:
-            raise ValueError("No LLM providers available. Please configure at least one API key in .env file")
-        
-        # Use specified provider or fall back to preferred provider order
-        if llm:
-            provider_name = llm.lower()
-        else:
-            # Preferred provider order: DeepSeek -> Gemini -> OpenAI
-            preferred_order = ['deepseek', 'gemini', 'openai']
-            provider_name = None
-            
-            for preferred in preferred_order:
-                if any(p.value == preferred for p in available_providers):
-                    provider_name = preferred
-                    break
-            
-            # Fallback to first available if none of the preferred are available
-            if not provider_name:
-                provider_name = available_providers[0].value
-        
-        try:
-            provider = LLMProvider(provider_name)
-        except ValueError:
-            available_names = [p.value for p in available_providers]
-            raise ValueError(f"Unsupported LLM provider: {llm}. Available providers: {available_names}")
-        
-        if provider not in available_providers:
-            available_names = [p.value for p in available_providers]
-            raise ValueError(f"Provider {provider.value} not available. Available providers: {available_names}")
-        
-        logger.info(f"Using LLM provider: {provider.value}")
+        provider = _select_llm_provider(llm)
         
         # Calculate appropriate max_tokens based on question count
         # Each question with options, explanations, etc. can be ~200-300 tokens
@@ -904,40 +1038,7 @@ def generate_reading_passage(request: QuestionRequest, llm: Optional[str] = "dee
             logger.info("No reading training examples found, using generic prompt")
         
         # Get available LLM providers
-        from app.llm import llm_client, LLMProvider
-        available_providers = llm_client.get_available_providers()
-        
-        if not available_providers:
-            raise ValueError("No LLM providers available. Please configure at least one API key in .env file")
-        
-        # Use specified provider or fall back to preferred provider order
-        if llm:
-            provider_name = llm.lower()
-        else:
-            # Preferred provider order: DeepSeek -> Gemini -> OpenAI
-            preferred_order = ['deepseek', 'gemini', 'openai']
-            provider_name = None
-            
-            for preferred in preferred_order:
-                if any(p.value == preferred for p in available_providers):
-                    provider_name = preferred
-                    break
-            
-            # Fallback to first available if none of the preferred are available
-            if not provider_name:
-                provider_name = available_providers[0].value
-        
-        try:
-            provider = LLMProvider(provider_name)
-        except ValueError:
-            available_names = [p.value for p in available_providers]
-            raise ValueError(f"Unsupported LLM provider: {llm}. Available providers: {available_names}")
-        
-        if provider not in available_providers:
-            available_names = [p.value for p in available_providers]
-            raise ValueError(f"Provider {provider.value} not available. Available providers: {available_names}")
-        
-        logger.info(f"Using LLM provider: {provider.value}")
+        provider = _select_llm_provider(llm)
         
         # Calculate appropriate max_tokens for reading passage + questions
         # Reading passages can be long (~500-800 tokens) + 4 questions (~1200 tokens)
@@ -960,7 +1061,6 @@ def generate_reading_passage(request: QuestionRequest, llm: Optional[str] = "dee
         if content is None:
             raise ValueError(f"LLM call to {provider.value} failed - no content returned")
 
-        from app.util import extract_json_from_text
         data = extract_json_from_text(content)
         
         if data is None:
@@ -974,7 +1074,6 @@ def generate_reading_passage(request: QuestionRequest, llm: Optional[str] = "dee
         questions_data = data["questions"]
         
         # Parse questions into proper format
-        from app.models import Option, Question
         questions = []
         for q_data in questions_data:
             options = [Option(letter=opt["letter"], text=opt["text"]) for opt in q_data["options"]]
@@ -1022,40 +1121,7 @@ async def generate_reading_passage_async(request: QuestionRequest, llm: Optional
             logger.info("No reading training examples found, using generic prompt")
         
         # Get available LLM providers
-        from app.llm import llm_client, LLMProvider
-        available_providers = llm_client.get_available_providers()
-        
-        if not available_providers:
-            raise ValueError("No LLM providers available. Please configure at least one API key in .env file")
-        
-        # Use specified provider or fall back to preferred provider order
-        if llm:
-            provider_name = llm.lower()
-        else:
-            # Preferred provider order: DeepSeek -> Gemini -> OpenAI
-            preferred_order = ['deepseek', 'gemini', 'openai']
-            provider_name = None
-            
-            for preferred in preferred_order:
-                if any(p.value == preferred for p in available_providers):
-                    provider_name = preferred
-                    break
-            
-            # Fallback to first available if none of the preferred are available
-            if not provider_name:
-                provider_name = available_providers[0].value
-        
-        try:
-            provider = LLMProvider(provider_name)
-        except ValueError:
-            available_names = [p.value for p in available_providers]
-            raise ValueError(f"Unsupported LLM provider: {llm}. Available providers: {available_names}")
-        
-        if provider not in available_providers:
-            available_names = [p.value for p in available_providers]
-            raise ValueError(f"Provider {provider.value} not available. Available providers: {available_names}")
-        
-        logger.info(f"Using LLM provider: {provider.value}")
+        provider = _select_llm_provider(llm)
         
         # Calculate appropriate max_tokens for reading passage + questions
         # Reading passages can be long (~500-800 tokens) + 4 questions (~1200 tokens)
@@ -1078,7 +1144,6 @@ async def generate_reading_passage_async(request: QuestionRequest, llm: Optional
         if content is None:
             raise ValueError(f"LLM call to {provider.value} failed - no content returned")
 
-        from app.util import extract_json_from_text
         data = extract_json_from_text(content)
         
         if data is None:
@@ -1092,7 +1157,6 @@ async def generate_reading_passage_async(request: QuestionRequest, llm: Optional
         questions_data = data["questions"]
         
         # Parse questions into proper format
-        from app.models import Option, Question
         questions = []
         for q_data in questions_data:
             options = [Option(letter=opt["letter"], text=opt["text"]) for opt in q_data["options"]]
@@ -1144,39 +1208,7 @@ async def generate_questions_async(request: QuestionRequest, llm: Optional[str] 
             logger.info("No training examples found, using generic prompt")
         
         # Get available LLM providers
-        available_providers = llm_client.get_available_providers()
-        
-        if not available_providers:
-            raise ValueError("No LLM providers available. Please configure at least one API key in .env file")
-        
-        # Use specified provider or fall back to preferred provider order
-        if llm:
-            provider_name = llm.lower()
-        else:
-            # Preferred provider order: DeepSeek -> Gemini -> OpenAI
-            preferred_order = ['deepseek', 'gemini', 'openai']
-            provider_name = None
-            
-            for preferred in preferred_order:
-                if any(p.value == preferred for p in available_providers):
-                    provider_name = preferred
-                    break
-            
-            # Fallback to first available if none of the preferred are available
-            if not provider_name:
-                provider_name = available_providers[0].value
-        
-        try:
-            provider = LLMProvider(provider_name)
-        except ValueError:
-            available_names = [p.value for p in available_providers]
-            raise ValueError(f"Unsupported LLM provider: {llm}. Available providers: {available_names}")
-        
-        if provider not in available_providers:
-            available_names = [p.value for p in available_providers]
-            raise ValueError(f"Provider {provider.value} not available. Available providers: {available_names}")
-        
-        logger.info(f"Using LLM provider: {provider.value}")
+        provider = _select_llm_provider(llm)
         
         # Calculate appropriate max_tokens based on question count
         # Each question with options, explanations, etc. can be ~200-300 tokens

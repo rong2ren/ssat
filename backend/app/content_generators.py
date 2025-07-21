@@ -9,6 +9,9 @@ This module provides the correct architecture for generating different types of 
 
 import time
 import uuid
+import json
+import random
+import logging
 from typing import List, Dict, Any, Optional, Union, NamedTuple
 from loguru import logger
 
@@ -18,7 +21,45 @@ from app.generator import SSATGenerator, generate_questions, generate_reading_pa
 from app.llm import llm_client, LLMProvider
 from app.util import extract_json_from_text
 from app.specifications import OFFICIAL_ELEMENTARY_SPECS, ELEMENTARY_WRITING_PROMPTS
-import random
+
+logger = logging.getLogger(__name__)
+
+def _select_llm_provider(requested_provider: Optional[str]) -> LLMProvider:
+    """Centralized provider selection logic."""
+    available_providers = llm_client.get_available_providers()
+    
+    if not available_providers:
+        raise ValueError("No LLM providers available. Please configure at least one API key in .env file")
+    
+    # Use specified provider or fall back to preferred provider order
+    if requested_provider:
+        provider_name = requested_provider.lower()
+    else:
+        # Preferred provider order: DeepSeek -> Gemini -> OpenAI
+        preferred_order = ['deepseek', 'gemini', 'openai']
+        provider_name = None
+        
+        for preferred in preferred_order:
+            if any(p.value == preferred for p in available_providers):
+                provider_name = preferred
+                break
+        
+        # Fallback to first available if none of the preferred are available
+        if not provider_name:
+            provider_name = available_providers[0].value
+    
+    try:
+        provider = LLMProvider(provider_name)
+    except ValueError:
+        available_names = [p.value for p in available_providers]
+        raise ValueError(f"Unsupported LLM provider: {requested_provider}. Available providers: {available_names}")
+    
+    if provider not in available_providers:
+        available_names = [p.value for p in available_providers]
+        raise ValueError(f"Provider {provider.value} not available. Available providers: {available_names}")
+    
+    logger.info(f"Using LLM provider: {provider.value}")
+    return provider
 
 
 class GenerationResult(NamedTuple):
@@ -171,25 +212,7 @@ def generate_writing_prompts_with_metadata(request: QuestionRequest, llm: Option
             logger.info("No writing training examples found, using generic AI prompt")
         
         # Generate prompts using LLM (same pattern as other question types)
-        available_providers = llm_client.get_available_providers()
-        if not available_providers:
-            raise ValueError("No LLM providers available")
-        
-        # Use specified provider or fall back to preferred order
-        if llm:
-            provider_name = llm.lower()
-        else:
-            preferred_order = ['deepseek', 'gemini', 'openai']
-            provider_name = None
-            for preferred in preferred_order:
-                if any(p.value == preferred for p in available_providers):
-                    provider_name = preferred
-                    break
-            if not provider_name:
-                provider_name = available_providers[0].value
-        
-        provider = LLMProvider(provider_name)
-        logger.info(f"Using LLM provider: {provider.value}")
+        provider = _select_llm_provider(llm)
         
         # Generate prompts using LLM
         content = llm_client.call_llm(
@@ -333,33 +356,7 @@ async def generate_writing_prompts_async(request: QuestionRequest, llm: Optional
             logger.info("No writing training examples found, using generic AI prompt (async)")
         
         # Generate prompts using async LLM (same pattern as other question types)
-        available_providers = llm_client.get_available_providers()
-        if not available_providers:
-            raise ValueError("No LLM providers available")
-        
-        # Use specified provider or fall back to preferred order
-        if llm:
-            provider_name = llm.lower()
-        else:
-            preferred_order = ['deepseek', 'gemini', 'openai']
-            provider_name = None
-            for preferred in preferred_order:
-                if any(p.value == preferred for p in available_providers):
-                    provider_name = preferred
-                    break
-            if not provider_name:
-                provider_name = available_providers[0].value
-        
-        try:
-            provider = LLMProvider(provider_name)
-        except ValueError:
-            available_names = [p.value for p in available_providers]
-            raise ValueError(f"Unsupported LLM provider: {llm}. Available providers: {available_names}")
-        
-        if provider not in available_providers:
-            available_names = [p.value for p in available_providers]
-            raise ValueError(f"Provider {provider.value} not available. Available providers: {available_names}")
-        
+        provider = _select_llm_provider(llm)
         logger.info(f"Using LLM provider: {provider.value} (async)")
         
         # Generate prompts using async LLM call for true parallelism
