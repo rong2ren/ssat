@@ -23,16 +23,3 @@ class LLMProvider(str, Enum):
     GEMINI = "gemini"
     DEEPSEEK = "deepseek"
 
-class CognitiveLevel(str, Enum):
-    """Cognitive complexity levels for questions."""
-    REMEMBER = "REMEMBER"
-    UNDERSTAND = "UNDERSTAND"
-    APPLY = "APPLY"
-    ANALYZE = "ANALYZE"
-
-class SectionType(str, Enum):
-    """SSAT test sections."""
-    QUANTITATIVE = "Quantitative"
-    VERBAL = "Verbal"
-    READING = "Reading"
-    WRITING = "Writing"

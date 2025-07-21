@@ -160,25 +160,26 @@ async def generate_content(request: QuestionGenerationRequest):
                 # Get training example IDs by fetching recent examples for this question type
                 try:
                     from app.generator import SSATGenerator
-                    from app.models import QuestionRequest, QuestionType as SSATQuestionType, DifficultyLevel as SSATDifficultyLevel
+                    from app.models import QuestionRequest
+                    from app.models.enums import QuestionType, DifficultyLevel
                     
                     # Map API types to internal types
                     ssat_type_mapping = {
-                        "quantitative": SSATQuestionType.QUANTITATIVE,
-                        "analogy": SSATQuestionType.ANALOGY,
-                        "synonym": SSATQuestionType.SYNONYM,
-                        "verbal": SSATQuestionType.VERBAL
+                        "quantitative": QuestionType.QUANTITATIVE,
+                        "analogy": QuestionType.ANALOGY,
+                        "synonym": QuestionType.SYNONYM,
+                        "verbal": QuestionType.VERBAL
                     }
                     ssat_difficulty_mapping = {
-                        "Easy": SSATDifficultyLevel.EASY,
-                        "Medium": SSATDifficultyLevel.MEDIUM,
-                        "Hard": SSATDifficultyLevel.HARD
+                        "Easy": DifficultyLevel.EASY,
+                        "Medium": DifficultyLevel.MEDIUM,
+                        "Hard": DifficultyLevel.HARD
                     }
                     
                     # Create internal request to get training examples
                     ssat_request = QuestionRequest(
-                        question_type=ssat_type_mapping.get(request.question_type.value, SSATQuestionType.VERBAL),
-                        difficulty=ssat_difficulty_mapping.get(request.difficulty.value if request.difficulty else "Medium", SSATDifficultyLevel.MEDIUM),
+                        question_type=ssat_type_mapping.get(request.question_type.value, QuestionType.VERBAL),
+                        difficulty=ssat_difficulty_mapping.get(request.difficulty.value if request.difficulty else "Medium", DifficultyLevel.MEDIUM),
                         topic=request.topic,
                         count=request.count
                     )
@@ -370,7 +371,7 @@ async def generate_single_section_background(job_id: str, section_type, request:
         custom_counts = request.custom_counts or {}
         logger.debug(f"🔍 DEBUG: Section {section_type.value}, custom_counts: {custom_counts}")
         section_count = custom_counts.get(section_type.value, {
-            "quantitative": 10, "analogy": 4, "synonym": 6, "reading": 7, "writing": 1
+            "quantitative": 1, "analogy": 1, "synonym": 1, "reading": 1, "writing": 1
         }.get(section_type.value, 5))
         logger.debug(f"🔍 DEBUG: Final section_count for {section_type.value}: {section_count}")
         
@@ -397,7 +398,7 @@ async def generate_single_section_background(job_id: str, section_type, request:
         else:
             logger.info(f"⚙️ DEBUG: Using regular standalone generation for {section_type.value}")
             section = await question_service._generate_standalone_section(
-                section_type, request.difficulty, section_count, request.provider, use_async=True
+                section_type, request.difficulty, section_count, request.provider, use_async=True, is_official_format=request.is_official_format
             )
         
         # Update progress: generation complete, processing results (90%)

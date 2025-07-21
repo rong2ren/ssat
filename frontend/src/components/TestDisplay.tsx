@@ -35,32 +35,32 @@ export function TestDisplay({ sections, showChinese }: TestDisplayProps) {
   return (
     <div className="bg-white rounded-lg shadow-lg">
       {/* Header */}
-      <div className="border-b border-gray-200 p-6">
-        <div className="flex justify-between items-center">
+      <div className="border-b border-gray-200 p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
           <div>
-            <h2 className="text-2xl font-semibold text-gray-800">Complete SSAT Test</h2>
-            <p className="text-gray-600">{sections.length} sections</p>
+            <h2 className="text-xl sm:text-2xl font-semibold text-gray-800">Complete SSAT Test</h2>
+            <p className="text-sm sm:text-base text-gray-600">{sections.length} sections</p>
           </div>
           
-          <div className="flex space-x-3">
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setShowAnswers(!showAnswers)}
-              className="flex items-center space-x-2"
+              className="flex items-center justify-center space-x-2 text-xs sm:text-sm"
             >
-              {showAnswers ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              <span>{showAnswers ? 'Hide Answers' : 'Show Answers'}</span>
+              {showAnswers ? <EyeOff className="h-3 w-3 sm:h-4 sm:w-4" /> : <Eye className="h-3 w-3 sm:h-4 sm:w-4" />}
+              <span className="whitespace-nowrap">{showAnswers ? 'Hide Answers' : 'Show Answers'}</span>
             </Button>
             
             <Button
               variant="outline"
               size="sm"
               onClick={handleDownloadCompleteTest}
-              className="flex items-center space-x-2"
+              className="flex items-center justify-center space-x-2 text-xs sm:text-sm"
             >
-              <Download className="h-4 w-4" />
-              <span>Save Complete Test as PDF</span>
+              <Download className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="whitespace-nowrap">Save as PDF</span>
             </Button>
           </div>
         </div>

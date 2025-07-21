@@ -12,7 +12,8 @@ import uuid
 from typing import List, Dict, Any, Optional, Union, NamedTuple
 from loguru import logger
 
-from app.models import QuestionRequest, QuestionType, DifficultyLevel, Question, Option
+from app.models import QuestionRequest, Question, Option
+from app.models.enums import QuestionType, DifficultyLevel
 from app.generator import SSATGenerator, generate_questions, generate_reading_passage
 from app.llm import llm_client, LLMProvider
 from app.util import extract_json_from_text

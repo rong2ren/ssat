@@ -93,6 +93,7 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
       
       const invalidCounts = selectedSections.filter(section => {
         const count = customCounts[section] || 0
+        // For custom generation, limit to 15 questions per section
         return count < 1 || count > 15
       })
       

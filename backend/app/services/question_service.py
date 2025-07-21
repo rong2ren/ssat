@@ -6,10 +6,11 @@ from typing import List, Dict, Any, Optional, Union
 from loguru import logger
 
 # Import SSAT modules (now local)
-from app.models import QuestionRequest, QuestionType as SSATQuestionType, DifficultyLevel as SSATDifficultyLevel
+from app.models import QuestionRequest
+from app.models.enums import QuestionType, DifficultyLevel
 from app.generator import generate_questions, generate_questions_async, SSATGenerator
 from app.settings import settings
-from app.models.requests import QuestionGenerationRequest, CompleteTestRequest, QuestionType, DifficultyLevel
+from app.models.requests import QuestionGenerationRequest, CompleteTestRequest
 from app.models.responses import QuantitativeSection, SynonymSection, AnalogySection, ReadingSection, WritingSection, ReadingPassage, WritingPrompt
 
 # Loguru logger imported above
@@ -39,8 +40,8 @@ class QuestionService:
             
             # Try to get training examples as a health check
             test_request = QuestionRequest(
-                question_type=SSATQuestionType.QUANTITATIVE,
-                difficulty=SSATDifficultyLevel.MEDIUM,
+                question_type=QuestionType.QUANTITATIVE,
+                difficulty=DifficultyLevel.MEDIUM,
                 count=1
             )
             examples = self.generator.get_training_examples(test_request)
@@ -51,20 +52,20 @@ class QuestionService:
     
     def _convert_to_ssat_request(self, request: QuestionGenerationRequest) -> QuestionRequest:
         """Convert API request to internal SSAT request format."""
-        # Map API enums to internal enums
+        # Map API enums to internal enums (now using same enum directly)
         question_type_mapping = {
-            QuestionType.QUANTITATIVE: SSATQuestionType.QUANTITATIVE,
-            QuestionType.READING: SSATQuestionType.READING,
-            QuestionType.VERBAL: SSATQuestionType.VERBAL,
-            QuestionType.ANALOGY: SSATQuestionType.ANALOGY,
-            QuestionType.SYNONYM: SSATQuestionType.SYNONYM,
-            QuestionType.WRITING: SSATQuestionType.WRITING,
+            QuestionType.QUANTITATIVE: QuestionType.QUANTITATIVE,
+            QuestionType.READING: QuestionType.READING,
+            QuestionType.VERBAL: QuestionType.VERBAL,
+            QuestionType.ANALOGY: QuestionType.ANALOGY,
+            QuestionType.SYNONYM: QuestionType.SYNONYM,
+            QuestionType.WRITING: QuestionType.WRITING,
         }
         
         difficulty_mapping = {
-            DifficultyLevel.EASY: SSATDifficultyLevel.EASY,
-            DifficultyLevel.MEDIUM: SSATDifficultyLevel.MEDIUM,
-            DifficultyLevel.HARD: SSATDifficultyLevel.HARD,
+            DifficultyLevel.EASY: DifficultyLevel.EASY,
+            DifficultyLevel.MEDIUM: DifficultyLevel.MEDIUM,
+            DifficultyLevel.HARD: DifficultyLevel.HARD,
         }
         
         return QuestionRequest(
@@ -196,13 +197,13 @@ class QuestionService:
     
     async def _generate_writing_prompt(self, difficulty: DifficultyLevel) -> Dict[str, Any]:
         """Generate a writing prompt using AI with real SSAT training examples."""
-        from app.models import QuestionRequest, QuestionType as SSATQuestionType, DifficultyLevel as SSATDifficultyLevel
+        from app.models import QuestionRequest
         from app.content_generators import generate_writing_prompts_with_metadata
         
         # Create request for AI generation (same as individual writing generation)
         ssat_request = QuestionRequest(
-            question_type=SSATQuestionType.WRITING,
-            difficulty=SSATDifficultyLevel.MEDIUM if difficulty == DifficultyLevel.MEDIUM else SSATDifficultyLevel.EASY,
+            question_type=QuestionType.WRITING,
+            difficulty=DifficultyLevel.MEDIUM if difficulty == DifficultyLevel.MEDIUM else DifficultyLevel.EASY,
             topic=None,  # No specific topic for complete tests
             count=1      # Generate one prompt
         )
@@ -361,14 +362,15 @@ class QuestionService:
             instructions=instructions
         )
     
-    async def _generate_standalone_section(self, section_type: QuestionType, difficulty: DifficultyLevel, count: int, provider: Optional[Any], use_async: bool = False) -> Union[QuantitativeSection, SynonymSection, AnalogySection]:
+    async def _generate_standalone_section(self, section_type: QuestionType, difficulty: DifficultyLevel, count: int, provider: Optional[Any], use_async: bool = False, is_official_format: bool = False) -> Union[QuantitativeSection, SynonymSection, AnalogySection]:
         """Generate a section for individual question types (quantitative, synonym, analogy)."""
         # Create request for this section
         section_request = QuestionGenerationRequest(
             question_type=section_type,
             difficulty=difficulty,
             count=count,
-            provider=provider
+            provider=provider,
+            is_official_format=is_official_format
         )
         
         if use_async:

@@ -36,20 +36,20 @@ class UnifiedContentService:
     
     def _convert_to_ssat_request(self, request: QuestionGenerationRequest) -> QuestionRequest:
         """Convert API request to internal SSAT request format."""
-        # Map API enums to internal enums
+        # Map API enums to internal enums (now using same enum directly)
         question_type_mapping = {
-            QuestionType.QUANTITATIVE: SSATQuestionType.QUANTITATIVE,
-            QuestionType.READING: SSATQuestionType.READING,
-            QuestionType.VERBAL: SSATQuestionType.VERBAL,
-            QuestionType.ANALOGY: SSATQuestionType.ANALOGY,
-            QuestionType.SYNONYM: SSATQuestionType.SYNONYM,
-            QuestionType.WRITING: SSATQuestionType.WRITING,
+            QuestionType.QUANTITATIVE: QuestionType.QUANTITATIVE,
+            QuestionType.READING: QuestionType.READING,
+            QuestionType.VERBAL: QuestionType.VERBAL,
+            QuestionType.ANALOGY: QuestionType.ANALOGY,
+            QuestionType.SYNONYM: QuestionType.SYNONYM,
+            QuestionType.WRITING: QuestionType.WRITING,
         }
         
         difficulty_mapping = {
-            DifficultyLevel.EASY: SSATDifficultyLevel.EASY,
-            DifficultyLevel.MEDIUM: SSATDifficultyLevel.MEDIUM,
-            DifficultyLevel.HARD: SSATDifficultyLevel.HARD,
+            DifficultyLevel.EASY: DifficultyLevel.EASY,
+            DifficultyLevel.MEDIUM: DifficultyLevel.MEDIUM,
+            DifficultyLevel.HARD: DifficultyLevel.HARD,
         }
         
         return QuestionRequest(

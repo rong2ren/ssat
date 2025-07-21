@@ -1,11 +1,9 @@
 """Base models and common components."""
 
-import uuid
-from datetime import datetime
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field, field_validator
 
-from .enums import QuestionType, DifficultyLevel, CognitiveLevel
+from .enums import QuestionType, DifficultyLevel
 
 class Option(BaseModel):
     """Option for multiple choice questions."""
@@ -13,19 +11,19 @@ class Option(BaseModel):
     text: str = Field(..., description="Option text")
 
 class Question(BaseModel):
-    """Core SSAT question model."""
-    id: Optional[str] = Field(default=None, description="Question ID")
-    question_type: QuestionType = Field(..., description="Type of question")
-    difficulty: DifficultyLevel = Field(..., description="Difficulty level")
-    text: str = Field(..., description="Question text")
-    options: List[Option] = Field(default_factory=list, description="Answer options")
-    correct_answer: str = Field(..., description="Correct answer (A, B, C, or D)")
-    explanation: str = Field(..., description="Detailed explanation")
-    cognitive_level: CognitiveLevel = Field(default=CognitiveLevel.UNDERSTAND, description="Cognitive complexity level")
-    tags: List[str] = Field(default_factory=list, description="Descriptive tags")
-    visual_description: Optional[str] = Field(default=None, description="Visual elements description")
-    subsection: Optional[str] = Field(default=None, description="AI-determined subsection")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    """SSAT question model."""
+    id: Optional[str] = None
+    question_type: QuestionType
+    difficulty: DifficultyLevel
+    text: str
+    options: List[Option] = Field(default_factory=list)
+    correct_answer: str
+    explanation: str
+    cognitive_level: str
+    tags: List[str] = Field(default_factory=list)
+    visual_description: Optional[str] = None
+    subsection: Optional[str] = None  # AI-determined subsection for better categorization
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @field_validator('options')
     @classmethod
@@ -45,14 +43,9 @@ class Question(BaseModel):
         return v.upper()
 
 class QuestionRequest(BaseModel):
-    """Request for generating questions."""
-    question_type: QuestionType = Field(..., description="Type of questions to generate")
-    difficulty: DifficultyLevel = Field(default=DifficultyLevel.MEDIUM, description="Difficulty level")
-    topic: Optional[str] = Field(default=None, description="Specific topic focus")
-    count: int = Field(default=1, ge=1, le=50, description="Number of questions to generate")
-    level: Optional[str] = Field(default="elementary", description="Grade level")
-
-    def model_post_init(self, __context):
-        """Post-initialization processing."""
-        if self.id is None:
-            self.id = str(uuid.uuid4())
+    """Request model for generating questions."""
+    question_type: QuestionType
+    difficulty: DifficultyLevel
+    topic: Optional[str] = None
+    count: int = 1
+    level: str = "elementary" # elementary, middle, or high school

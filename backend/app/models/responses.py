@@ -129,10 +129,6 @@ class WritingGenerationResponse(BaseModel):
     status: str = Field(default="success", description="Generation status")
     count: int = Field(..., description="Number of prompts generated")
 
-# Union type for polymorphic content generation responses
-ContentGenerationResponse = Union[QuestionGenerationResponse, ReadingGenerationResponse, WritingGenerationResponse]
-
-
 class ProviderInfo(BaseModel):
     """Information about an LLM provider."""
     name: str = Field(..., description="Provider name")
@@ -162,12 +158,7 @@ class ErrorResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now, description="Error timestamp")
     request_id: Optional[str] = Field(default=None, description="Request identifier")
 
-class WritingPromptResponse(BaseModel):
-    """Writing prompt for SSAT Elementary test."""
-    prompt_text: str = Field(..., description="Writing prompt text")
-    instructions: str = Field(..., description="Writing instructions")
-    time_limit_minutes: int = Field(default=15, description="Time limit for writing")
-    visual_description: Optional[str] = Field(default=None, description="Description of visual prompt")
+
 
 
 

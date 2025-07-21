@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
     let body
     try {
       body = await request.json()
-    } catch (jsonError) {
+    } catch {
       // Handle aborted/malformed requests gracefully
       return NextResponse.json(
         { error: 'Invalid JSON in request body' },

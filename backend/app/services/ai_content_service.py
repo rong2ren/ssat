@@ -6,6 +6,10 @@ from loguru import logger
 from datetime import datetime
 import json
 
+from app.services.database import get_database_connection
+from app.services.embedding_service import embedding_service
+from app.models.responses import TestSection
+
 
 def convert_answer_letter_to_index(answer: str) -> int:
     """Convert A,B,C,D to 0,1,2,3 for database storage.
@@ -31,10 +35,6 @@ def convert_answer_index_to_letter(index: int) -> str:
         Letter answer like "A", "B", "C", "D"
     """
     return chr(ord('A') + index) if 0 <= index < 4 else 'A'
-
-from app.services.database import get_database_connection
-from app.services.embedding_service import embedding_service
-from app.models.responses import TestSection, QuestionGenerationResponse, ReadingGenerationResponse, WritingGenerationResponse
 
 
 class AIContentService:
@@ -65,7 +65,7 @@ class AIContentService:
     
     async def update_session_status(self, session_id: str, status: str, 
                                    total_questions: int = 0, 
-                                   providers_used: List[str] = None,
+                                   providers_used: Optional[List[str]] = None,
                                    duration_ms: int = 0):
         """Update the session status and metadata."""
         try:
@@ -78,7 +78,7 @@ class AIContentService:
             if providers_used:
                 update_data["providers_used"] = providers_used
             
-            result = self.supabase.table("ai_generation_sessions").update(update_data).eq("id", session_id).execute()
+            self.supabase.table("ai_generation_sessions").update(update_data).eq("id", session_id).execute()
             logger.info(f"Updated session {session_id} status to {status}")
             
         except Exception as e:
@@ -86,8 +86,8 @@ class AIContentService:
             raise
     
     async def save_generated_questions(self, session_id: str, questions: List[Any], 
-                                     section: str, subsection: str = None,
-                                     training_examples_used: List[str] = None) -> List[str]:
+                                     section: str, subsection: Optional[str] = None,
+                                     training_examples_used: Optional[List[str]] = None) -> List[str]:
         """Save AI-generated questions to the database."""
         try:
             question_ids = []
@@ -185,7 +185,7 @@ class AIContentService:
                     "training_examples_used": training_examples_used or []
                 }
                 
-                result = self.supabase.table("ai_generated_questions").insert(question_data).execute()
+                self.supabase.table("ai_generated_questions").insert(question_data).execute()
             
             logger.info(f"Saved {len(question_ids)} AI-generated questions for session {session_id}")
             return question_ids
@@ -195,7 +195,7 @@ class AIContentService:
             raise
     
     async def save_reading_content(self, session_id: str, reading_data: Any,
-                                 training_examples_used: List[str] = None, topic: str = None) -> Dict[str, List[str]]:
+                                 training_examples_used: Optional[List[str]] = None, topic: Optional[str] = None) -> Dict[str, List[str]]:
         """Save AI-generated reading passage and questions."""
         try:
             result_ids = {"passage_ids": [], "question_ids": []}
@@ -237,15 +237,15 @@ class AIContentService:
                 
                 # First try to get AI-generated topic from passage data, then fall back to parameter
                 ai_generated_topic = None
-                if hasattr(section, 'topic'):
-                    ai_generated_topic = section.topic
-                elif isinstance(section, dict):
+                if isinstance(section, dict):
                     # Check for topic at section level
                     if section.get('topic'):
                         ai_generated_topic = section['topic']
                     # Check for topic nested in passage data
                     elif 'passage' in section and isinstance(section['passage'], dict) and section['passage'].get('topic'):
                         ai_generated_topic = section['passage']['topic']
+                elif hasattr(section, 'topic'):
+                    ai_generated_topic = section.topic
                 
                 # Use AI-generated topic if available, otherwise use passed topic parameter
                 final_topic = ai_generated_topic or topic
@@ -254,7 +254,12 @@ class AIContentService:
                     passage_tags.append(final_topic)
                 
                 # Add any additional tags from the generated content
-                if hasattr(section, 'tags') and section.tags:
+                if isinstance(section, dict):
+                    if section.get('tags'):
+                        passage_tags.extend(section['tags'])
+                    elif section.get('metadata') and isinstance(section['metadata'], dict) and section['metadata'].get('tags'):
+                        passage_tags.extend(section['metadata']['tags'])
+                elif hasattr(section, 'tags') and section.tags:
                     passage_tags.extend(section.tags)
                 elif hasattr(section, 'metadata') and section.metadata and 'tags' in section.metadata:
                     passage_tags.extend(section.metadata['tags'])
@@ -262,11 +267,18 @@ class AIContentService:
                 # Remove duplicates while preserving order
                 passage_tags = list(dict.fromkeys(passage_tags))
                 
+                # Get passage type
+                passage_type = 'General'
+                if isinstance(section, dict):
+                    passage_type = section.get('passage_type', 'General')
+                elif hasattr(section, 'passage_type'):
+                    passage_type = section.passage_type
+                
                 passage_data = {
                     "id": passage_id,
                     "generation_session_id": session_id,
                     "passage": passage_text,
-                    "passage_type": section.passage_type if hasattr(section, 'passage_type') else getattr(section, 'passage_type', 'General'),
+                    "passage_type": passage_type,
                     "tags": passage_tags,
                     "embedding": passage_embedding,
                     "training_examples_used": training_examples_used or []
@@ -275,33 +287,44 @@ class AIContentService:
                 self.supabase.table("ai_generated_reading_passages").insert(passage_data).execute()
                 
                 # Save questions for this passage - handle different formats
-                if hasattr(section, 'questions'):
+                if isinstance(section, dict):
+                    # AI response format: {"passage": {...}, "questions": [...]}
+                    questions = section.get('questions', [])
+                elif hasattr(section, 'questions'):
                     # ReadingPassage object format
                     questions = section.questions
-                elif isinstance(section, dict) and 'questions' in section:
-                    # AI response format: {"passage": {...}, "questions": [...]}
-                    questions = section['questions']
                 else:
                     # Fallback
-                    questions = section.get('questions', []) if isinstance(section, dict) else []
+                    questions = []
                 logger.info(f"Processing passage {passage_id}: found {len(questions)} questions to save")
                 for question in questions:
                     question_id = str(uuid.uuid4())
                     result_ids["question_ids"].append(question_id)
                     
-                    question_text = question.text if hasattr(question, 'text') else getattr(question, 'question', '')
-                    choices = [opt.text for opt in question.options] if hasattr(question, 'options') else getattr(question, 'choices', [])
+                    # Extract question data with proper type guards
+                    if isinstance(question, dict):
+                        question_text = question.get('text', question.get('question', ''))
+                        choices = question.get('choices', [])
+                    else:
+                        question_text = question.text if hasattr(question, 'text') else getattr(question, 'question', '')
+                        choices = [opt.text for opt in question.options] if hasattr(question, 'options') else getattr(question, 'choices', [])
                     question_embedding = embedding_service.generate_question_embedding(question_text, choices)
                     
                     # Extract question-specific tags only (no topic inheritance)
                     tags = []
-                    if hasattr(question, 'tags') and question.tags:
+                    if isinstance(question, dict):
+                        tags = question.get('tags', [])
+                    elif hasattr(question, 'tags') and question.tags:
                         tags = question.tags
-                    elif isinstance(question, dict) and question.get('tags'):
-                        tags = question['tags']
                     
                     # Convert answer from letter to integer for database storage
-                    if hasattr(question, 'correct_answer'):
+                    if isinstance(question, dict):
+                        answer_val = question.get('correct_answer') or question.get('answer', 'A')
+                        if isinstance(answer_val, str):
+                            answer = convert_answer_letter_to_index(answer_val)
+                        else:
+                            answer = answer_val  # Already an integer
+                    elif hasattr(question, 'correct_answer'):
                         answer = convert_answer_letter_to_index(question.correct_answer)
                     elif hasattr(question, 'answer'):
                         answer_val = getattr(question, 'answer', 'A')
@@ -309,14 +332,18 @@ class AIContentService:
                             answer = convert_answer_letter_to_index(answer_val)
                         else:
                             answer = answer_val  # Already an integer
-                    elif isinstance(question, dict):
-                        answer_val = question.get('correct_answer') or question.get('answer', 'A')
-                        if isinstance(answer_val, str):
-                            answer = convert_answer_letter_to_index(answer_val)
-                        else:
-                            answer = answer_val  # Already an integer
                     else:
                         answer = 0  # Default fallback
+                    
+                    # Extract additional question fields with proper type guards
+                    if isinstance(question, dict):
+                        explanation = question.get('explanation', '')
+                        difficulty = question.get('difficulty', '')
+                        visual_description = question.get('visual_description')
+                    else:
+                        explanation = question.explanation if hasattr(question, 'explanation') else getattr(question, 'explanation', '')
+                        difficulty = question.difficulty if hasattr(question, 'difficulty') else getattr(question, 'difficulty', '')
+                        visual_description = question.visual_description if hasattr(question, 'visual_description') else getattr(question, 'visual_description', None)
                     
                     # Reading questions don't have subsections - they're categorized by passage type
                     question_data = {
@@ -326,10 +353,10 @@ class AIContentService:
                         "question": question_text,
                         "choices": choices,
                         "answer": answer,  # Now properly converted to integer
-                        "explanation": question.explanation if hasattr(question, 'explanation') else getattr(question, 'explanation', ''),
-                        "difficulty": question.difficulty if hasattr(question, 'difficulty') else getattr(question, 'difficulty', ''),
+                        "explanation": explanation,
+                        "difficulty": difficulty,
                         "tags": tags,
-                        "visual_description": question.visual_description if hasattr(question, 'visual_description') else getattr(question, 'visual_description', None),
+                        "visual_description": visual_description,
                         "embedding": question_embedding,
                         "training_examples_used": training_examples_used or []
                     }
@@ -345,7 +372,7 @@ class AIContentService:
             raise
     
     async def save_writing_prompts(self, session_id: str, writing_data: Any,
-                                 training_examples_used: List[str] = None) -> List[str]:
+                                 training_examples_used: Optional[List[str]] = None) -> List[str]:
         """Save AI-generated writing prompts."""
         try:
             prompt_ids = []
@@ -379,19 +406,22 @@ class AIContentService:
                 elif isinstance(prompt, dict) and prompt.get('subsection'):
                     subsection = prompt['subsection']
                 
-                # Extract tags from prompt data if available
+                # Extract tags and visual description from prompt data if available
                 tags = []
-                if hasattr(prompt, 'tags') and prompt.tags:
-                    tags = prompt.tags
-                elif isinstance(prompt, dict) and prompt.get('tags'):
-                    tags = prompt['tags']
+                if isinstance(prompt, dict):
+                    tags = prompt.get('tags', [])
+                    visual_description = prompt.get('visual_description')
+                else:
+                    if hasattr(prompt, 'tags') and prompt.tags:
+                        tags = prompt.tags
+                    visual_description = prompt.visual_description if hasattr(prompt, 'visual_description') else getattr(prompt, 'visual_description', None)
                 
                 prompt_data = {
                     "id": prompt_id,
                     "generation_session_id": session_id,
                     "prompt": prompt_text,
                     "tags": tags,
-                    "visual_description": prompt.visual_description if hasattr(prompt, 'visual_description') else getattr(prompt, 'visual_description', None),
+                    "visual_description": visual_description,
                     "embedding": prompt_embedding,
                     "training_examples_used": training_examples_used or []
                 }
@@ -406,7 +436,7 @@ class AIContentService:
             raise
     
     async def save_test_section(self, session_id: str, section: TestSection,
-                              training_examples_used: List[str] = None) -> Dict[str, Any]:
+                              training_examples_used: Optional[List[str]] = None) -> Dict[str, Any]:
         """Save a complete test section with appropriate content type."""
         try:
             saved_ids = {}
@@ -414,34 +444,38 @@ class AIContentService:
             if section.section_type == "reading":
                 # Extract topic from the first reading passage for tagging
                 topic = None
-                if hasattr(section, 'passages') and section.passages:
+                if hasattr(section, 'passages') and section.passages and len(section.passages) > 0:
                     # Complete test format: section has passages attribute
                     first_passage = section.passages[0]
                     topic = getattr(first_passage, 'topic', None)
-                elif hasattr(section, 'questions') and section.questions:
-                    # Individual reading section format: extract from general reading content
-                    topic = "Elementary Reading"  # Default for reading comprehension
+                # ReadingSection doesn't have questions - it has passages
+                # This line was incorrect and should be removed
                 
                 saved_ids = await self.save_reading_content(session_id, section, training_examples_used, topic=topic)
             elif section.section_type == "writing":
                 saved_ids["prompt_ids"] = await self.save_writing_prompts(session_id, section, training_examples_used)
-            else:
-                # Regular questions (quantitative, analogy, synonym)
-                section_name = {
-                    "quantitative": "Quantitative",
-                    "analogy": "Verbal",
-                    "synonym": "Verbal"
-                }.get(section.section_type, "General")
-                
-                subsection = {
-                    "analogy": "Analogies",
-                    "synonym": "Synonyms"
-                }.get(section.section_type, None)  # Use None for quantitative to preserve AI-determined subsections
-                
-                questions = section.questions if hasattr(section, 'questions') else []
+            elif section.section_type == "quantitative":
+                # Quantitative section has questions attribute
+                questions = section.questions
                 saved_ids["question_ids"] = await self.save_generated_questions(
-                    session_id, questions, section_name, subsection, training_examples_used
+                    session_id, questions, "Quantitative", None, training_examples_used
                 )
+            elif section.section_type == "analogy":
+                # Analogy section has questions attribute
+                questions = section.questions
+                saved_ids["question_ids"] = await self.save_generated_questions(
+                    session_id, questions, "Verbal", "Analogies", training_examples_used
+                )
+            elif section.section_type == "synonym":
+                # Synonym section has questions attribute
+                questions = section.questions
+                saved_ids["question_ids"] = await self.save_generated_questions(
+                    session_id, questions, "Verbal", "Synonyms", training_examples_used
+                )
+            else:
+                # Unknown section type
+                logger.warning(f"Unknown section type: {section.section_type}")
+                saved_ids = {"error": "Unknown section type"}
             
             logger.info(f"Saved test section {section.section_type} for session {session_id}")
             return saved_ids

@@ -135,16 +135,16 @@ export function QuestionDisplay({
     <div className={showHeader ? "bg-white rounded-xl shadow-sm border border-gray-200" : ""}>
       {/* Header - Only show in standalone mode */}
       {showHeader && (
-        <div className="border-b border-gray-200 p-8 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-xl">
-          <div className="flex justify-between items-center">
+        <div className="border-b border-gray-200 p-4 sm:p-8 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-xl">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
             <div>
               {(() => {
                 if (isReadingContent) {
                   // Reading comprehension
                   return (
                     <>
-                      <h2 className="text-2xl font-semibold text-gray-800">{t('Reading')} {t('Section')}</h2>
-                      <p className="text-gray-600">
+                      <h2 className="text-xl sm:text-2xl font-semibold text-gray-800">{t('Reading')} {t('Section')}</h2>
+                      <p className="text-sm sm:text-base text-gray-600">
                         {contentCount} passage{contentCount > 1 ? 's' : ''} with {totalQuestions} {t('questions ready for practice')}
                       </p>
                     </>
@@ -163,8 +163,8 @@ export function QuestionDisplay({
                   
                   return (
                     <>
-                      <h2 className="text-2xl font-semibold text-gray-800">{sectionName} {t('Section')}</h2>
-                      <p className="text-gray-600">{totalQuestions} {t('questions ready for practice')}</p>
+                      <h2 className="text-xl sm:text-2xl font-semibold text-gray-800">{sectionName} {t('Section')}</h2>
+                      <p className="text-sm sm:text-base text-gray-600">{totalQuestions} {t('questions ready for practice')}</p>
                     </>
                   )
                 }
@@ -173,25 +173,25 @@ export function QuestionDisplay({
             
             {/* Controls - Only show in standalone mode */}
             {showControls && (
-              <div className="flex space-x-3">
+              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setInternalShowAnswers(!internalShowAnswers)}
-                  className="flex items-center space-x-2"
+                  className="flex items-center justify-center space-x-2 text-xs sm:text-sm"
                 >
-                  {showAnswers ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  <span>{showAnswers ? t('Hide Answers') : t('Show Answers')}</span>
+                  {showAnswers ? <EyeOff className="h-3 w-3 sm:h-4 sm:w-4" /> : <Eye className="h-3 w-3 sm:h-4 sm:w-4" />}
+                  <span className="whitespace-nowrap">{showAnswers ? t('Hide Answers') : t('Show Answers')}</span>
                 </Button>
             
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleDownload}
-                  className="flex items-center space-x-2"
+                  className="flex items-center justify-center space-x-2 text-xs sm:text-sm"
                 >
-                  <Download className="h-4 w-4" />
-                  <span>{t('Save as PDF')}</span>
+                  <Download className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="whitespace-nowrap">{t('Save as PDF')}</span>
                 </Button>
               </div>
             )}

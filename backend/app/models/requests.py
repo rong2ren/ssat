@@ -1,7 +1,7 @@
 """Request models for the SSAT Question Generator API."""
 
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Dict
 
 from .enums import QuestionType, DifficultyLevel, LLMProvider
 
@@ -77,9 +77,9 @@ class CompleteTestRequest(BaseModel):
         default=[QuestionType.QUANTITATIVE, QuestionType.VERBAL, QuestionType.READING, QuestionType.WRITING],
         description="Sections to include in the complete test"
     )
-    custom_counts: Optional[dict] = Field(
+    custom_counts: Optional[Dict[str, int]] = Field(
         default=None,
-        description="Custom question counts per section (e.g., {'math': 10, 'verbal': 8})"
+        description="Custom question counts per section (e.g., {'quantitative': 10, 'verbal': 8})"
     )
     is_official_format: bool = Field(
         default=False,

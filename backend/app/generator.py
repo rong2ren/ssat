@@ -6,7 +6,7 @@ from typing import List, Optional, Dict, Any
 from supabase import create_client, Client
 from sentence_transformers import SentenceTransformer
 
-from app.models import Question, Option, QuestionRequest
+from app.models.base import Question, Option, QuestionRequest
 from loguru import logger
 from app.llm import llm_client, LLMProvider
 from app.util import extract_json_from_text

@@ -48,14 +48,12 @@ export function ProgressiveTestGenerator({
   testRequest
 }: ProgressiveTestGeneratorProps) {
   // Use context for persistent data (jobStatus, completedSections) and local state for active generation
-  const { jobStatus: contextJobStatus, completedSections: contextCompletedSections } = useFullTestState()
-  const { setJobStatus: contextSetJobStatus, addCompletedSection: contextAddCompletedSection } = useFullTestActions()
+  const { jobStatus: contextJobStatus } = useFullTestState()
+  const { setJobStatus: contextSetJobStatus } = useFullTestActions()
   
   // Local state for active generation (prevents re-render loops)
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(contextJobStatus)
   
-
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
   // Keep local state for current session-specific data
@@ -622,17 +620,19 @@ export function ProgressiveTestGenerator({
         <h2 className="text-2xl font-semibold text-gray-800 mb-4">{t('Complete SSAT Practice Test')}</h2>
         
         {/* Test Sections Info */}
-        <div className="flex flex-wrap items-center gap-2 mb-6">
-          <span className="text-sm text-gray-600">{t('Test sections')}:</span>
-                      {finalTestRequest.include_sections.map((section) => {
+        <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-4 sm:mb-6">
+          <span className="text-xs sm:text-sm text-gray-600">{t('Test sections')}:</span>
+          {finalTestRequest.include_sections.map((section) => {
             const count = getSectionCount(section)
             const sectionName = getSectionDisplayName(section)
             return (
               <div
                 key={section}
-                className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700"
+                className="inline-flex items-center px-1.5 sm:px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700"
               >
-                {sectionName}: {count} {getQuestionText(count)}
+                <span className="hidden sm:inline">{sectionName}: </span>
+                <span className="sm:hidden">{sectionName.split(' ')[0]}: </span>
+                {count} {getQuestionText(count)}
               </div>
             )
           })}
@@ -685,19 +685,21 @@ export function ProgressiveTestGenerator({
         {jobStatus && (
           <>
             {/* Prominent Status Card */}
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-4 mb-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-                    <span className="font-medium text-sm">{t('LIVE')}</span>
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-3 sm:p-4 mb-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
+                <div className="flex items-center space-x-2 sm:space-x-3">
+                  <div className="flex items-center space-x-1 sm:space-x-2">
+                    <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-400 rounded-full animate-pulse"></div>
+                    <span className="font-medium text-xs sm:text-sm">{t('LIVE')}</span>
                   </div>
-                  <span className="text-lg font-semibold">{getStatusText()}</span>
-                  <span className="text-blue-100">• {showChinese ? `${t('elapsed')}：${elapsedTime}` : `${elapsedTime} ${t('elapsed')}`}</span>
+                  <span className="text-base sm:text-lg font-semibold">{getStatusText()}</span>
+                  <span className="text-blue-100 text-xs sm:text-sm">• {showChinese ? `${t('elapsed')}：${elapsedTime}` : `${elapsedTime} ${t('elapsed')}`}</span>
                 </div>
-                <div className="text-right">
-                  <div className="text-lg font-bold">
-                    {jobStatus?.progress?.completed || 0}/{jobStatus?.progress?.total || 0} {t('sections complete')} ({jobStatus?.progress?.percentage || 0}%)
+                <div className="text-left sm:text-right">
+                  <div className="text-sm sm:text-lg font-bold">
+                    <span className="sm:hidden">{jobStatus?.progress?.completed || 0}/{jobStatus?.progress?.total || 0}</span>
+                    <span className="hidden sm:inline">{jobStatus?.progress?.completed || 0}/{jobStatus?.progress?.total || 0} {t('sections complete')}</span>
+                    <span className="block sm:inline sm:ml-1">({jobStatus?.progress?.percentage || 0}%)</span>
                   </div>
                 </div>
               </div>
@@ -716,13 +718,13 @@ export function ProgressiveTestGenerator({
             </div>
 
             {/* Section Status */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 mb-4">
               {(() => {
                 return Object.keys(jobStatus?.section_details || {}).map((sectionType) => (
                   <div key={sectionType} className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg">
                     {getSectionStatusIcon(sectionType)}
                     <div className="min-w-0 flex-1">
-                      <div className="font-medium text-gray-900 text-sm truncate">{getSectionDisplayName(sectionType)}</div>
+                      <div className="font-medium text-gray-900 text-xs sm:text-sm truncate">{getSectionDisplayName(sectionType)}</div>
                       <div className="text-xs text-gray-600 truncate">{getSectionStatusText(sectionType)}</div>
                     </div>
                   </div>
