@@ -223,7 +223,9 @@ class QuestionService:
                     "story_elements": writing_prompt.story_elements,  # type: ignore[attr-defined]
                     "prompt_type": writing_prompt.prompt_type,  # type: ignore[attr-defined]
                     "subsection": writing_prompt.subsection,  # type: ignore[attr-defined]
-                    "tags": writing_prompt.tags  # type: ignore[attr-defined]
+                    "tags": writing_prompt.tags,  # type: ignore[attr-defined]
+                    "training_examples_used": generation_result.training_example_ids,
+                    "provider_used": generation_result.provider_used
                 }
             else:
                 raise ValueError("AI generation returned no writing prompts")
@@ -242,7 +244,9 @@ class QuestionService:
                 "time_limit_minutes": 15,
                 "visual_description": prompt_data.get("visual_description", ""),
                 "grade_level": prompt_data.get("grade_level", "3-4"),
-                "story_elements": prompt_data.get("story_elements", [])
+                "story_elements": prompt_data.get("story_elements", []),
+                "training_examples_used": [],
+                "provider_used": "static"
             }
     
     async def _generate_quantitative_section_official(self, difficulty: DifficultyLevel, total_count: int, provider: Optional[Any], use_async: bool = False) -> QuantitativeSection:
@@ -439,9 +443,19 @@ class QuestionService:
         # Calculate number of passages needed (4 questions per passage)
         num_passages = max(1, total_questions // 4)
         
+        # Get training examples metadata first
+        from app.generator import SSATGenerator
+        generator = SSATGenerator()
+        training_examples = generator.get_reading_training_examples()
+        training_example_ids = [ex.get('question_id', '') for ex in training_examples if ex.get('question_id')]
+        
+        logger.info(f"📚 DEBUG: Reading section will use {len(training_example_ids)} training examples: {training_example_ids}")
+        
         passages = []
         for i in range(num_passages):
             passage = await self._generate_reading_passage(difficulty, provider, i + 1, use_async)
+            # Add training examples metadata to the passage
+            passage.metadata["training_examples_used"] = training_example_ids
             passages.append(passage)
         
         instructions = self._get_section_instructions(QuestionType.READING)
@@ -465,7 +479,12 @@ class QuestionService:
             visual_description=prompt_data.get("visual_description"),
             grade_level=prompt_data.get("grade_level", "3-4"),
             story_elements=prompt_data.get("story_elements", []),
-            prompt_type=prompt_data.get("prompt_type", "picture_story")
+            prompt_type=prompt_data.get("prompt_type", "picture_story"),
+            tags=prompt_data.get("tags", []),
+            metadata={
+                "training_examples_used": prompt_data.get("training_examples_used", []),
+                "provider_used": prompt_data.get("provider_used", "unknown")
+            }
         )
         
         instructions = self._get_section_instructions(QuestionType.WRITING)

@@ -198,6 +198,7 @@ class AIContentService:
                                  training_examples_used: Optional[List[str]] = None, topic: Optional[str] = None) -> Dict[str, List[str]]:
         """Save AI-generated reading passage and questions."""
         try:
+            logger.info(f"📚 DEBUG: save_reading_content called with training_examples_used: {training_examples_used}")
             result_ids = {"passage_ids": [], "question_ids": []}
             
             # Extract reading data - handle different input formats
@@ -284,7 +285,16 @@ class AIContentService:
                     "training_examples_used": training_examples_used or []
                 }
                 
-                self.supabase.table("ai_generated_reading_passages").insert(passage_data).execute()
+                # Debug logging for training examples
+                logger.info(f"📚 DEBUG: Saving passage {passage_id} with training_examples_used: {training_examples_used or []}")
+                
+                try:
+                    result = self.supabase.table("ai_generated_reading_passages").insert(passage_data).execute()
+                    logger.info(f"📚 DEBUG: Successfully inserted passage {passage_id}")
+                except Exception as insert_error:
+                    logger.error(f"📚 DEBUG: Failed to insert passage {passage_id}: {insert_error}")
+                    logger.error(f"📚 DEBUG: Passage data: {passage_data}")
+                    raise
                 
                 # Save questions for this passage - handle different formats
                 if isinstance(section, dict):
@@ -357,8 +367,8 @@ class AIContentService:
                         "difficulty": difficulty,
                         "tags": tags,
                         "visual_description": visual_description,
-                        "embedding": question_embedding,
-                        "training_examples_used": training_examples_used or []
+                        "embedding": question_embedding
+                        # Removed training_examples_used from reading questions
                     }
                     
                     self.supabase.table("ai_generated_reading_questions").insert(question_data).execute()
@@ -406,15 +416,20 @@ class AIContentService:
                 elif isinstance(prompt, dict) and prompt.get('subsection'):
                     subsection = prompt['subsection']
                 
-                # Extract tags and visual description from prompt data if available
+                # Extract tags, visual description, and training examples from prompt data if available
                 tags = []
+                training_examples_from_prompt = []
                 if isinstance(prompt, dict):
                     tags = prompt.get('tags', [])
                     visual_description = prompt.get('visual_description')
+                    training_examples_from_prompt = prompt.get('training_examples_used', [])
                 else:
                     if hasattr(prompt, 'tags') and prompt.tags:
                         tags = prompt.tags
                     visual_description = prompt.visual_description if hasattr(prompt, 'visual_description') else getattr(prompt, 'visual_description', None)
+                    # Extract training examples from metadata if available
+                    if hasattr(prompt, 'metadata') and prompt.metadata:
+                        training_examples_from_prompt = prompt.metadata.get('training_examples_used', [])
                 
                 prompt_data = {
                     "id": prompt_id,
@@ -423,10 +438,16 @@ class AIContentService:
                     "tags": tags,
                     "visual_description": visual_description,
                     "embedding": prompt_embedding,
-                    "training_examples_used": training_examples_used or []
+                    "training_examples_used": training_examples_from_prompt or training_examples_used or []
                 }
                 
                 self.supabase.table("ai_generated_writing_prompts").insert(prompt_data).execute()
+                
+                # Log training examples info
+                if training_examples_from_prompt:
+                    logger.info(f"📚 DEBUG: Writing prompt {prompt_id} used {len(training_examples_from_prompt)} training examples: {training_examples_from_prompt}")
+                else:
+                    logger.info(f"📚 DEBUG: Writing prompt {prompt_id} used no training examples (fallback/static)")
             
             logger.info(f"Saved {len(prompt_ids)} writing prompts for session {session_id}")
             return prompt_ids
@@ -444,14 +465,22 @@ class AIContentService:
             if section.section_type == "reading":
                 # Extract topic from the first reading passage for tagging
                 topic = None
+                training_examples_from_section = None
                 if hasattr(section, 'passages') and section.passages and len(section.passages) > 0:
                     # Complete test format: section has passages attribute
                     first_passage = section.passages[0]
                     topic = getattr(first_passage, 'topic', None)
-                # ReadingSection doesn't have questions - it has passages
-                # This line was incorrect and should be removed
+                    
+                    # Extract training examples from passage metadata
+                    if hasattr(first_passage, 'metadata') and first_passage.metadata:
+                        training_examples_from_section = first_passage.metadata.get('training_examples_used', [])
+                        logger.info(f"📚 DEBUG: Extracted training_examples_used from reading section: {training_examples_from_section}")
                 
-                saved_ids = await self.save_reading_content(session_id, section, training_examples_used, topic=topic)
+                # Use training examples from section metadata if available, otherwise use passed parameter
+                final_training_examples = training_examples_from_section or training_examples_used
+                logger.info(f"📚 DEBUG: Final training_examples_used for reading section: {final_training_examples}")
+                
+                saved_ids = await self.save_reading_content(session_id, section, final_training_examples, topic=topic)
             elif section.section_type == "writing":
                 saved_ids["prompt_ids"] = await self.save_writing_prompts(session_id, section, training_examples_used)
             elif section.section_type == "quantitative":

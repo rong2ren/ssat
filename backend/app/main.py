@@ -324,17 +324,46 @@ async def generate_test_sections_background(job_id: str, request: CompleteTestRe
             for section_progress in job.sections.values():
                 if section_progress.section_data:
                     section_data = section_progress.section_data
-                    if 'questions' in section_data:
-                        total_questions += len(section_data['questions'])
-                    elif 'reading_sections' in section_data:
-                        for reading_section in section_data['reading_sections']:
-                            total_questions += len(reading_section.get('questions', []))
-                    elif 'writing_prompts' in section_data:
-                        total_questions += len(section_data['writing_prompts'])
+                    section_type = section_data.get('section_type', '')
                     
-                    # Track provider used
+                    # Count questions based on section type
+                    section_questions = 0
+                    if section_type in ['quantitative', 'analogy', 'synonym']:
+                        # Question-based sections
+                        if 'questions' in section_data:
+                            section_questions = len(section_data['questions'])
+                            total_questions += section_questions
+                    elif section_type == 'reading':
+                        # Reading sections have passages with questions
+                        if 'passages' in section_data:
+                            for passage in section_data['passages']:
+                                if 'questions' in passage:
+                                    section_questions += len(passage['questions'])
+                            total_questions += section_questions
+                    elif section_type == 'writing':
+                        # Writing sections count as 1 (not as questions)
+                        section_questions = 1
+                        total_questions += section_questions
+                    
+                    logger.info(f"📊 DEBUG: Section {section_type}: {section_questions} questions")
+                    
+                    # Track provider used with context
                     if 'metadata' in section_data and 'provider_used' in section_data['metadata']:
-                        providers_used.add(section_data['metadata']['provider_used'])
+                        provider = section_data['metadata']['provider_used']
+                        # Don't add "auto-selected" as it's not a real provider
+                        if provider and provider != "auto-selected":
+                            # Add context about the generation type
+                            # Determine if this is a single section or full test
+                            is_full_test = len(request.include_sections) > 1
+                            
+                            if is_full_test:
+                                if request.is_official_format:
+                                    provider_with_context = f"{provider} (official-full)"
+                                else:
+                                    provider_with_context = f"{provider} (custom-full)"
+                            else:
+                                provider_with_context = f"{provider} (single-section)"
+                            providers_used.add(provider_with_context)
             
             # Update AI session with final statistics
             generation_time_ms = int((time.time() - start_time) * 1000)
@@ -346,6 +375,8 @@ async def generate_test_sections_background(job_id: str, request: CompleteTestRe
                 generation_time_ms
             )
             
+            logger.info(f"📊 DEBUG: Session {job_id} completed with {total_questions} total questions")
+            logger.info(f"📊 DEBUG: Providers used: {list(providers_used)}")
             logger.info(f"All sections completed for job {job_id}: {total_questions} questions, {generation_time_ms}ms")
         else:
             # Update session as failed
@@ -409,6 +440,50 @@ async def generate_single_section_background(job_id: str, section_type, request:
             section_data = section.model_dump()
         else:
             section_data = section.__dict__
+        
+        # Add provider_used metadata to section data
+        provider_used = None
+        
+        # Extract provider from section_data based on section type
+        if section_type.value in ['quantitative', 'analogy', 'synonym']:
+            # For question-based sections
+            if 'questions' in section_data and section_data['questions']:
+                for question in section_data['questions']:
+                    if isinstance(question, dict) and 'metadata' in question:
+                        provider_used = question['metadata'].get('provider_used')
+                        break
+        elif section_type.value == 'reading':
+            # For reading sections
+            if 'passages' in section_data and section_data['passages']:
+                for passage in section_data['passages']:
+                    if isinstance(passage, dict) and 'questions' in passage:
+                        for question in passage['questions']:
+                            if isinstance(question, dict) and 'metadata' in question:
+                                provider_used = question['metadata'].get('provider_used')
+                                break
+                        if provider_used:
+                            break
+        elif section_type.value == 'writing':
+            # For writing sections
+            if 'prompt' in section_data and section_data['prompt']:
+                if isinstance(section_data['prompt'], dict) and 'metadata' in section_data['prompt']:
+                    provider_used = section_data['prompt']['metadata'].get('provider_used')
+        
+        # Add metadata to section_data
+        if 'metadata' not in section_data:
+            section_data['metadata'] = {}
+        if provider_used:
+            section_data['metadata']['provider_used'] = provider_used
+            logger.info(f"📊 DEBUG: Added provider_used={provider_used} to section {section_type.value}")
+        else:
+            # Fallback to request provider if available
+            fallback_provider = request.provider.value if request.provider else None
+            if fallback_provider:
+                section_data['metadata']['provider_used'] = fallback_provider
+                logger.info(f"📊 DEBUG: Using fallback provider_used={fallback_provider} for section {section_type.value}")
+            else:
+                # No provider available, don't set provider_used
+                logger.info(f"📊 DEBUG: No provider available for section {section_type.value}")
         
         # Save AI-generated content to database
         try:

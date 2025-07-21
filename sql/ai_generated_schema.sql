@@ -65,8 +65,7 @@ CREATE TABLE ai_generated_reading_questions (
     visual_description TEXT,
     embedding vector(384),
     
-    -- Generation metadata
-    training_examples_used TEXT[],
+    -- Generation metadata (removed training_examples_used from reading questions)
     
     created_at TIMESTAMPTZ DEFAULT NOW()
 );

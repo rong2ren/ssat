@@ -487,6 +487,11 @@ export function ProgressiveTestGenerator({
   const resetGenerator = () => {
     // Clear current state (both local and context)
     console.log('🔴 CLEARING JOBSTATUS DUE TO RESET GENERATOR')
+    
+    // Clear context state FIRST (so it doesn't get synced back)
+    contextSetJobStatus(null)
+    
+    // Then clear local state
     setJobId(null)
     setJobStatus(null)
     setError(null)
@@ -496,10 +501,8 @@ export function ProgressiveTestGenerator({
     // Use cleanup function
     cleanup()
     
-    // Auto-start new generation with same settings
-    setTimeout(() => {
-      startGeneration()
-    }, 100) // Small delay to ensure state is cleared
+    // Start new generation immediately (no timeout needed)
+    startGeneration()
   }
 
     // Cleanup polling and timers on unmount
