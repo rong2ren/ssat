@@ -97,3 +97,63 @@ export interface CompleteTestResponse {
   estimated_time_minutes: number
   test_info?: Record<string, any>
 }
+
+// ========================================
+// AUTHENTICATION TYPES
+// ========================================
+
+export type GradeLevel = '3rd' | '4th' | '5th' | '6th' | '7th' | '8th'
+
+export interface UserProfile {
+  id: string
+  email: string
+  full_name?: string
+  grade_level?: GradeLevel
+  created_at: string
+  updated_at: string
+  deleted_at?: string
+}
+
+export interface UserLogin {
+  email: string
+  password: string
+}
+
+export interface UserRegister {
+  email: string
+  password: string
+  full_name?: string
+  grade_level?: GradeLevel
+}
+
+export interface UserProfileUpdate {
+  full_name?: string
+  grade_level?: GradeLevel
+}
+
+export interface UserContentStats {
+  quantitative_count: number
+  analogy_count: number
+  synonym_count: number
+  reading_count: number
+  writing_count: number
+}
+
+export interface AuthResponse {
+  success: boolean
+  message: string
+  user?: UserProfile
+  token?: string
+}
+
+export interface UserProfileResponse {
+  success: boolean
+  message: string
+  profile?: UserProfile
+}
+
+export interface UserStatsResponse {
+  success: boolean
+  message: string
+  stats?: UserContentStats
+}

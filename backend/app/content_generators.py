@@ -113,6 +113,40 @@ class WritingPrompt:
 
 
 # Type-specific generation functions
+def generate_standalone_questions_with_metadata(request: QuestionRequest, llm: Optional[str] = None) -> GenerationResult:
+    """Generate standalone questions with training example metadata.
+    
+    Returns GenerationResult with content, training_example_ids, and provider_used.
+    """
+    logger.info(f"Generating {request.count} standalone {request.question_type.value} questions with metadata")
+    
+    if request.question_type.value == "reading":
+        raise ValueError("Reading questions should use generate_reading_passages()")
+    if request.question_type.value == "writing":
+        raise ValueError("Writing prompts should use generate_writing_prompts()")
+    
+    # Get training examples and their IDs
+    from app.generator import SSATGenerator
+    generator = SSATGenerator()
+    training_examples = generator.get_training_examples(request)
+    training_example_ids = [ex.get('id', '') for ex in training_examples if ex.get('id')]
+    
+    # Use existing question generation logic
+    questions = generate_questions(request, llm=llm)
+    
+    # Get provider used from the first question's metadata
+    provider_used = "deepseek"  # Default
+    if questions and hasattr(questions[0], 'metadata') and questions[0].metadata:
+        provider_used = questions[0].metadata.get('provider_used', 'deepseek')
+    
+    logger.info(f"Generated {len(questions)} standalone questions with {len(training_example_ids)} training examples")
+    return GenerationResult(
+        content=questions,
+        training_example_ids=training_example_ids,
+        provider_used=provider_used
+    )
+
+
 def generate_standalone_questions(request: QuestionRequest, llm: Optional[str] = None) -> List[Question]:
     """Generate standalone questions for math, verbal, analogy, synonym."""
     logger.info(f"Generating {request.count} standalone {request.question_type.value} questions")

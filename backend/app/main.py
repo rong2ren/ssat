@@ -2,7 +2,7 @@
 
 # FastAPI imports
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import time
@@ -28,6 +28,8 @@ from app.services.unified_content_service import UnifiedContentService
 from app.services.llm_service import LLMService
 from app.services.ai_content_service import AIContentService
 from app.models import QuestionType
+from app.auth import router as auth_router, get_current_user
+from app.models.user import UserProfile
 
 # Loguru is configured automatically
 
@@ -48,6 +50,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include auth router
+app.include_router(auth_router)
 
 # Initialize services
 question_service = QuestionService()  # Keep for complete test generation
@@ -97,8 +102,11 @@ async def get_provider_status():
         raise HTTPException(status_code=500, detail=f"Failed to get provider status: {str(e)}")
 
 @app.post("/generate")
-async def generate_content(request: QuestionGenerationRequest):
+async def generate_content(request: QuestionGenerationRequest, current_user: UserProfile = Depends(get_current_user)):
     """Generate SSAT content based on request parameters. Returns type-specific response."""
+    import time
+    start_time = time.time()
+    
     try:
         logger.info(f"Generating {request.count} {request.question_type.value} content")
         
@@ -117,7 +125,7 @@ async def generate_content(request: QuestionGenerationRequest):
                 "difficulty": request.difficulty.value if request.difficulty else None,
                 "topic": request.topic,
                 "provider": request.provider.value if request.provider else None
-            })
+            }, current_user.id)
             
             # Save the generated content based on actual response type (using proper type narrowing)
             training_example_ids = result.metadata.training_example_ids if hasattr(result.metadata, 'training_example_ids') else []
@@ -157,41 +165,9 @@ async def generate_content(request: QuestionGenerationRequest):
                     # The AI has analyzed the content and provided specific, educational categorization
                     subsection = None  # Will be extracted per question in save_generated_questions
                 
-                # Get training example IDs by fetching recent examples for this question type
-                try:
-                    from app.generator import SSATGenerator
-                    from app.models import QuestionRequest
-                    from app.models.enums import QuestionType, DifficultyLevel
-                    
-                    # Map API types to internal types
-                    ssat_type_mapping = {
-                        "quantitative": QuestionType.QUANTITATIVE,
-                        "analogy": QuestionType.ANALOGY,
-                        "synonym": QuestionType.SYNONYM,
-                        "verbal": QuestionType.VERBAL
-                    }
-                    ssat_difficulty_mapping = {
-                        "Easy": DifficultyLevel.EASY,
-                        "Medium": DifficultyLevel.MEDIUM,
-                        "Hard": DifficultyLevel.HARD
-                    }
-                    
-                    # Create internal request to get training examples
-                    ssat_request = QuestionRequest(
-                        question_type=ssat_type_mapping.get(request.question_type.value, QuestionType.VERBAL),
-                        difficulty=ssat_difficulty_mapping.get(request.difficulty.value if request.difficulty else "Medium", DifficultyLevel.MEDIUM),
-                        topic=request.topic,
-                        count=request.count
-                    )
-                    
-                    generator = SSATGenerator()
-                    training_examples = generator.get_training_examples(ssat_request)
-                    training_example_ids = [ex.get('id', '') for ex in training_examples if ex.get('id')]
-                    
-                    logger.info(f"Captured training example IDs for saving: {training_example_ids}")
-                except Exception as e:
-                    logger.warning(f"Could not capture training example IDs: {e}")
-                    training_example_ids = []
+                # Get training example IDs from the result metadata
+                training_example_ids = result.metadata.training_example_ids
+                logger.info(f"Using training example IDs from result metadata: {training_example_ids}")
                 
                 await ai_content_service.save_generated_questions(
                     session_id, 
@@ -201,9 +177,22 @@ async def generate_content(request: QuestionGenerationRequest):
                     training_example_ids
                 )
             
-            # Update session as completed
-            await ai_content_service.update_session_status(session_id, "completed", request.count)
-            logger.info(f"Saved single content generation to database: session {session_id}")
+            # Get the provider used from the result metadata
+            # Get the provider from the result metadata
+            provider_used = result.metadata.provider_used
+            
+            # Calculate generation duration
+            generation_time_ms = int((time.time() - start_time) * 1000)
+            
+            # Update session as completed with provider information and duration
+            await ai_content_service.update_session_status(
+                session_id, 
+                "completed", 
+                request.count, 
+                [provider_used],
+                generation_time_ms
+            )
+            logger.info(f"Saved single content generation to database: session {session_id} with provider: {provider_used}, duration: {generation_time_ms}ms")
             
         except Exception as save_error:
             logger.error(f"Failed to save single content generation: {save_error}")
@@ -219,7 +208,7 @@ async def generate_content(request: QuestionGenerationRequest):
 # Progressive Test Generation Endpoints (Smart Polling)
 
 @app.post("/generate/complete-test/start")
-async def start_progressive_test_generation(request: CompleteTestRequest):
+async def start_progressive_test_generation(request: CompleteTestRequest, current_user: UserProfile = Depends(get_current_user)):
     """Start progressive test generation and return job ID for polling."""
     try:
         from app.services.job_manager import job_manager
@@ -243,7 +232,7 @@ async def start_progressive_test_generation(request: CompleteTestRequest):
             "include_sections": [section.value for section in request.include_sections],
             "custom_counts": request.custom_counts,
             "provider": request.provider.value if request.provider else None
-        })
+        }, current_user.id)
         
         # Start background generation
         asyncio.create_task(generate_test_sections_background(job_id, request))
@@ -347,31 +336,23 @@ async def generate_test_sections_background(job_id: str, request: CompleteTestRe
                     
                     logger.info(f"📊 DEBUG: Section {section_type}: {section_questions} questions")
                     
-                    # Track provider used with context
+                    # Track provider used with structured information
                     if 'metadata' in section_data and 'provider_used' in section_data['metadata']:
                         provider = section_data['metadata']['provider_used']
-                        # Don't add "auto-selected" as it's not a real provider
-                        if provider and provider != "auto-selected":
-                            # Add context about the generation type
-                            # Determine if this is a single section or full test
-                            is_full_test = len(request.include_sections) > 1
-                            
-                            if is_full_test:
-                                if request.is_official_format:
-                                    provider_with_context = f"{provider} (official-full)"
-                                else:
-                                    provider_with_context = f"{provider} (custom-full)"
-                            else:
-                                provider_with_context = f"{provider} (single-section)"
-                            providers_used.add(provider_with_context)
+                        # Only add real provider names
+                        if provider:
+                            # Just add the provider name (no mode info)
+                            providers_used.add(provider)
             
             # Update AI session with final statistics
             generation_time_ms = int((time.time() - start_time) * 1000)
+            # Convert set to list for database storage
+            providers_list = list(providers_used)
             await ai_content_service.update_session_status(
                 job_id, 
                 "completed", 
                 total_questions, 
-                list(providers_used), 
+                providers_list, 
                 generation_time_ms
             )
             

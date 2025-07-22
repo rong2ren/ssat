@@ -193,11 +193,12 @@ class UnifiedContentService:
                 )
                 
             else:
-                # For math/verbal questions, generate using direct approach
-                from app.generator import generate_questions
-                question_content = generate_questions(ssat_request, llm=provider)
-                training_example_ids = []  # TODO: Get actual training example IDs
-                actual_provider = provider or "auto-selected"
+                # For math/verbal questions, generate using functions that return training example IDs
+                from app.content_generators import generate_standalone_questions_with_metadata
+                generation_result = generate_standalone_questions_with_metadata(ssat_request, llm=provider)
+                question_content = generation_result.content
+                training_example_ids = generation_result.training_example_ids
+                actual_provider = generation_result.provider_used
                 
                 # Create metadata
                 generation_time = time.time() - start_time

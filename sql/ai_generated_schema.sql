@@ -90,6 +90,7 @@ CREATE TABLE ai_generated_writing_prompts (
 -- Session tracking for complete tests
 CREATE TABLE ai_generation_sessions (
     id TEXT PRIMARY KEY,                    -- job_id from job_manager
+    user_id UUID,                          -- Links to user_profiles (optional)
     request_params JSONB NOT NULL,         -- Complete request parameters
     total_questions_generated INTEGER,     -- Count of questions generated
     providers_used TEXT[],                 -- List of providers used
@@ -114,6 +115,16 @@ CREATE INDEX idx_ai_reading_question_passage ON ai_generated_reading_questions(p
 CREATE INDEX idx_ai_reading_question_session ON ai_generated_reading_questions(generation_session_id);
 
 CREATE INDEX idx_ai_writing_session ON ai_generated_writing_prompts(generation_session_id);
+
+-- User tracking indexes
+CREATE INDEX idx_ai_generation_sessions_user_id ON ai_generation_sessions(user_id);
+
+-- JSONB indexes for fast request_params queries
+CREATE INDEX idx_ai_sessions_question_type ON ai_generation_sessions USING GIN ((request_params->'question_type'));
+CREATE INDEX idx_ai_sessions_include_sections ON ai_generation_sessions USING GIN ((request_params->'include_sections'));
+CREATE INDEX idx_ai_sessions_provider ON ai_generation_sessions USING GIN ((request_params->'provider'));
+CREATE INDEX idx_ai_sessions_difficulty ON ai_generation_sessions USING GIN ((request_params->'difficulty'));
+CREATE INDEX idx_ai_sessions_request_params ON ai_generation_sessions USING GIN (request_params);
 
 -- Tag search indexes
 CREATE INDEX idx_ai_question_tags ON ai_generated_questions USING GIN(tags);
@@ -258,12 +269,14 @@ BEGIN
 END;
 $$;
 
--- Get generation sessions
+-- Get generation sessions (with optional user filter)
 CREATE OR REPLACE FUNCTION get_ai_generation_sessions(
+    p_user_id UUID DEFAULT NULL,
     limit_count INT DEFAULT 20
 )
 RETURNS TABLE (
     session_id TEXT,
+    user_id UUID,
     request_params JSONB,
     total_questions INTEGER,
     providers_used TEXT[],
@@ -277,6 +290,7 @@ BEGIN
     RETURN QUERY
     SELECT 
         s.id,
+        s.user_id,
         s.request_params,
         s.total_questions_generated,
         s.providers_used,
@@ -284,6 +298,7 @@ BEGIN
         s.status,
         s.created_at
     FROM ai_generation_sessions s
+    WHERE (p_user_id IS NULL OR s.user_id = p_user_id)
     ORDER BY s.created_at DESC
     LIMIT limit_count;
 END;
@@ -291,10 +306,11 @@ $$;
 
 -- Get detailed session statistics
 CREATE OR REPLACE FUNCTION get_session_statistics(
-    session_id TEXT
+    p_session_id TEXT
 )
 RETURNS TABLE (
     session_id TEXT,
+    user_id UUID,
     total_questions INTEGER,
     math_questions INTEGER,
     verbal_questions INTEGER,
@@ -311,6 +327,7 @@ BEGIN
     RETURN QUERY
     SELECT 
         s.id,
+        s.user_id,
         s.total_questions_generated,
         (SELECT COUNT(*)::INTEGER FROM ai_generated_questions WHERE generation_session_id = s.id AND section = 'Quantitative'),
         (SELECT COUNT(*)::INTEGER FROM ai_generated_questions WHERE generation_session_id = s.id AND section = 'Verbal'),
@@ -321,7 +338,7 @@ BEGIN
         s.generation_duration_ms,
         s.created_at
     FROM ai_generation_sessions s
-    WHERE s.id = session_id;
+    WHERE s.id = p_session_id;
 END;
 $$;
 
@@ -338,5 +355,5 @@ COMMENT ON TABLE ai_generation_sessions IS 'Tracking sessions for complete test 
 COMMENT ON FUNCTION get_ai_generated_questions_by_section IS 'Get AI-generated questions with filtering by section/difficulty';
 COMMENT ON FUNCTION get_ai_generated_reading_content IS 'Get AI-generated reading comprehension content';
 COMMENT ON FUNCTION get_ai_generated_writing_prompts IS 'Get AI-generated writing prompts with topic filtering';
-COMMENT ON FUNCTION get_ai_generation_sessions IS 'Get test generation session history';
+COMMENT ON FUNCTION get_ai_generation_sessions IS 'Get generation sessions (all or filtered by user)';
 COMMENT ON FUNCTION get_session_statistics IS 'Get detailed statistics for a specific session';

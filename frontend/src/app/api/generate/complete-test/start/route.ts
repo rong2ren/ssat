@@ -22,11 +22,21 @@ export async function POST(request: NextRequest) {
       )
     }
     
+    // Get the authorization header from the request
+    const authHeader = request.headers.get('authorization')
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    
+    // Add authorization header if present
+    if (authHeader) {
+      headers['Authorization'] = authHeader
+    }
+    
     const response = await fetch(`${BACKEND_URL}/generate/complete-test/start`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(body),
     })
 

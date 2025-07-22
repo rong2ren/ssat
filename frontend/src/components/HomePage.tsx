@@ -9,6 +9,8 @@ interface HomePageProps {
 }
 
 export function HomePage({ showChinese = false }: HomePageProps) {
+  // console.log('🔄 HomePage: Component rendering')
+  
   // UI translations
   const translations = {
     'Master the': '掌握',

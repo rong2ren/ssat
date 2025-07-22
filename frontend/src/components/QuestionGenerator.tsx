@@ -7,6 +7,7 @@ import { PracticeQuestionsForm } from './forms/PracticeQuestionsForm'
 import { CompleteTestForm } from './forms/CompleteTestForm'
 import { Tabs, TabContent } from './ui/Tabs'
 import { Question, QuestionRequest, ReadingPassage } from '@/types/api'
+import { getAuthHeaders } from '@/utils/auth'
 
 interface QuestionGeneratorProps {
   showChinese?: boolean
@@ -45,11 +46,12 @@ export default function QuestionGenerator({ showChinese = false }: QuestionGener
     setError(null)
     
     try {
+      // Get auth headers
+      const headers = await getAuthHeaders()
+      
       const response = await fetch('/api/generate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(request),
       })
 

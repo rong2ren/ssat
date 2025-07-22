@@ -2,6 +2,7 @@
 
 import uuid
 from typing import List, Dict, Any, Optional
+from uuid import UUID
 from loguru import logger
 from datetime import datetime
 import json
@@ -43,7 +44,7 @@ class AIContentService:
     def __init__(self):
         self.supabase = get_database_connection()
     
-    async def create_generation_session(self, job_id: str, request_params: Dict[str, Any]) -> str:
+    async def create_generation_session(self, job_id: str, request_params: Dict[str, Any], user_id: Optional[UUID] = None) -> str:
         """Create a new AI generation session."""
         try:
             session_data = {
@@ -54,6 +55,10 @@ class AIContentService:
                 "generation_duration_ms": 0,
                 "status": "running"
             }
+            
+            # Add user_id if provided
+            if user_id:
+                session_data["user_id"] = str(user_id)
             
             result = self.supabase.table("ai_generation_sessions").insert(session_data).execute()
             logger.info(f"Created AI generation session: {job_id}")

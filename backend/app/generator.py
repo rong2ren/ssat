@@ -1011,6 +1011,13 @@ def generate_questions(request: QuestionRequest, llm: Optional[str] = "deepseek"
         logger.info(f"Successfully generated {len(questions)} questions using {'real SSAT examples' if training_examples else 'generic prompt'}")
         if len(questions) != request.count:
             logger.warning(f"⚠️ Expected {request.count} questions but got {len(questions)} questions")
+        
+        # Add provider information to each question's metadata
+        for question in questions:
+            if not hasattr(question, 'metadata'):
+                question.metadata = {}
+            question.metadata['provider_used'] = provider.value
+        
         return questions
         
     except (json.JSONDecodeError, KeyError) as e:

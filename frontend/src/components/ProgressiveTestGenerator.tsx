@@ -6,6 +6,7 @@ import { TestDisplay } from './TestDisplay'
 import { Button } from './ui/Button'
 import { RefreshCw, Clock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 import { useFullTestState, useFullTestActions } from '@/contexts/AppStateContext'
+import { getAuthHeaders } from '@/utils/auth'
 
 interface ProgressiveTestGeneratorProps {
   showChinese: boolean
@@ -245,11 +246,12 @@ export function ProgressiveTestGenerator({
         throw new Error('Failed to prepare request data')
       }
       
+      // Get auth headers
+      const headers = await getAuthHeaders()
+      
       const response = await fetch('/api/generate/complete-test/start', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: requestBody,
         signal: abortControllerRef.current.signal
       })

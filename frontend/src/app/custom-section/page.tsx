@@ -4,6 +4,8 @@ import { QuestionDisplay } from '@/components/QuestionDisplay'
 import { PracticeQuestionsForm } from '@/components/forms/PracticeQuestionsForm'
 import { QuestionRequest } from '@/types/api'
 import { useCustomSectionState, useCustomSectionActions, usePreferences } from '@/contexts/AppStateContext'
+import AuthGuard from '@/components/auth/AuthGuard'
+import { getAuthHeaders } from '@/utils/auth'
 
 export default function CustomSectionPage() {
   // Use global state instead of local state
@@ -19,11 +21,12 @@ export default function CustomSectionPage() {
     setError(null)
     
     try {
+      // Get auth headers
+      const headers = await getAuthHeaders()
+      
       const response = await fetch('/api/generate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(request),
       })
 
@@ -72,7 +75,8 @@ export default function CustomSectionPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+    <AuthGuard>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       <div className="container mx-auto px-4 py-12">
         {/* Page Header */}
         <div className="text-center mb-12">
@@ -147,5 +151,6 @@ export default function CustomSectionPage() {
         </div>
       </div>
     </div>
+    </AuthGuard>
   )
 }
