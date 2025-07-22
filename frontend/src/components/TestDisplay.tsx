@@ -160,11 +160,11 @@ function WritingSectionDisplay({ section, showAnswers }: { section: WritingSecti
             )}
           </div>
           
-          <div className="bg-gray-50 p-4 border rounded">
+          {/* <div className="bg-gray-50 p-4 border rounded">
             <p className="text-sm text-gray-600 italic">
               [Student would write their story here during the actual test]
             </p>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>

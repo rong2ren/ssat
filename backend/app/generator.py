@@ -139,17 +139,6 @@ class SSATGenerator:
             
             training_examples = response.data if response.data else []
             
-            # Log each real SSAT reading example for debugging
-            for i, example in enumerate(training_examples, 1):
-                logger.info(f"REAL SSAT READING EXAMPLE {i}:")
-                logger.info(f"  Passage: {example.get('passage', 'N/A')[:100] if example.get('passage') else 'N/A'}...")
-                logger.info(f"  Question: {example.get('question', 'N/A')}")
-                logger.info(f"  Choices: {example.get('choices', 'N/A')}")
-                if example.get('answer') is not None:
-                    logger.info(f"  Answer: {chr(65 + example['answer'])}")
-                logger.info(f"  Passage Type: {example.get('passage_type', 'N/A')}")
-                logger.info("---")
-            
             if training_examples:
                 logger.info(f"📚 READING TRAINING SUMMARY: Using {len(training_examples)} real SSAT reading examples")
             
@@ -179,14 +168,6 @@ class SSATGenerator:
             }).execute()
             
             training_examples = response.data if response.data else []
-            
-            # Log each real SSAT writing example for debugging
-            for i, example in enumerate(training_examples, 1):
-                logger.info(f"REAL SSAT WRITING EXAMPLE {i}:")
-                logger.info(f"  Prompt: {example.get('prompt', 'N/A')}")
-                logger.info(f"  Visual Description: {example.get('visual_description', 'N/A')}")
-                logger.info(f"  Tags: {example.get('tags', 'N/A')}")
-                logger.info("---")
             
             if training_examples:
                 logger.info(f"📚 WRITING TRAINING SUMMARY: Using {len(training_examples)} real SSAT writing examples")
