@@ -1,6 +1,6 @@
 """Request models for the SSAT Question Generator API."""
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional, List, Literal, Dict
 
 from .enums import QuestionType, DifficultyLevel, LLMProvider
@@ -49,18 +49,17 @@ class QuestionGenerationRequest(BaseModel):
                 return None
         return v
     
-    @field_validator('count')
-    @classmethod
-    def validate_count(cls, v, info):
-        """Validate count based on official format flag."""
-        is_official = getattr(info.data, 'is_official_format', False)
+    @model_validator(mode='after')
+    def validate_count_after_fields(self) -> 'QuestionGenerationRequest':
+        """Validate count based on official format flag after all fields are set."""
+        if self.count > 30:
+            raise ValueError(f"Invalid count: must be 1-30, got {self.count}")
+        elif self.is_official_format and self.count > 30:
+            raise ValueError(f"Invalid count: must be 1-30 for official format, got {self.count}")
+        elif not self.is_official_format and self.count > 15:
+            raise ValueError(f"Invalid count: must be 1-15 for custom generation, got {self.count}")
         
-        if is_official and v > 30:
-            raise ValueError(f"Invalid count: must be 1-30 for official format, got {v}")
-        elif not is_official and v > 15:
-            raise ValueError(f"Invalid count: must be 1-15 for custom generation, got {v}")
-        
-        return v
+        return self
 
 class CompleteTestRequest(BaseModel):
     """Request model for generating a complete SSAT practice test."""

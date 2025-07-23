@@ -216,9 +216,9 @@ async def start_progressive_test_generation(request: CompleteTestRequest, curren
         from app.services.job_manager import job_manager
         
         logger.info(f"Starting progressive test generation - difficulty: {request.difficulty}")
-        logger.info(f"🔍 DEBUG: Request include_sections: {[s.value for s in request.include_sections]}")
-        logger.info(f"🔍 DEBUG: Request custom_counts: {request.custom_counts}")
-        logger.info(f"🔍 DEBUG: Request is_official_format: {request.is_official_format}")
+        logger.debug(f"🔍 DEBUG: Request include_sections: {[s.value for s in request.include_sections]}")
+        logger.debug(f"🔍 DEBUG: Request custom_counts: {request.custom_counts}")
+        logger.debug(f"🔍 DEBUG: Request is_official_format: {request.is_official_format}")
         
         # Create job with request data
         job_id = job_manager.create_job({
@@ -393,24 +393,24 @@ async def generate_single_section_background(job_id: str, section_type, request:
         job_manager.update_section_progress(job_id, section_type.value, 50, f"Generating {section_count} questions...")
         
         # Generate the section using async service methods for true parallelism
-        logger.info(f"🔍 DEBUG: Generating section {section_type.value} with is_official_format={request.is_official_format}")
+        logger.debug(f"🔍 DEBUG: Generating section {section_type.value} with is_official_format={request.is_official_format}")
         
         if section_type.value == "writing":
-            logger.info(f"📝 DEBUG: Using writing section generation")
+            logger.debug(f"📝 DEBUG: Using writing section generation")
             section = await question_service._generate_writing_section(request.difficulty)
         elif section_type.value == "reading":
-            logger.info(f"📖 DEBUG: Using reading section generation")
+            logger.debug(f"📖 DEBUG: Using reading section generation")
             section = await question_service._generate_reading_section(
                 request.difficulty, section_count, request.provider, use_async=True
             )
         elif section_type.value == "quantitative" and request.is_official_format:
             # Use official topic breakdown for quantitative questions
-            logger.info(f"🎯 DEBUG: Using OFFICIAL quantitative generation with topic breakdown for {section_count} questions")
+            logger.debug(f"🎯 DEBUG: Using OFFICIAL quantitative generation with topic breakdown for {section_count} questions")
             section = await question_service._generate_quantitative_section_official(
                 request.difficulty, section_count, request.provider, use_async=True
             )
         else:
-            logger.info(f"⚙️ DEBUG: Using regular standalone generation for {section_type.value}")
+            logger.debug(f"⚙️ DEBUG: Using regular standalone generation for {section_type.value}")
             section = await question_service._generate_standalone_section(
                 section_type, request.difficulty, section_count, request.provider, use_async=True, is_official_format=request.is_official_format
             )
@@ -457,16 +457,16 @@ async def generate_single_section_background(job_id: str, section_type, request:
             section_data['metadata'] = {}
         if provider_used:
             section_data['metadata']['provider_used'] = provider_used
-            logger.info(f"📊 DEBUG: Added provider_used={provider_used} to section {section_type.value}")
+            logger.debug(f"📊 DEBUG: Added provider_used={provider_used} to section {section_type.value}")
         else:
             # Fallback to request provider if available
             fallback_provider = request.provider.value if request.provider else None
             if fallback_provider:
                 section_data['metadata']['provider_used'] = fallback_provider
-                logger.info(f"📊 DEBUG: Using fallback provider_used={fallback_provider} for section {section_type.value}")
+                logger.debug(f"📊 DEBUG: Using fallback provider_used={fallback_provider} for section {section_type.value}")
             else:
                 # No provider available, don't set provider_used
-                logger.info(f"📊 DEBUG: No provider available for section {section_type.value}")
+                logger.debug(f"📊 DEBUG: No provider available for section {section_type.value}")
         
         # Save AI-generated content to database
         try:

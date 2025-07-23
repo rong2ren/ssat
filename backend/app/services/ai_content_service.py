@@ -203,7 +203,7 @@ class AIContentService:
                                  training_examples_used: Optional[List[str]] = None, topic: Optional[str] = None) -> Dict[str, List[str]]:
         """Save AI-generated reading passage and questions."""
         try:
-            logger.info(f"📚 DEBUG: save_reading_content called with training_examples_used: {training_examples_used}")
+            logger.debug(f"📚 DEBUG: save_reading_content called with training_examples_used: {training_examples_used}")
             result_ids = {"passage_ids": [], "question_ids": []}
             
             # Extract reading data - handle different input formats
@@ -291,11 +291,11 @@ class AIContentService:
                 }
                 
                 # Debug logging for training examples
-                logger.info(f"📚 DEBUG: Saving passage {passage_id} with training_examples_used: {training_examples_used or []}")
+                logger.debug(f"📚 DEBUG: Saving passage {passage_id} with training_examples_used: {training_examples_used or []}")
                 
                 try:
                     result = self.supabase.table("ai_generated_reading_passages").insert(passage_data).execute()
-                    logger.info(f"📚 DEBUG: Successfully inserted passage {passage_id}")
+                    logger.debug(f"📚 DEBUG: Successfully inserted passage {passage_id}")
                 except Exception as insert_error:
                     logger.error(f"📚 DEBUG: Failed to insert passage {passage_id}: {insert_error}")
                     logger.error(f"📚 DEBUG: Passage data: {passage_data}")
