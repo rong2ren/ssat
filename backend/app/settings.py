@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     # create a subclass called Settings that inherits from BaseSettings
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
+    SUPABASE_JWT_SECRET: str = ""  # JWT secret for token verification
     
     # LLM Provider API Keys
     OPENAI_API_KEY: str = ""
@@ -20,6 +21,8 @@ class Settings(BaseSettings):
         # Find .env file relative to this config file (backend/.env)
         # This works regardless of the current working directory
         env_file = Path(__file__).parent.parent / ".env"
+        # Allow extra fields from .env file
+        extra = "ignore"
 
 settings = Settings()
 # instantiate the settings

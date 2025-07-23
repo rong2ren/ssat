@@ -11,7 +11,8 @@ from datetime import datetime
 
 from app.models.user import (
     UserLogin, UserRegister, UserProfileUpdate,
-    AuthResponse, UserProfileResponse, UserStatsResponse,
+    ResetPasswordRequest,
+    AuthResponse, UserStatsResponse,
     UserProfile, UserContentStats, UserMetadata
 )
 from app.services.user_service import UserService
@@ -27,7 +28,7 @@ supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
 user_service = UserService()
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> UserProfile:
-    """Extract and validate user from JWT token (following NestJS pattern)."""
+    """Extract and validate user from JWT token (following NestJS pattern with signature verification)."""
     try:
         # Decode JWT token to get user data (following NestJS pattern)
         token = credentials.credentials
@@ -37,9 +38,18 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
                 detail="Missing authentication token"
             )
             
+        # Verify JWT signature using Supabase JWT secret (following NestJS pattern)
+        if not settings.SUPABASE_JWT_SECRET:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="JWT secret not configured"
+            )
+            
         payload = jwt.decode(
             token, 
-            options={"verify_signature": False}  # Supabase handles signature verification
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            options={"verify_aud": False}
         )
         
         # Validate required fields (following NestJS pattern)
@@ -71,6 +81,9 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
             email_confirmed_at=datetime.fromtimestamp(payload.get('email_confirmed_at', 0)) if payload.get('email_confirmed_at') else None
         )
         
+        # Log successful JWT validation
+        logger.info(f"✅ JWT validation successful for user {user_id} ({email})")
+        
         return profile
         
     except jwt.InvalidTokenError as e:
@@ -93,14 +106,24 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         )
 
 def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(security)) -> UUID:
-    """Extract user ID from JWT token."""
+    """Extract user ID from JWT token with signature verification."""
     try:
         token = credentials.credentials
+        if not settings.SUPABASE_JWT_SECRET:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="JWT secret not configured"
+            )
+            
         payload = jwt.decode(
             token, 
-            options={"verify_signature": False}
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            options={"verify_aud": False}
         )
-        return UUID(payload.get('sub'))
+        user_id = UUID(payload.get('sub'))
+        logger.info(f"✅ JWT validation successful for user ID: {user_id}")
+        return user_id
     except Exception as e:
         logger.error(f"JWT token validation failed: {e}")
         raise HTTPException(
@@ -248,28 +271,9 @@ async def logout_user(current_user: UserProfile = Depends(get_current_user)):
             detail="Logout failed"
         )
 
-@router.get("/profile", response_model=UserProfileResponse)
-async def get_user_profile(current_user: UserProfile = Depends(get_current_user)):
-    """Get current user's profile (from JWT, no database query)."""
-    return UserProfileResponse(
-        success=True,
-        message="Profile retrieved successfully",
-        profile=current_user
-    )
 
-@router.put("/profile", response_model=UserProfileResponse)
-async def update_user_profile(
-    update_data: UserProfileUpdate,
-    current_user: UserProfile = Depends(get_current_user)
-):
-    """Get current user's profile (profile updates should be done on frontend)."""
-    # Profile updates should be handled on the frontend using supabase.auth.updateUser()
-    # This endpoint is kept for compatibility but should be deprecated
-    return UserProfileResponse(
-        success=True,
-        message="Profile updates should be done on the frontend using supabase.auth.updateUser()",
-        profile=current_user
-    )
+
+
 
 @router.get("/stats", response_model=UserStatsResponse)
 async def get_user_stats(current_user: UserProfile = Depends(get_current_user)):
@@ -308,6 +312,30 @@ async def resend_confirmation_email(email: str):
             detail="Failed to resend confirmation email"
         )
 
+@router.post("/forgot-password")
+async def forgot_password(request: ResetPasswordRequest):
+    """Request password reset email."""
+    try:
+        result = supabase.auth.reset_password_for_email(
+            request.email,
+            {
+                "redirect_to": f"{settings.SUPABASE_URL}/auth/reset-password"
+            }
+        )
+        
+        return {
+            "success": True,
+            "message": "Password reset email sent. Please check your inbox."
+        }
+    except Exception as e:
+        logger.error(f"Failed to send password reset email: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send password reset email"
+        )
+
+
+
 
 # ========================================
 # HEALTH CHECK ENDPOINT
@@ -315,15 +343,15 @@ async def resend_confirmation_email(email: str):
 
 @router.get("/health")
 async def auth_health_check():
-    """Health check for authentication service."""
+    """Simple health check for authentication service."""
     try:
-        # Test database connection
-        user_count = await user_service.get_user_count()
+        # Test database connectivity (the only critical dependency for auth)
+        result = supabase.table("ai_generation_sessions").select("id").limit(1).execute()
         
         return {
             "status": "healthy",
             "message": "Authentication service is running",
-            "user_count": user_count
+            "timestamp": datetime.utcnow().isoformat()
         }
         
     except Exception as e:
@@ -331,5 +359,5 @@ async def auth_health_check():
         return {
             "status": "unhealthy",
             "message": f"Authentication service error: {str(e)}",
-            "user_count": 0
+            "timestamp": datetime.utcnow().isoformat()
         } 

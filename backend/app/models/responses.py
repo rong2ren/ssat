@@ -146,7 +146,7 @@ class ProviderStatusResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     """Response for health check."""
-    status: str = Field(..., description="Service status (healthy, degraded, unhealthy)")
+    status: str = Field(..., description="Service status (healthy, unhealthy)")
     message: str = Field(..., description="Status message")
     version: str = Field(..., description="API version")
     timestamp: datetime = Field(default_factory=datetime.now, description="Check timestamp")

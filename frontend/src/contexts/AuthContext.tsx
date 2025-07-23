@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { UserProfile, UserLogin, UserRegister, UserProfileUpdate, UserContentStats, AuthResponse } from '@/types/api'
+import { UserProfile, UserLogin, UserRegister, UserProfileUpdate, UserContentStats, AuthResponse, ResetPasswordRequest } from '@/types/api'
 import { supabase } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
 
@@ -12,6 +12,7 @@ import { User } from '@supabase/supabase-js'
               login: (credentials: UserLogin) => Promise<boolean>
               register: (userData: UserRegister) => Promise<boolean>
               resendConfirmation: (email: string) => Promise<boolean>
+              forgotPassword: (email: string) => Promise<boolean>
               logout: () => Promise<void>
               updateProfile: (data: UserProfileUpdate) => Promise<boolean>
               getUserStats: () => Promise<UserContentStats | null>
@@ -190,6 +191,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }
               }
 
+              const forgotPassword = async (email: string): Promise<boolean> => {
+                try {
+                  setLoading(true)
+                  setError(null)
+
+                  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: `${window.location.origin}/auth/reset-password`
+                  })
+
+                  if (error) {
+                    setError(error.message)
+                    return false
+                  }
+
+                  setError('Password reset email sent. Please check your inbox.')
+                  return true
+                } catch (err) {
+                  setError('Network error. Please try again.')
+                  return false
+                } finally {
+                  setLoading(false)
+                }
+              }
+
+
+
                 const register = async (userData: UserRegister): Promise<boolean> => {
                 try {
                   setLoading(true)
@@ -322,6 +349,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 login,
                 register,
                 resendConfirmation,
+                forgotPassword,
                 logout,
                 updateProfile,
                 getUserStats,

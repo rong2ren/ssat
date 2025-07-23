@@ -48,6 +48,12 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
 
+class ResetPasswordRequest(BaseModel):
+    """Request password reset"""
+    email: EmailStr
+
+
+
 class UserRegister(BaseModel):
     """User registration data"""
     email: EmailStr
@@ -74,11 +80,7 @@ class AuthResponse(BaseModel):
     user: Optional[UserProfile] = None
     token: Optional[str] = None
 
-class UserProfileResponse(BaseModel):
-    """User profile response"""
-    success: bool
-    message: str
-    profile: Optional[UserProfile] = None
+
 
 class UserStatsResponse(BaseModel):
     """User statistics response"""

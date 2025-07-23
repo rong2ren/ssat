@@ -171,8 +171,8 @@ class AIContentService:
                 final_tags = question_tags if question_tags else []
                 
                 # Log what we're using for categorization with detailed breakdown
-                logger.info(f"Subsection decision: question_subsection='{question_subsection}', passed_subsection='{subsection}', final='{final_subsection}'")
-                logger.info(f"Tags: question_tags={question_tags}, final_tags={final_tags}")
+                logger.debug(f"Subsection decision: question_subsection='{question_subsection}', passed_subsection='{subsection}', final='{final_subsection}'")
+                logger.debug(f"Tags: question_tags={question_tags}, final_tags={final_tags}")
                 
                 question_data = {
                     "id": question_id,

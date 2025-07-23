@@ -5,13 +5,19 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import LoginForm from '@/components/auth/LoginForm'
 import RegisterForm from '@/components/auth/RegisterForm'
+import ForgotPasswordForm from '@/components/auth/ForgotPasswordForm'
 
-type AuthMode = 'login' | 'register'
+type AuthMode = 'login' | 'register' | 'forgot-password'
 
 export default function AuthPage() {
   const [mode, setMode] = useState<AuthMode>('login')
-  const { user, loading } = useAuth()
+  const { user, loading, clearError } = useAuth()
   const router = useRouter()
+
+  // Clear any lingering error messages when component mounts
+  useEffect(() => {
+    clearError()
+  }, [clearError])
 
   // Redirect if user is already authenticated
   useEffect(() => {
@@ -50,9 +56,14 @@ export default function AuthPage() {
         </div>
 
         {mode === 'login' ? (
-          <LoginForm onSwitchToRegister={() => setMode('register')} />
-        ) : (
+          <LoginForm 
+            onSwitchToRegister={() => setMode('register')} 
+            onSwitchToForgotPassword={() => setMode('forgot-password')} 
+          />
+        ) : mode === 'register' ? (
           <RegisterForm onSwitchToLogin={() => setMode('login')} />
+        ) : (
+          <ForgotPasswordForm onSwitchToLogin={() => setMode('login')} />
         )}
       </div>
     </div>

@@ -71,16 +71,17 @@ async def root():
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint."""
+    """Simple health check endpoint - tests only critical dependencies."""
     try:
-        # Test database connection
+        # Test database connection (the only critical dependency)
         db_status = await question_service.check_database_connection()
         
         return HealthResponse(
-            status="healthy" if db_status else "degraded",
-            message="API is running",
+            status="healthy" if db_status else "unhealthy",
+            message="API is running" if db_status else "Database connection failed",
             version="1.0.0",
-            database_connected=db_status
+            database_connected=db_status,
+            timestamp=datetime.utcnow()
         )
     except Exception as e:
         logger.error(f"Health check failed: {e}")
@@ -88,7 +89,8 @@ async def health_check():
             status="unhealthy",
             message=f"Health check failed: {str(e)}",
             version="1.0.0",
-            database_connected=False
+            database_connected=False,
+            timestamp=datetime.utcnow()
         )
 
 @app.get("/providers/status", response_model=ProviderStatusResponse)
@@ -167,7 +169,7 @@ async def generate_content(request: QuestionGenerationRequest, current_user: Use
                 
                 # Get training example IDs from the result metadata
                 training_example_ids = result.metadata.training_example_ids
-                logger.info(f"Using training example IDs from result metadata: {training_example_ids}")
+                logger.debug(f"Using training example IDs from result metadata: {training_example_ids}")
                 
                 await ai_content_service.save_generated_questions(
                     session_id, 
@@ -192,7 +194,7 @@ async def generate_content(request: QuestionGenerationRequest, current_user: Use
                 [provider_used],
                 generation_time_ms
             )
-            logger.info(f"Saved single content generation to database: session {session_id} with provider: {provider_used}, duration: {generation_time_ms}ms")
+            logger.debug(f"Saved single content generation to database: session {session_id} with provider: {provider_used}, duration: {generation_time_ms}ms")
             
         except Exception as save_error:
             logger.error(f"Failed to save single content generation: {save_error}")

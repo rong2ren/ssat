@@ -119,6 +119,12 @@ export interface UserLogin {
   password: string
 }
 
+export interface ResetPasswordRequest {
+  email: string
+}
+
+
+
 export interface UserRegister {
   email: string
   password: string

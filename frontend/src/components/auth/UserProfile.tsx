@@ -3,16 +3,21 @@
 import React, { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { UserProfileUpdate, GradeLevel } from '@/types/api'
+import { supabase } from '@/lib/supabase'
 
 export default function UserProfile() {
   const { user, logout, updateProfile, loading, error, clearError } = useAuth()
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [showProfile, setShowProfile] = useState(false)
   const [editing, setEditing] = useState(false)
   const [logoutLoading, setLogoutLoading] = useState(false)
+  const [showResetPassword, setShowResetPassword] = useState(false)
   const [formData, setFormData] = useState<UserProfileUpdate>({
     full_name: user?.full_name || '',
     grade_level: user?.grade_level
   })
+  const [newPassword, setNewPassword] = useState('')
+  const [reauthenticating, setReauthenticating] = useState(false)
 
   const gradeLevels: GradeLevel[] = ['3rd', '4th', '5th', '6th', '7th', '8th']
 
@@ -47,12 +52,79 @@ export default function UserProfile() {
     clearError()
   }
 
+  const handleResetPassword = () => {
+    setShowResetPassword(true)
+    clearError()
+  }
+
+  const handleCancelResetPassword = () => {
+    setShowResetPassword(false)
+    clearError()
+    setSuccessMessage(null)
+  }
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
       [name]: value === '' ? undefined : value
     }))
+  }
+
+  const handleResetPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewPassword(e.target.value)
+  }
+
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    clearError()
+    setSuccessMessage(null)
+    
+    if (!newPassword.trim()) {
+      setSuccessMessage('New password is required.')
+      return
+    }
+    
+    if (newPassword.length < 6) {
+      setSuccessMessage('New password must be at least 6 characters long.')
+      return
+    }
+    
+    try {
+      // Try to update password directly first
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      })
+      
+      if (error) {
+        // If update fails due to recent authentication requirement, 
+        // we need to reauthenticate first
+        if (error.message.includes('recently signed in') || error.message.includes('reauthenticate')) {
+          setReauthenticating(true)
+          
+          // Send reauthentication nonce
+          const { error: reauthError } = await supabase.auth.reauthenticate()
+          
+          if (reauthError) {
+            setSuccessMessage('Failed to send reauthentication email. Please try again.')
+            setReauthenticating(false)
+            return
+          }
+          
+          setSuccessMessage('Please check your email for a reauthentication code, then try again.')
+          setReauthenticating(false)
+          return
+        }
+        setSuccessMessage(error.message)
+        return
+      }
+
+      setShowResetPassword(false)
+      setNewPassword('')
+      setSuccessMessage('Password updated successfully!')
+    } catch (err) {
+      setSuccessMessage('Failed to update password. Please try again.')
+    }
   }
 
   if (!user) return null
@@ -151,6 +223,59 @@ export default function UserProfile() {
                   </button>
                 </div>
               </div>
+            ) : showResetPassword ? (
+              <div className="space-y-3">
+                <h4 className="font-medium text-gray-900 mb-3">Reset Password</h4>
+                {error && (
+                  <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded text-sm">
+                    {error}
+                  </div>
+                )}
+                {successMessage && (
+                  <div className={`px-3 py-2 rounded text-sm ${
+                    successMessage.includes('successfully') 
+                      ? 'bg-green-100 border border-green-400 text-green-700'
+                      : 'bg-red-100 border border-red-400 text-red-700'
+                  }`}>
+                    {successMessage}
+                  </div>
+                )}
+                
+                <form onSubmit={handleResetPasswordSubmit} className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      New Password
+                    </label>
+                    <input
+                      type="password"
+                      name="password"
+                      value={newPassword}
+                      onChange={handleResetPasswordChange}
+                      required
+                      minLength={6}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter new password (min 6 characters)"
+                    />
+                  </div>
+
+                  <div className="flex space-x-2">
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex-1 bg-blue-600 text-white py-2 px-3 rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm"
+                    >
+                      {loading ? 'Updating...' : 'Update Password'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelResetPassword}
+                      className="flex-1 bg-gray-300 text-gray-700 py-2 px-3 rounded-md hover:bg-gray-400 text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
             ) : (
               <div className="space-y-2">
                 <button
@@ -158,6 +283,12 @@ export default function UserProfile() {
                   className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
                 >
                   Edit Profile
+                </button>
+                <button
+                  onClick={handleResetPassword}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
+                >
+                  Reset Password
                 </button>
                 <button
                   onClick={handleLogout}

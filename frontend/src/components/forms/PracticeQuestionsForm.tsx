@@ -18,9 +18,9 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
     question_type: 'analogy' as const,
     difficulty: 'Medium' as const,
     topic: '',
-    count: 5
+    count: 1
   })
-  const [countInput, setCountInput] = useState('5')
+  const [countInput, setCountInput] = useState('1')
 
   // UI translations
   const translations = {

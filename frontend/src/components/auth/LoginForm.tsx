@@ -6,9 +6,10 @@ import { UserLogin } from '@/types/api'
 
 interface LoginFormProps {
   onSwitchToRegister: () => void
+  onSwitchToForgotPassword: () => void
 }
 
-export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
+export default function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }: LoginFormProps) {
   const { login, loading, error, clearError } = useAuth()
   const [formData, setFormData] = useState<UserLogin>({
     email: '',
@@ -76,6 +77,15 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter your password"
             />
+            <div className="text-right mt-1">
+              <button
+                type="button"
+                onClick={onSwitchToForgotPassword}
+                className="text-blue-600 hover:text-blue-800 underline text-sm"
+              >
+                Forgot Password?
+              </button>
+            </div>
           </div>
           
           <button
