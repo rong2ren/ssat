@@ -28,6 +28,7 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
     'Difficulty': '难度',
     'Number of Questions': '题目数量',
     'Topic (Optional)': '主题',
+    'Generate Single Section Practice Questions': '生成单项练习题目',
     'Generate Practice Questions': '生成练习题目',
     'Generating...': '生成中...',
     'Specify a topic to focus on (e.g., fractions, geometry, vocabulary)': '指定主题范围（例如：分数、几何、词汇）',
@@ -84,11 +85,8 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
       <div className="mb-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          {t('Generate Practice Questions')}
+          {t('Generate Single Section Practice Questions')}
         </h2>
-        <p className="text-gray-600">
-          Create targeted practice questions to improve specific skills
-        </p>
       </div>
       
       <form onSubmit={handleSubmit} className="space-y-8">

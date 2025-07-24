@@ -13,8 +13,17 @@ export default function CustomSectionPage() {
   const { setLoading, setError, setQuestions, setPassages } = useCustomSectionActions()
   const { showChinese } = usePreferences()
 
-  // UI translations (for future language support)
-  // const t = (key: string, showChinese: boolean = false) => key
+  // UI translations
+  const translations = {
+    'Custom Section Practice': '单项自定义练习',
+    'Generate targeted practice questions for specific SSAT sections': '针对单项SSAT科目，生成个性化练习题',
+    'Error generating questions': '生成题目时出错',
+    'Generating questions...': '正在生成题目...',
+    'Our AI is creating SSAT questions based on your requirements. This may take a few moments.': '我们的AI正在根据您的要求创建SSAT题目，请稍候片刻。',
+    'Processing...': '处理中...'
+  }
+
+  const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
 
   const handleGenerateQuestions = async (request: QuestionRequest) => {
     setLoading(true)
@@ -81,10 +90,10 @@ export default function CustomSectionPage() {
         {/* Page Header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Custom Section Practice
+            {t('Custom Section Practice')}
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Generate targeted practice questions for specific SSAT sections
+            {t('Generate targeted practice questions for specific SSAT sections')}
           </p>
         </div>
 
@@ -101,7 +110,7 @@ export default function CustomSectionPage() {
             <div className="bg-red-50 border border-red-200 rounded-xl p-6">
               <div className="flex items-center">
                 <div className="text-red-600 font-medium">
-                  Error generating questions
+                  {t('Error generating questions')}
                 </div>
               </div>
               <p className="text-red-700 mt-2">{error}</p>
@@ -117,10 +126,10 @@ export default function CustomSectionPage() {
                   <div className="absolute inset-0 rounded-full bg-blue-100 opacity-20"></div>
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Generating questions...
+                  {t('Generating questions...')}
                 </h3>
                 <p className="text-gray-600 max-w-md">
-                  Our AI is creating personalized SSAT questions based on your requirements. This may take a few moments.
+                  {t('Our AI is creating SSAT questions based on your requirements. This may take a few moments.')}
                 </p>
                 <div className="mt-6 flex items-center space-x-2 text-sm text-gray-500">
                   <div className="flex space-x-1">
@@ -128,7 +137,7 @@ export default function CustomSectionPage() {
                     <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
                     <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
                   </div>
-                  <span>Processing...</span>
+                  <span>{t('Processing...')}</span>
                 </div>
               </div>
             </div>

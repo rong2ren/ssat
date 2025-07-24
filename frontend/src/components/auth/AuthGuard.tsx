@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface AuthGuardProps {
@@ -12,6 +12,7 @@ interface AuthGuardProps {
 export default function AuthGuard({ children, fallback }: AuthGuardProps) {
   const { user, loading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
   const authResultRef = useRef({ user, loading })
   
   // Log when useAuth() is actually called (this is the real authentication check)
@@ -34,10 +35,12 @@ export default function AuthGuard({ children, fallback }: AuthGuardProps) {
   }
 
   useEffect(() => {
-    if (!loading && !user) {
+    // Don't redirect if we're already on an auth page
+    const isAuthPage = pathname.startsWith('/auth')
+    if (!loading && !user && !isAuthPage) {
       router.push('/auth')
     }
-  }, [user, loading, router])
+  }, [user, loading, router, pathname])
 
   // Show loading while checking authentication
   if (loading) {
@@ -53,6 +56,12 @@ export default function AuthGuard({ children, fallback }: AuthGuardProps) {
 
   // Show fallback or redirect if not authenticated
   if (!user) {
+    // Don't show redirect message if we're already on an auth page
+    const isAuthPage = pathname.startsWith('/auth')
+    if (isAuthPage) {
+      return <>{children}</>
+    }
+    
     if (fallback) {
       return <>{fallback}</>
     }

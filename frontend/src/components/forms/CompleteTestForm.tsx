@@ -76,7 +76,9 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
     'Verbal Breakdown': '语言细分',
     'word meaning, definitions': '词义、定义',
     'word relationships, patterns': '词汇关系、模式',
-    'Note: Custom tests do not include topic breakdowns for quantitative': '注意：自定义测试不包含数学部分的主题细分'
+    'Note: Custom tests do not include topic breakdowns for quantitative': '注意：自定义测试不包含数学部分的主题细分',
+    'Show Math & Verbal Breakdown ▼': '显示数学和语言细分 ▼',
+    'Hide Math & Verbal Breakdown ▼': '隐藏数学和语言细分 ▼'
   }
 
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
@@ -133,9 +135,6 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
         <h2 className="text-2xl font-bold text-gray-900 mb-2">
           {t('Generate Complete Test')}
         </h2>
-        <p className="text-gray-600">
-          Create a comprehensive SSAT practice test with multiple sections
-        </p>
       </div>
       
       <form onSubmit={handleSubmit} className="space-y-8">
@@ -149,7 +148,6 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
             id="test-difficulty"
             className="md:w-1/3"
           />
-          <p className="text-xs text-gray-500">{t('Applied to all sections in the test')}</p>
         </div>
 
         {/* Enhanced Format Selection */}
@@ -190,7 +188,7 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
                 }}
                 className="text-xs text-blue-600 hover:text-blue-800 font-medium"
               >
-                {showOfficialDetails ? 'Hide Math & Verbal Breakdown ▼' : 'Show Math & Verbal Breakdown ▼'}
+                {showOfficialDetails ? t('Hide Math & Verbal Breakdown ▼') : t('Show Math & Verbal Breakdown ▼')}
               </button>
               
               {showOfficialDetails && (

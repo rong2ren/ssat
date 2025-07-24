@@ -34,12 +34,12 @@ export function QuestionDisplay({
   const translations = {
     // Header
     'Generated Questions': '生成的题目',
-    'questions ready for practice': '道题目准备练习',
+    'questions ready for practice': '道题目',
     'Show Answers': '显示答案',
     'Hide Answers': '隐藏答案', 
     'Save as PDF': '保存为PDF',
     'Print': '打印',
-    'Section': '部分',
+    'Section': '题',
     'Mixed Questions': '混合题目',
     
     // Question types

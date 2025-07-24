@@ -16,8 +16,13 @@ export default function FullTestPage() {
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [isPreparing, setIsPreparing] = useState(false)
 
-  // UI translations (for future language support)  
-  // const t = (key: string, showChinese: boolean = false) => key
+  // UI translations
+  const translations = {
+    'Complete Practice Test': '完整模拟测试',
+    'Generate comprehensive SSAT practice tests with multiple sections': '生成完整SSAT模拟测试题'
+  }
+
+  const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
 
   const handleGenerateCompleteTest = (customConfig?: {
     sections: string[]
@@ -119,10 +124,10 @@ export default function FullTestPage() {
         {/* Page Header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Complete Practice Test
+            {t('Complete Practice Test')}
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Generate comprehensive SSAT practice tests with multiple sections
+            {t('Generate comprehensive SSAT practice tests with multiple sections')}
           </p>
         </div>
 

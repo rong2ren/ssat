@@ -4,12 +4,32 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
-export default function ResetPasswordForm() {
+interface ResetPasswordFormProps {
+  showChinese?: boolean
+}
+
+export default function ResetPasswordForm({ showChinese = false }: ResetPasswordFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [passwordReset, setPasswordReset] = useState(false)
   const [password, setPassword] = useState('')
   const router = useRouter()
+
+  // UI translations
+  const translations = {
+    'Password Reset Successful': '密码重置成功',
+    'Your password has been successfully reset. You are now logged in with your new password.': '您的密码已成功重置。您现在可以使用新密码登录。',
+    'Go to Dashboard': '前往主页',
+    'Reset Your Password': '重置您的密码',
+    'Enter your new password below.': '请在下方输入您的新密码。',
+    'New Password': '新密码',
+    'Enter new password (min 6 characters)': '输入新密码（至少6个字符）',
+    'Reset Password': '重置密码',
+    'Resetting Password...': '重置密码中...',
+    'Back to Login': '返回登录'
+  }
+
+  const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
 
   useEffect(() => {
     // Extract parameters from URL hash fragments
@@ -115,15 +135,15 @@ export default function ResetPasswordForm() {
   if (passwordReset) {
     return (
       <div className="max-w-md mx-auto mt-8 p-6 bg-white rounded-lg shadow-md">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Password Reset Successful</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">{t('Password Reset Successful')}</h2>
         <p className="text-gray-600 mb-4">
-          Your password has been successfully reset. You are now logged in with your new password.
+          {t('Your password has been successfully reset. You are now logged in with your new password.')}
         </p>
         <button
           onClick={() => router.push('/')}
           className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
         >
-          Go to Dashboard
+          {t('Go to Dashboard')}
         </button>
       </div>
     )
@@ -131,9 +151,9 @@ export default function ResetPasswordForm() {
 
   return (
     <div className="max-w-md mx-auto mt-8 p-6 bg-white rounded-lg shadow-md">
-      <h2 className="text-2xl font-bold text-gray-900 mb-4">Reset Your Password</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mb-4">{t('Reset Your Password')}</h2>
       <p className="text-gray-600 mb-6">
-        Enter your new password below.
+        {t('Enter your new password below.')}
       </p>
       
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -145,7 +165,7 @@ export default function ResetPasswordForm() {
         
         <div>
           <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-            New Password
+            {t('New Password')}
           </label>
           <input
             type="password"
@@ -155,7 +175,7 @@ export default function ResetPasswordForm() {
             required
             minLength={6}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter new password (min 6 characters)"
+            placeholder={t('Enter new password (min 6 characters)')}
           />
         </div>
         
@@ -164,7 +184,7 @@ export default function ResetPasswordForm() {
           disabled={loading}
           className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
-          {loading ? 'Resetting Password...' : 'Reset Password'}
+          {loading ? t('Resetting Password...') : t('Reset Password')}
         </button>
       </form>
       
@@ -173,7 +193,7 @@ export default function ResetPasswordForm() {
           onClick={() => router.push('/auth')}
           className="text-blue-600 hover:text-blue-800 text-sm"
         >
-          Back to Login
+          {t('Back to Login')}
         </button>
       </div>
     </div>

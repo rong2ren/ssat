@@ -21,6 +21,34 @@ export default function UserProfile() {
 
   const gradeLevels: GradeLevel[] = ['3rd', '4th', '5th', '6th', '7th', '8th']
 
+  // UI translations
+  const translations = {
+    'No name set': '未设置姓名',
+    'Grade': '年级',
+    'Full Name': '姓名',
+    'Enter your full name': '请输入您的姓名',
+    'Grade Level': '年级',
+    'Select grade level': '选择年级',
+    'Save': '保存',
+    'Saving...': '保存中...',
+    'Cancel': '取消',
+    'Reset Password': '重置密码',
+    'New Password': '新密码',
+    'Enter new password (min 6 characters)': '输入新密码（至少6个字符）',
+    'Update Password': '更新密码',
+    'Updating...': '更新中...',
+    'Edit Profile': '编辑资料',
+    'Sign Out': '退出登录',
+    'New password is required.': '请输入新密码。',
+    'New password must be at least 6 characters long.': '新密码必须至少6个字符。',
+    'Failed to send reauthentication email. Please try again.': '发送重新认证邮件失败，请重试。',
+    'Please check your email for a reauthentication code, then try again.': '请查看邮件中的重新认证代码，然后重试。',
+    'Password updated successfully!': '密码更新成功！',
+    'Failed to update password. Please try again.': '密码更新失败，请重试。'
+  }
+
+  const t = (key: string) => translations[key as keyof typeof translations] || key
+
   const handleLogout = async () => {
     setLogoutLoading(true)
     try {
@@ -81,12 +109,12 @@ export default function UserProfile() {
     setSuccessMessage(null)
     
     if (!newPassword.trim()) {
-      setSuccessMessage('New password is required.')
+      setSuccessMessage(t('New password is required.'))
       return
     }
     
     if (newPassword.length < 6) {
-      setSuccessMessage('New password must be at least 6 characters long.')
+      setSuccessMessage(t('New password must be at least 6 characters long.'))
       return
     }
     
@@ -106,12 +134,12 @@ export default function UserProfile() {
           const { error: reauthError } = await supabase.auth.reauthenticate()
           
           if (reauthError) {
-            setSuccessMessage('Failed to send reauthentication email. Please try again.')
+            setSuccessMessage(t('Failed to send reauthentication email. Please try again.'))
             setReauthenticating(false)
             return
           }
           
-          setSuccessMessage('Please check your email for a reauthentication code, then try again.')
+          setSuccessMessage(t('Please check your email for a reauthentication code, then try again.'))
           setReauthenticating(false)
           return
         }
@@ -121,9 +149,9 @@ export default function UserProfile() {
 
       setShowResetPassword(false)
       setNewPassword('')
-      setSuccessMessage('Password updated successfully!')
+      setSuccessMessage(t('Password updated successfully!'))
     } catch (err) {
-      setSuccessMessage('Failed to update password. Please try again.')
+      setSuccessMessage(t('Failed to update password. Please try again.'))
     }
   }
 
@@ -157,11 +185,11 @@ export default function UserProfile() {
               </div>
               <div>
                 <h3 className="font-medium text-gray-900">
-                  {user.full_name || 'No name set'}
+                  {user.full_name || t('No name set')}
                 </h3>
                 <p className="text-sm text-gray-500">{user.email}</p>
                 {user.grade_level && (
-                  <p className="text-sm text-gray-500">{user.grade_level} Grade</p>
+                  <p className="text-sm text-gray-500">{user.grade_level} {t('Grade')}</p>
                 )}
               </div>
             </div>
@@ -176,7 +204,7 @@ export default function UserProfile() {
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Full Name
+                    {t('Full Name')}
                   </label>
                   <input
                     type="text"
@@ -184,13 +212,13 @@ export default function UserProfile() {
                     value={formData.full_name || ''}
                     onChange={handleChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter your full name"
+                    placeholder={t('Enter your full name')}
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Grade Level
+                    {t('Grade Level')}
                   </label>
                   <select
                     name="grade_level"
@@ -198,10 +226,10 @@ export default function UserProfile() {
                     onChange={handleChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="">Select grade level</option>
+                    <option value="">{t('Select grade level')}</option>
                     {gradeLevels.map(grade => (
                       <option key={grade} value={grade}>
-                        {grade} Grade
+                        {grade} {t('Grade')}
                       </option>
                     ))}
                   </select>
@@ -213,19 +241,19 @@ export default function UserProfile() {
                     disabled={loading}
                     className="flex-1 bg-blue-600 text-white py-2 px-3 rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm"
                   >
-                    {loading ? 'Saving...' : 'Save'}
+                    {loading ? t('Saving...') : t('Save')}
                   </button>
                   <button
                     onClick={handleCancel}
                     className="flex-1 bg-gray-300 text-gray-700 py-2 px-3 rounded-md hover:bg-gray-400 text-sm"
                   >
-                    Cancel
+                    {t('Cancel')}
                   </button>
                 </div>
               </div>
             ) : showResetPassword ? (
               <div className="space-y-3">
-                <h4 className="font-medium text-gray-900 mb-3">Reset Password</h4>
+                <h4 className="font-medium text-gray-900 mb-3">{t('Reset Password')}</h4>
                 {error && (
                   <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded text-sm">
                     {error}
@@ -244,7 +272,7 @@ export default function UserProfile() {
                 <form onSubmit={handleResetPasswordSubmit} className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      New Password
+                      {t('New Password')}
                     </label>
                     <input
                       type="password"
@@ -254,7 +282,7 @@ export default function UserProfile() {
                       required
                       minLength={6}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter new password (min 6 characters)"
+                      placeholder={t('Enter new password (min 6 characters)')}
                     />
                   </div>
 
@@ -264,14 +292,14 @@ export default function UserProfile() {
                       disabled={loading}
                       className="flex-1 bg-blue-600 text-white py-2 px-3 rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm"
                     >
-                      {loading ? 'Updating...' : 'Update Password'}
+                      {loading ? t('Updating...') : t('Update Password')}
                     </button>
                     <button
                       type="button"
                       onClick={handleCancelResetPassword}
                       className="flex-1 bg-gray-300 text-gray-700 py-2 px-3 rounded-md hover:bg-gray-400 text-sm"
                     >
-                      Cancel
+                      {t('Cancel')}
                     </button>
                   </div>
                 </form>
@@ -282,20 +310,20 @@ export default function UserProfile() {
                   onClick={handleEdit}
                   className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
                 >
-                  Edit Profile
+                  {t('Edit Profile')}
                 </button>
                 <button
                   onClick={handleResetPassword}
                   className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
                 >
-                  Reset Password
+                  {t('Reset Password')}
                 </button>
                 <button
                   onClick={handleLogout}
                   disabled={logoutLoading}
                   className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
                 >
-                  <span>Sign Out</span>
+                  <span>{t('Sign Out')}</span>
                   {logoutLoading && (
                     <svg className="animate-spin h-4 w-4 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

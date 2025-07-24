@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { BookOpen, FileText, Home, Globe, LogIn } from 'lucide-react'
+import { BookOpen, FileText, Home, Globe, LogIn, Target } from 'lucide-react'
 import { Button } from './ui/Button'
 import { useAuth } from '@/contexts/AuthContext'
 import UserProfile from './auth/UserProfile'
@@ -70,7 +70,7 @@ export function Header({ showChinese = false, onLanguageToggle }: HeaderProps) {
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 }`}
               >
-                <FileText className="h-4 w-4" />
+                <Target className="h-4 w-4" />
                 <span className="hidden lg:inline ml-2 text-sm font-medium">{t('Custom Section')}</span>
               </Link>
               
