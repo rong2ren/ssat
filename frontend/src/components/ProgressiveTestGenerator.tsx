@@ -4,14 +4,13 @@ import { useState, useEffect, useRef } from 'react'
 import { TestSection } from '@/types/api'
 import { TestDisplay } from './TestDisplay'
 import { Button } from './ui/Button'
-import { RefreshCw, Clock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { RefreshCw, Clock, CheckCircle, AlertCircle, Loader2, Settings } from 'lucide-react'
 import { useFullTestState, useFullTestActions } from '@/contexts/AppStateContext'
 import { getAuthHeaders } from '@/utils/auth'
 
 interface ProgressiveTestGeneratorProps {
   showChinese: boolean
   onBack?: () => void
-  autoStart?: boolean
   testRequest?: {
     difficulty: string
     include_sections: string[]
@@ -19,6 +18,9 @@ interface ProgressiveTestGeneratorProps {
     originalSelection?: string[]
     is_official_format?: boolean
   }
+  initialJobId?: string
+  onGenerateAnother?: () => void
+  isPreparing?: boolean
 }
 
 interface JobStatus {
@@ -45,8 +47,10 @@ interface JobStatus {
 export function ProgressiveTestGenerator({ 
   showChinese, 
   onBack,
-  autoStart = false,
-  testRequest
+  testRequest,
+  initialJobId,
+  onGenerateAnother,
+  isPreparing = false
 }: ProgressiveTestGeneratorProps) {
   // Use context for persistent data (jobStatus, completedSections) and local state for active generation
   const { jobStatus: contextJobStatus } = useFullTestState()
@@ -66,11 +70,12 @@ export function ProgressiveTestGenerator({
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
   const elapsedTimerRef = useRef<number | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const hasStartedGenerationRef = useRef<boolean>(false)
 
   // UI translations
   const translations = {
     'Generate Another Test': '生成另一个测试',
-    'Back to Form': '返回表单',
+    'Configure New Test': '配置新测试',
     'Complete Test Generation': '完整测试生成',
     'Sections appear as they complete': '各部分完成后显示',
     'Generation Progress': '进度',
@@ -431,9 +436,13 @@ export function ProgressiveTestGenerator({
           progress: status.progress || { completed: 0, total: 0, percentage: 0 }
         }
         
+        // Use local state for frequent updates (prevents global re-renders)
         setJobStatus(completeStatus)
 
         if (status.status === 'completed' || status.status === 'failed' || status.status === 'partial' || status.status === 'cancelled') {
+          // Sync to context only when job completes/fails (prevents frequent global re-renders)
+          contextSetJobStatus(completeStatus)
+          
           setIsPolling(false)
           setIsSubmitting(false)  // Reset isSubmitting when job actually completes
           stopElapsedTimeCounter()
@@ -503,24 +512,75 @@ export function ProgressiveTestGenerator({
     // Use cleanup function
     cleanup()
     
-    // Start new generation immediately (no timeout needed)
-    startGeneration()
+    // Notify parent to create a new job
+    if (onGenerateAnother) {
+      onGenerateAnother()
+    }
   }
 
     // Cleanup polling and timers on unmount
   useEffect(() => {
     return () => {
       cleanup()
+      hasStartedGenerationRef.current = false
     }
   }, [])
 
-  // Auto-start generation when autoStart prop is true and no job exists
-  // Remove jobStatus from deps to prevent dependency loop
+  // Start generation when initialJobId is provided
   useEffect(() => {
-    if (autoStart && testRequest && !jobStatus) {
-      startGeneration()
+    if (initialJobId && !jobStatus) {
+      console.log('🚀 STARTING POLLING WITH INITIAL JOB ID:', initialJobId)
+      
+      // Set up initial job status for immediate UI feedback
+      const initialJobStatus: JobStatus = {
+        job_id: initialJobId,
+        status: 'running',
+        progress: {
+          completed: 0,
+          total: finalTestRequest.include_sections.length,
+          percentage: 0
+        },
+        sections: [],
+        section_details: finalTestRequest.include_sections.reduce((acc, section) => {
+          acc[section] = {
+            section_type: section,
+            status: 'generating',
+            progress_percentage: 0,
+            progress_message: 'Starting generation...'
+          }
+          return acc
+        }, {} as Record<string, {
+          section_type: string
+          status: string
+          progress_percentage: number
+          progress_message: string
+          error?: string
+        }>),
+        error: undefined,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+      
+      console.log('🟢 SETTING INITIAL JOBSTATUS:', {
+        sectionsCount: Object.keys(initialJobStatus.section_details).length,
+        sections: Object.keys(initialJobStatus.section_details),
+        progress: initialJobStatus.progress,
+        fullSectionDetails: initialJobStatus.section_details
+      })
+      setJobStatus(initialJobStatus)
+      
+      // Start elapsed time counter
+      const now = new Date()
+      setStartTime(now)
+      startElapsedTimeCounter(now)
+      
+      // Set job ID and start polling
+      setJobId(initialJobId)
+      startPolling(initialJobId)
     }
-  }, [autoStart, testRequest])
+  }, [initialJobId]) // Only depend on initialJobId
+
+
 
   // Sync context to local state when context changes
   useEffect(() => {
@@ -531,12 +591,8 @@ export function ProgressiveTestGenerator({
 
 
 
-  // Update context when jobStatus changes (for persistence across tab switches)
-  useEffect(() => {
-    if (jobStatus !== contextJobStatus) {
-      contextSetJobStatus(jobStatus)
-    }
-  }, [jobStatus, contextJobStatus])
+  // REMOVED: This was causing global re-renders on every polling response
+  // We now only sync to context when job completes/fails
 
 
 
@@ -649,42 +705,73 @@ export function ProgressiveTestGenerator({
 
 
 
-        {/* Controls */}
-        <div className="flex items-center space-x-4 mb-6">
-          {/* Empty for now - post-completion buttons below */}
-          
-          {/* Post-completion buttons */}
-          {(jobStatus?.status === 'completed' || jobStatus?.status === 'partial') && (
-            <>
-              <Button 
-                variant="outline" 
-                onClick={resetGenerator}
-                disabled={isSubmitting}
-                className="flex items-center space-x-2"
-              >
-                {isSubmitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                <span>{isSubmitting ? 'Starting...' : t('Generate Another Test')}</span>
-              </Button>
+        {/* Post-completion Action Bar */}
+        {(jobStatus?.status === 'completed' || jobStatus?.status === 'partial') && (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                <span className="text-sm font-medium text-gray-900">
+                  {t('Test Complete')}
+                </span>
+              </div>
               
-              {onBack && (
+              <div className="flex items-center space-x-3">
+                {/* Primary Action - Generate Another Test */}
                 <Button 
-                  variant="outline" 
-                  onClick={onBack}
+                  onClick={resetGenerator}
                   disabled={isSubmitting}
-                  className="flex items-center space-x-2"
+                  className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  <span>← {t('Back to Form')}</span>
+                  {isSubmitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  <span>{isSubmitting ? 'Starting...' : t('Generate Another Test')}</span>
                 </Button>
-              )}
-            </>
-          )}
+                
+                {/* Secondary Action - Back to Configuration */}
+                {onBack && (
+                  <Button 
+                    variant="outline" 
+                    onClick={onBack}
+                    disabled={isSubmitting}
+                    className="flex items-center space-x-2 text-gray-600 border-gray-300 hover:bg-gray-50"
+                  >
+                    <Settings className="h-4 w-4" />
+                    <span>{t('Configure New Test')}</span>
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
-
-        </div>
+        {/* Preparation State - show when preparing to create job */}
+        {isPreparing && !jobStatus && (
+          <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-3 sm:p-4 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
+              <div className="flex items-center space-x-2 sm:space-x-3">
+                <div className="flex items-center space-x-1 sm:space-x-2">
+                  <div className="w-2 h-2 sm:w-3 sm:h-3 bg-blue-300 rounded-full animate-pulse"></div>
+                  <span className="font-medium text-xs sm:text-sm">PREPARING</span>
+                </div>
+                <span className="text-base sm:text-lg font-semibold">Preparing Test Generation</span>
+                <span className="text-blue-100 text-xs sm:text-sm">• Setting up job...</span>
+              </div>
+            </div>
+            
+            {/* Preparation Progress Bar */}
+            <div className="mt-3">
+              <div className="w-full bg-blue-400 bg-opacity-30 rounded-full h-3">
+                <div className="bg-white h-3 rounded-full animate-pulse" style={{ width: '20%' }}>
+                  <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Progress Tracking - show when generating or completed */}
         {jobStatus && (

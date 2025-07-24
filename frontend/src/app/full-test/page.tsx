@@ -1,15 +1,20 @@
 'use client'
 
+import { useState } from 'react'
 import { ProgressiveTestGenerator } from '@/components/ProgressiveTestGenerator'
 import { CompleteTestForm } from '@/components/forms/CompleteTestForm'
 import { useFullTestState, useFullTestActions, usePreferences } from '@/contexts/AppStateContext'
-import AuthGuard from '@/components/auth/AuthGuard'
+import { getAuthHeaders } from '@/utils/auth'
 
 export default function FullTestPage() {
   // Use global state for persistent data (testRequest, showCompleteTest, jobStatus)
   const { testRequest, showCompleteTest, jobStatus } = useFullTestState()
   const { setTestRequest, setShowCompleteTest, setJobStatus } = useFullTestActions()
   const { showChinese } = usePreferences()
+  
+  // Local state to store the job ID and preparation status
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
+  const [isPreparing, setIsPreparing] = useState(false)
 
   // UI translations (for future language support)  
   // const t = (key: string, showChinese: boolean = false) => key
@@ -51,65 +56,102 @@ export default function FullTestPage() {
     
     // Show the progressive test generator
     setShowCompleteTest(true)
+    // Clear any existing job status to ensure fresh start
+    setJobStatus(null)
+    setCurrentJobId(null)
+    
+    // Show preparation state immediately
+    setIsPreparing(true)
+    
+    // Start generation immediately
+    startGeneration(newTestRequest)
+  }
+
+  const startGeneration = async (testRequest: any) => {
+    try {
+      const headers = await getAuthHeaders()
+      const response = await fetch('/api/generate/complete-test/start', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(testRequest)
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setCurrentJobId(data.job_id)
+        setIsPreparing(false) // Hide preparation state
+        console.log('🚀 JOB CREATED:', data.job_id)
+      } else {
+        console.error('Failed to start generation')
+        setIsPreparing(false) // Hide preparation state on error
+      }
+    } catch (error) {
+      console.error('Error starting generation:', error)
+      setIsPreparing(false) // Hide preparation state on error
+    }
+  }
+
+  const handleGenerateAnother = () => {
+    // Clear current job status
+    setJobStatus(null)
+    setCurrentJobId(null)
+    
+    // Show preparation state immediately
+    setIsPreparing(true)
+    
+    // Create a new job with the same test request
+    if (testRequest) {
+      startGeneration(testRequest)
+    }
   }
 
   const handleBackToForms = () => {
     setShowCompleteTest(false)
     setTestRequest(null)
     setJobStatus(null) // Clear jobStatus so new generation can start
+    setCurrentJobId(null)
+    setIsPreparing(false) // Clear preparation state
   }
 
   return (
-    <AuthGuard>
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-        <div className="container mx-auto px-4 py-12">
-          {/* Page Header */}
-          <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">
-              Complete Practice Test
-            </h1>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Generate comprehensive SSAT practice tests with multiple sections
-            </p>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <div className="container mx-auto px-4 py-12">
+        {/* Page Header */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            Complete Practice Test
+          </h1>
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            Generate comprehensive SSAT practice tests with multiple sections
+          </p>
+        </div>
 
-          <div className="max-w-6xl mx-auto space-y-8">
-            {!showCompleteTest ? (
-              /* Complete Test Configuration Form */
-              <CompleteTestForm
-                onSubmit={handleGenerateCompleteTest}
-                loading={false} // Loading is handled by ProgressiveTestGenerator
-                showChinese={showChinese}
-              />
-            ) : (
-              /* Progressive Test Generator */
-              <div className="space-y-6">
-                {/* Back Button */}
-                <div className="flex justify-start">
-                  <button
-                    onClick={handleBackToForms}
-                    className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-medium"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                    <span>Back to Configuration</span>
-                  </button>
-                </div>
-
-                {/* Progressive Test Generator */}
-                {testRequest && (
-                  <ProgressiveTestGenerator
-                    testRequest={testRequest}
-                    showChinese={showChinese}
-                    autoStart={!jobStatus} // Only auto-start if no existing job
-                  />
-                )}
-              </div>
-            )}
-          </div>
+        <div className="max-w-6xl mx-auto space-y-8">
+          {!showCompleteTest ? (
+            /* Complete Test Configuration Form */
+            <CompleteTestForm
+              onSubmit={handleGenerateCompleteTest}
+              loading={false} // Loading is handled by ProgressiveTestGenerator
+              showChinese={showChinese}
+            />
+          ) : (
+            /* Progressive Test Generator */
+            <div className="space-y-6">
+              {/* Progressive Test Generator */}
+              {testRequest && (
+                <ProgressiveTestGenerator
+                  testRequest={testRequest}
+                  showChinese={showChinese}
+                  initialJobId={currentJobId || undefined}
+                  onGenerateAnother={handleGenerateAnother}
+                  onBack={handleBackToForms}
+                  isPreparing={isPreparing}
+                />
+              )}
+            </div>
+          )}
         </div>
       </div>
-    </AuthGuard>
+    </div>
   )
 }

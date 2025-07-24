@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -12,18 +12,35 @@ interface AuthGuardProps {
 export default function AuthGuard({ children, fallback }: AuthGuardProps) {
   const { user, loading } = useAuth()
   const router = useRouter()
+  const authResultRef = useRef({ user, loading })
+  
+  // Log when useAuth() is actually called (this is the real authentication check)
+  // Only log in development to avoid console spam
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔍 AuthGuard: useAuth() called - this is the actual auth check', { user: !!user, loading })
+  }
+  
+  // Only log when auth result actually changes
+  if (authResultRef.current.user !== user || authResultRef.current.loading !== loading) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 AuthGuard: Auth state changed', { 
+        user: !!user, 
+        loading,
+        previousUser: !!authResultRef.current.user,
+        previousLoading: authResultRef.current.loading
+      })
+    }
+    authResultRef.current = { user, loading }
+  }
 
   useEffect(() => {
-    console.log('🔄 AuthGuard: useEffect triggered', { user: !!user, loading })
     if (!loading && !user) {
-      console.log('🔄 AuthGuard: No user and not loading, redirecting to /auth')
       router.push('/auth')
     }
   }, [user, loading, router])
 
   // Show loading while checking authentication
   if (loading) {
-    console.log('🔄 AuthGuard: Showing loading spinner')
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -36,13 +53,10 @@ export default function AuthGuard({ children, fallback }: AuthGuardProps) {
 
   // Show fallback or redirect if not authenticated
   if (!user) {
-    console.log('🔄 AuthGuard: No user authenticated')
     if (fallback) {
-      console.log('🔄 AuthGuard: Showing fallback')
       return <>{fallback}</>
     }
     // Return loading state while redirecting
-    console.log('🔄 AuthGuard: Showing redirect loading state')
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -54,6 +68,5 @@ export default function AuthGuard({ children, fallback }: AuthGuardProps) {
   }
 
   // User is authenticated, show children
-  console.log('🔄 AuthGuard: User authenticated, showing children')
   return <>{children}</>
 } 

@@ -342,19 +342,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null)
   }
 
-                const value: AuthContextType = {
-                user,
-                loading,
-                error,
-                login,
-                register,
-                resendConfirmation,
-                forgotPassword,
-                logout,
-                updateProfile,
-                getUserStats,
-                clearError
-              }
+  // Memoize the context value to prevent unnecessary re-renders
+  const value: AuthContextType = React.useMemo(() => ({
+    user,
+    loading,
+    error,
+    login,
+    register,
+    resendConfirmation,
+    forgotPassword,
+    logout,
+    updateProfile,
+    getUserStats,
+    clearError
+  }), [user, loading, error])
 
   return (
     <AuthContext.Provider value={value}>

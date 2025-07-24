@@ -1,6 +1,7 @@
 """SSAT question generator using real SSAT examples for training."""
 
 import json
+from math import e
 import random
 import uuid
 from typing import List, Optional, Dict, Any
@@ -196,21 +197,6 @@ class SSATGenerator:
                 continue
                 
             valid_examples += 1
-            visual_info = f"\nVisual Description: {example['visual_description']}" if example.get('visual_description') else ""
-            
-            example_text = f"""
-REAL SSAT WRITING EXAMPLE {valid_examples}:
-Prompt: {example['prompt']}{visual_info}
-Tags: {', '.join(example.get('tags', []))}
-
-"""
-            examples_text += example_text
-            
-            logger.info(f"REAL SSAT WRITING EXAMPLE {valid_examples}:")
-            logger.info(f"  Prompt: {example['prompt'][:100]}...")
-            if example.get('visual_description'):
-                logger.info(f"  Visual: {example['visual_description']}")
-            logger.info("---")
         
         logger.info(f"📚 WRITING TRAINING SUMMARY: Using {valid_examples} real SSAT writing examples")
         

@@ -237,12 +237,6 @@ export function QuestionDisplay({
                         <span className="bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-0.5 rounded">
                           {t('Question')} {questionIndex + 1}
                         </span>
-                        <span className="bg-gray-100 text-gray-800 text-sm font-medium px-2.5 py-0.5 rounded capitalize">
-                          {question.question_type}
-                        </span>
-                        <span className="bg-yellow-100 text-yellow-800 text-sm font-medium px-2.5 py-0.5 rounded">
-                          {question.difficulty}
-                        </span>
                       </div>
                     </div>
                   </div>
@@ -319,12 +313,6 @@ export function QuestionDisplay({
                   <div className="flex items-center space-x-3 mb-2">
                     <span className="bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-0.5 rounded">
                       {t('Question')} {index + 1}
-                    </span>
-                    <span className="bg-gray-100 text-gray-800 text-sm font-medium px-2.5 py-0.5 rounded capitalize">
-                      {question.question_type}
-                    </span>
-                    <span className="bg-yellow-100 text-yellow-800 text-sm font-medium px-2.5 py-0.5 rounded">
-                      {question.difficulty}
                     </span>
                   </div>
                 </div>

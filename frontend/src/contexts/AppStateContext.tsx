@@ -267,6 +267,8 @@ export function usePreferences() {
   }
 }
 
+
+
 // Helper hooks for custom section actions
 export function useCustomSectionActions() {
   const { dispatch } = useAppState()
