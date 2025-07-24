@@ -75,9 +75,11 @@ export function ProgressiveTestGenerator({
   // UI translations
   const translations = {
     'Generate Another Test': '生成另一个测试',
+    'Generate Another': '生成另一个',
     'Configure New Test': '配置新测试',
+    'Configure New': '配置新的',
     'Complete Test Generation': '完整测试生成',
-    'Sections appear as they complete': '各部分完成后显示',
+    'Sections appear as they complete': '单项题目将在完成后依次显示',
     'Generation Progress': '进度',
     'Elapsed': '已用时间',
     'Status': '状态',
@@ -716,19 +718,26 @@ export function ProgressiveTestGenerator({
                 </span>
               </div>
               
-              <div className="flex items-center space-x-3">
+              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
                 {/* Primary Action - Generate Another Test */}
                 <Button 
                   onClick={resetGenerator}
                   disabled={isSubmitting}
-                  className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white"
+                  className="flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto"
                 >
                   {isSubmitting ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <RefreshCw className="h-4 w-4" />
                   )}
-                  <span>{isSubmitting ? 'Starting...' : t('Generate Another Test')}</span>
+                  <span className="text-sm">
+                    {isSubmitting ? 'Starting...' : (
+                      <>
+                        <span className="hidden sm:inline">{t('Generate Another Test')}</span>
+                        <span className="sm:hidden">{t('Generate Another')}</span>
+                      </>
+                    )}
+                  </span>
                 </Button>
                 
                 {/* Secondary Action - Back to Configuration */}
@@ -737,10 +746,13 @@ export function ProgressiveTestGenerator({
                     variant="outline" 
                     onClick={onBack}
                     disabled={isSubmitting}
-                    className="flex items-center space-x-2 text-gray-600 border-gray-300 hover:bg-gray-50"
+                    className="flex items-center justify-center space-x-2 text-gray-600 border-gray-300 hover:bg-gray-50 w-full sm:w-auto"
                   >
                     <Settings className="h-4 w-4" />
-                    <span>{t('Configure New Test')}</span>
+                    <span className="text-sm">
+                      <span className="hidden sm:inline">{t('Configure New Test')}</span>
+                      <span className="sm:hidden">{t('Configure New')}</span>
+                    </span>
                   </Button>
                 )}
               </div>

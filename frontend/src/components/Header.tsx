@@ -49,10 +49,10 @@ export function Header({ showChinese = false, onLanguageToggle }: HeaderProps) {
           {/* Navigation and Actions */}
           <div className="flex items-center space-x-1 sm:space-x-2 lg:space-x-4">
             {/* Navigation Links - Icons only on mobile */}
-            <nav className="flex space-x-1 sm:space-x-2 lg:space-x-4">
+            <nav className="flex space-x-0.5 sm:space-x-2 lg:space-x-4">
               <Link
                 href="/"
-                className={`flex items-center justify-center p-2 rounded-md transition-colors ${
+                className={`flex items-center justify-center p-1.5 sm:p-2 rounded-md transition-colors ${
                   isActive('/') 
                     ? 'bg-blue-100 text-blue-700' 
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
@@ -64,7 +64,7 @@ export function Header({ showChinese = false, onLanguageToggle }: HeaderProps) {
               
               <Link
                 href="/custom-section"
-                className={`flex items-center justify-center p-2 rounded-md transition-colors ${
+                className={`flex items-center justify-center p-1.5 sm:p-2 rounded-md transition-colors ${
                   isActive('/custom-section') 
                     ? 'bg-blue-100 text-blue-700' 
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
@@ -76,7 +76,7 @@ export function Header({ showChinese = false, onLanguageToggle }: HeaderProps) {
               
               <Link
                 href="/full-test"
-                className={`flex items-center justify-center p-2 rounded-md transition-colors ${
+                className={`flex items-center justify-center p-1.5 sm:p-2 rounded-md transition-colors ${
                   isActive('/full-test') 
                     ? 'bg-blue-100 text-blue-700' 
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
@@ -87,16 +87,19 @@ export function Header({ showChinese = false, onLanguageToggle }: HeaderProps) {
               </Link>
             </nav>
 
-            {/* Language Toggle - Smaller on mobile */}
+            {/* Language Toggle - Compact on mobile */}
             {onLanguageToggle && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={onLanguageToggle}
-                className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 h-8 sm:h-9"
+                className="flex items-center justify-center px-1.5 sm:px-3 h-8 sm:h-9 min-w-0"
+                title={showChinese ? 'Switch to English' : '切换到中文'}
               >
-                <Globe className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="text-xs sm:text-sm">{showChinese ? 'EN' : '中文'}</span>
+                <Globe className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="text-xs sm:text-sm font-medium truncate hidden sm:inline sm:ml-1">
+                  {showChinese ? 'EN' : '中文'}
+                </span>
               </Button>
             )}
 
@@ -110,10 +113,10 @@ export function Header({ showChinese = false, onLanguageToggle }: HeaderProps) {
                     <Button
                       variant="default"
                       size="sm"
-                      className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 h-8 sm:h-9"
+                      className="flex items-center space-x-1 sm:space-x-2 px-1.5 sm:px-3 h-8 sm:h-9"
                     >
                       <LogIn className="h-3 w-3 sm:h-4 sm:w-4" />
-                      <span className="text-xs sm:text-sm">{t('Sign In')}</span>
+                      <span className="text-xs sm:text-sm hidden sm:inline">{t('Sign In')}</span>
                     </Button>
                   </Link>
                 )}
