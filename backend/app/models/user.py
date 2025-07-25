@@ -33,6 +33,7 @@ class UserProfile(BaseModel):
     email: EmailStr
     full_name: Optional[str] = None
     grade_level: Optional[GradeLevel] = None
+    role: Optional[str] = None  # Add role field for admin/premium/free
     created_at: datetime
     updated_at: datetime
     last_sign_in_at: Optional[datetime] = None

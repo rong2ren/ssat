@@ -1,23 +1,38 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { UserProfileUpdate, GradeLevel } from '@/types/api'
 import { supabase } from '@/lib/supabase'
+import { DailyLimitsDisplay } from '@/components/DailyLimitsDisplay'
 
-export default function UserProfile() {
+interface UserProfileProps {
+  showChinese?: boolean
+}
+
+export default function UserProfile({ showChinese = false }: UserProfileProps) {
   const { user, logout, updateProfile, loading, error, clearError } = useAuth()
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [showProfile, setShowProfile] = useState(false)
-  const [editing, setEditing] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [isResettingPassword, setIsResettingPassword] = useState(false)
+  const [localLoading, setLocalLoading] = useState(false)
   const [logoutLoading, setLogoutLoading] = useState(false)
-  const [showResetPassword, setShowResetPassword] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [newPassword, setNewPassword] = useState('')
   const [formData, setFormData] = useState<UserProfileUpdate>({
     full_name: user?.full_name || '',
-    grade_level: user?.grade_level
+    grade_level: user?.grade_level || undefined
   })
-  const [newPassword, setNewPassword] = useState('')
-  const [reauthenticating, setReauthenticating] = useState(false)
+
+  // Debug logging
+  useEffect(() => {
+    console.log('🔍 UserProfile: Component mounted/updated', { 
+      userId: user?.id, 
+      showProfile, 
+      isEditing 
+    })
+  }, [user?.id, showProfile, isEditing])
 
   const gradeLevels: GradeLevel[] = ['3rd', '4th', '5th', '6th', '7th', '8th']
 
@@ -47,7 +62,7 @@ export default function UserProfile() {
     'Failed to update password. Please try again.': '密码更新失败，请重试。'
   }
 
-  const t = (key: string) => translations[key as keyof typeof translations] || key
+  const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
 
   const handleLogout = async () => {
     setLogoutLoading(true)
@@ -64,30 +79,30 @@ export default function UserProfile() {
       full_name: user?.full_name || '',
       grade_level: user?.grade_level
     })
-    setEditing(true)
-    clearError()
+    setIsEditing(true)
+    setLocalError(null)
   }
 
   const handleSave = async () => {
     const success = await updateProfile(formData)
     if (success) {
-      setEditing(false)
+      setIsEditing(false)
     }
   }
 
   const handleCancel = () => {
-    setEditing(false)
-    clearError()
+    setIsEditing(false)
+    setLocalError(null)
   }
 
   const handleResetPassword = () => {
-    setShowResetPassword(true)
-    clearError()
+    setIsResettingPassword(true)
+    setLocalError(null)
   }
 
   const handleCancelResetPassword = () => {
-    setShowResetPassword(false)
-    clearError()
+    setIsResettingPassword(false)
+    setLocalError(null)
     setSuccessMessage(null)
   }
 
@@ -105,7 +120,7 @@ export default function UserProfile() {
 
   const handleResetPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    clearError()
+    setLocalError(null)
     setSuccessMessage(null)
     
     if (!newPassword.trim()) {
@@ -128,26 +143,26 @@ export default function UserProfile() {
         // If update fails due to recent authentication requirement, 
         // we need to reauthenticate first
         if (error.message.includes('recently signed in') || error.message.includes('reauthenticate')) {
-          setReauthenticating(true)
+          // setReauthenticating(true) // This state was removed, so this block is now effectively a no-op
           
           // Send reauthentication nonce
           const { error: reauthError } = await supabase.auth.reauthenticate()
           
           if (reauthError) {
             setSuccessMessage(t('Failed to send reauthentication email. Please try again.'))
-            setReauthenticating(false)
+            // setReauthenticating(false) // This state was removed, so this block is now effectively a no-op
             return
           }
           
           setSuccessMessage(t('Please check your email for a reauthentication code, then try again.'))
-          setReauthenticating(false)
+          // setReauthenticating(false) // This state was removed, so this block is now effectively a no-op
           return
         }
         setSuccessMessage(error.message)
         return
       }
 
-      setShowResetPassword(false)
+      setIsResettingPassword(false)
       setNewPassword('')
       setSuccessMessage(t('Password updated successfully!'))
     } catch (err) {
@@ -194,11 +209,11 @@ export default function UserProfile() {
               </div>
             </div>
 
-            {editing ? (
+            {isEditing ? (
               <div className="space-y-3">
-                {error && (
+                {localError && (
                   <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded text-sm">
-                    {error}
+                    {localError}
                   </div>
                 )}
                 
@@ -251,12 +266,12 @@ export default function UserProfile() {
                   </button>
                 </div>
               </div>
-            ) : showResetPassword ? (
+            ) : isResettingPassword ? (
               <div className="space-y-3">
                 <h4 className="font-medium text-gray-900 mb-3">{t('Reset Password')}</h4>
-                {error && (
+                {localError && (
                   <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded text-sm">
-                    {error}
+                    {localError}
                   </div>
                 )}
                 {successMessage && (
@@ -305,32 +320,40 @@ export default function UserProfile() {
                 </form>
               </div>
             ) : (
-              <div className="space-y-2">
-                <button
-                  onClick={handleEdit}
-                  className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
-                >
-                  {t('Edit Profile')}
-                </button>
-                <button
-                  onClick={handleResetPassword}
-                  className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
-                >
-                  {t('Reset Password')}
-                </button>
-                <button
-                  onClick={handleLogout}
-                  disabled={logoutLoading}
-                  className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
-                >
-                  <span>{t('Sign Out')}</span>
-                  {logoutLoading && (
-                    <svg className="animate-spin h-4 w-4 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  )}
-                </button>
+              <div className="space-y-4">
+                {/* Daily Limits Display */}
+                <div className="border-t border-gray-200 pt-3">
+                  <DailyLimitsDisplay showChinese={showChinese} className="text-xs" />
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="space-y-2">
+                  <button
+                    onClick={handleEdit}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
+                  >
+                    {t('Edit Profile')}
+                  </button>
+                  <button
+                    onClick={handleResetPassword}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
+                  >
+                    {t('Reset Password')}
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    disabled={logoutLoading}
+                    className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
+                  >
+                    <span>{t('Sign Out')}</span>
+                    {logoutLoading && (
+                      <svg className="animate-spin h-4 w-4 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
           </div>

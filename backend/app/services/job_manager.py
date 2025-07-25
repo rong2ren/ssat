@@ -54,6 +54,7 @@ class TestGenerationJob:
     completed_sections: int = 0
     total_sections: int = 0
     error: Optional[str] = None
+    user_id: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -103,7 +104,7 @@ class JobManager:
             except Exception as e:
                 logger.error(f"Error in job cleanup: {e}")
     
-    def create_job(self, request_data: Dict[str, Any]) -> str:
+    def create_job(self, request_data: Dict[str, Any], user_id: Optional[str] = None) -> str:
         """Create a new test generation job."""
         job_id = str(uuid.uuid4())
         
@@ -123,11 +124,12 @@ class JobManager:
             sections=sections,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
-            total_sections=len(include_sections)
+            total_sections=len(include_sections),
+            user_id=user_id
         )
         
         self.jobs[job_id] = job
-        logger.info(f"Created job {job_id} with {len(include_sections)} sections")
+        logger.info(f"Created job {job_id} with {len(include_sections)} sections for user {user_id}")
         return job_id
     
     def get_job(self, job_id: str) -> Optional[TestGenerationJob]:

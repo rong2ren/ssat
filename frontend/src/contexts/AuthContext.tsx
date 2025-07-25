@@ -93,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: session.user.email || '',
         full_name: user_metadata.full_name || null,
         grade_level: user_metadata.grade_level || null,
+        role: user_metadata.role || 'free',
         created_at: session.user.created_at,
         updated_at: session.user.updated_at || session.user.created_at
       }

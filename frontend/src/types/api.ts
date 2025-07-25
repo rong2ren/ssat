@@ -109,6 +109,7 @@ export interface UserProfile {
   email: string
   full_name?: string
   grade_level?: GradeLevel
+  role?: string
   created_at: string
   updated_at: string
   deleted_at?: string

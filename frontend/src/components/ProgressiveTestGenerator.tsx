@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { TestSection } from '@/types/api'
 import { TestDisplay } from './TestDisplay'
 import { Button } from './ui/Button'
 import { RefreshCw, Clock, CheckCircle, AlertCircle, Loader2, Settings } from 'lucide-react'
-import { useFullTestState, useFullTestActions } from '@/contexts/AppStateContext'
+import { useFullTestState, useFullTestActions, usePreferences } from '@/contexts/AppStateContext'
 import { getAuthHeaders } from '@/utils/auth'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface ProgressiveTestGeneratorProps {
   showChinese: boolean
@@ -444,6 +445,11 @@ export function ProgressiveTestGenerator({
         if (status.status === 'completed' || status.status === 'failed' || status.status === 'partial' || status.status === 'cancelled') {
           // Sync to context only when job completes/fails (prevents frequent global re-renders)
           contextSetJobStatus(completeStatus)
+          
+          console.log('🔍 DAILY LIMITS: ✅ Test generation completed with status:', status.status)
+          if (status.status === 'completed') {
+            console.log('🔍 DAILY LIMITS: All sections completed successfully!')
+          }
           
           setIsPolling(false)
           setIsSubmitting(false)  // Reset isSubmitting when job actually completes

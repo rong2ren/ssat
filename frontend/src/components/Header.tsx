@@ -107,7 +107,7 @@ export function Header({ showChinese = false, onLanguageToggle }: HeaderProps) {
             {!loading && (
               <>
                 {user ? (
-                  <UserProfile />
+                  <UserProfile showChinese={showChinese} />
                 ) : (
                   <Link href="/auth">
                     <Button

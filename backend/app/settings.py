@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
     SUPABASE_JWT_SECRET: str = ""  # JWT secret for token verification
+    SUPABASE_SERVICE_ROLE_KEY: str = ""  # Service role key for admin operations
     
     # LLM Provider API Keys
     OPENAI_API_KEY: str = ""

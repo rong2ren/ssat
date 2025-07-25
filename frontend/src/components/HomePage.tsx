@@ -134,6 +134,8 @@ export function HomePage({ showChinese = false }: HomePageProps) {
         </div>
       </section>
 
+
+
       {/* Features Section */}
       <section className="py-20 bg-white/50 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

@@ -6,7 +6,6 @@ from supabase import create_client, Client
 from loguru import logger
 from typing import Optional
 from uuid import UUID
-import jwt
 from datetime import datetime
 
 from app.models.user import (
@@ -38,47 +37,54 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
                 detail="Missing authentication token"
             )
             
-        # Verify JWT signature using Supabase JWT secret (following NestJS pattern)
-        if not settings.SUPABASE_JWT_SECRET:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="JWT secret not configured"
-            )
-            
-        payload = jwt.decode(
-            token, 
-            settings.SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            options={"verify_aud": False}
-        )
+        # Use Supabase's built-in token verification with retry logic
+        max_retries = 3
+        retry_delay = 1  # seconds
+        user = None
         
-        # Validate required fields (following NestJS pattern)
-        user_id = payload.get('sub')
-        if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token: missing user ID"
-            )
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"🔍 DEBUG: Token verification attempt {attempt + 1}/{max_retries}")
+                user_response = supabase.auth.get_user(token)
+                user = user_response.user  # type: ignore[attr-defined]
+                if not user:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Invalid authentication token"
+                    )
+                break  # Success, exit retry loop
+            except Exception as e:
+                logger.error(f"🔍 DEBUG: Token verification failed (attempt {attempt + 1}/{max_retries}): {e}")
+                
+                # If this is the last attempt, raise the exception
+                if attempt == max_retries - 1:
+                    logger.error(f"Supabase token verification failed after {max_retries} attempts: {e}")
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Invalid authentication token"
+                    )
+                
+                # Wait before retrying
+                import time
+                time.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
         
-        # Extract user data from JWT payload (following NestJS pattern)
-        email = payload.get('email', '')
-        if not email:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token: missing email"
-            )
-        user_metadata = payload.get('user_metadata', {})
+        # Extract user data from Supabase user object
+        user_id = user.id  # type: ignore[attr-defined]
+        email = user.email or ''  # type: ignore[attr-defined]
+        user_metadata = user.user_metadata or {}  # type: ignore[attr-defined]
         
-        # Create user profile from JWT data (no database query needed)
+        # Create user profile from Supabase user data
         profile = UserProfile(
             id=UUID(user_id),
             email=str(email),
             full_name=user_metadata.get('full_name'),
             grade_level=user_metadata.get('grade_level'),
-            created_at=datetime.fromtimestamp(payload.get('iat', 0)),
-            updated_at=datetime.fromtimestamp(payload.get('iat', 0)),
-            last_sign_in_at=datetime.fromtimestamp(payload.get('iat', 0)) if payload.get('iat') else None,
-            email_confirmed_at=datetime.fromtimestamp(payload.get('email_confirmed_at', 0)) if payload.get('email_confirmed_at') else None
+            role=user_metadata.get('role', 'free'),  # Add role with default 'free'
+            created_at=datetime.utcnow(),  # Use current time as fallback
+            updated_at=datetime.utcnow(),
+            last_sign_in_at=datetime.utcnow(),
+            email_confirmed_at=datetime.utcnow() if user.email_confirmed_at else None  # type: ignore[attr-defined]
         )
         
         # Log successful JWT validation
@@ -86,46 +92,10 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         
         return profile
         
-    except jwt.InvalidTokenError as e:
-        logger.error(f"Invalid JWT token: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token"
-        )
-    except ValueError as e:
-        logger.error(f"Invalid user ID in token: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token"
-        )
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"JWT token validation failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication failed"
-        )
-
-def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(security)) -> UUID:
-    """Extract user ID from JWT token with signature verification."""
-    try:
-        token = credentials.credentials
-        if not settings.SUPABASE_JWT_SECRET:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="JWT secret not configured"
-            )
-            
-        payload = jwt.decode(
-            token, 
-            settings.SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            options={"verify_aud": False}
-        )
-        user_id = UUID(payload.get('sub'))
-        logger.info(f"✅ JWT validation successful for user ID: {user_id}")
-        return user_id
-    except Exception as e:
-        logger.error(f"JWT token validation failed: {e}")
+        logger.error(f"Authentication failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token"

@@ -25,11 +25,16 @@ export async function POST(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      return NextResponse.json(
-        { error: `Backend error: ${response.status} - ${errorText}` },
-        { status: response.status }
-      )
+      // Try to parse as JSON first, fallback to text
+      let errorData
+      try {
+        errorData = await response.json()
+      } catch {
+        const errorText = await response.text()
+        errorData = { error: errorText }
+      }
+      
+      return NextResponse.json(errorData, { status: response.status })
     }
 
     const data = await response.json()

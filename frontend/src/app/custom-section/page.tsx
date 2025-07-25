@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { QuestionDisplay } from '@/components/QuestionDisplay'
 import { PracticeQuestionsForm } from '@/components/forms/PracticeQuestionsForm'
 import { QuestionRequest } from '@/types/api'
@@ -12,6 +13,7 @@ export default function CustomSectionPage() {
   const { questions, passages, contentType, loading, error } = useCustomSectionState()
   const { setLoading, setError, setQuestions, setPassages } = useCustomSectionActions()
   const { showChinese } = usePreferences()
+  const [limitErrorInfo, setLimitErrorInfo] = useState<any>(null)
 
   // UI translations
   const translations = {
@@ -20,7 +22,16 @@ export default function CustomSectionPage() {
     'Error generating questions': '生成题目时出错',
     'Generating questions...': '正在生成题目...',
     'Our AI is creating SSAT questions based on your requirements. This may take a few moments.': '我们的AI正在根据您的要求创建SSAT题目，请稍候片刻。',
-    'Processing...': '处理中...'
+    'Processing...': '处理中...',
+    'Daily limit exceeded': '已达到每日限制',
+    'You have reached your daily limit for this content type. Please try again tomorrow or check your usage in your profile.': '您已达到此题型的每日限制。请明天再试。',
+    'Tip: Check your daily usage in your profile dropdown to see your current limits.': '💡 提示：在您的个人资料下拉菜单中可以查看您的当前使用情况。',
+    'Current Usage:': '今日题型使用情况：',
+    'Math': '数学',
+    'Analogy': '类比',
+    'Synonyms': '同义词',
+    'Reading': '阅读',
+    'Writing': '写作'
   }
 
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
@@ -28,6 +39,8 @@ export default function CustomSectionPage() {
   const handleGenerateQuestions = async (request: QuestionRequest) => {
     setLoading(true)
     setError(null)
+    
+    console.log('🔍 DAILY LIMITS: Starting generation for request:', request)
     
     try {
       // Get auth headers
@@ -40,20 +53,35 @@ export default function CustomSectionPage() {
       })
 
       if (!response.ok) {
-        throw new Error(`Error: ${response.status}`)
+        const errorData = await response.json().catch(() => ({}))
+        
+        if (errorData.error) {
+          // Create a custom error with the message and additional data
+          const error = new Error(errorData.error)
+          ;(error as any).limitExceeded = errorData.limit_exceeded
+          ;(error as any).limitsInfo = errorData.limits_info
+          throw error
+        } else {
+          throw new Error(`Error: ${response.status}`)
+        }
       }
 
       const data = await response.json()
       
+      console.log('🔍 DAILY LIMITS: ✅ Generation completed successfully for:', request.question_type)
+      
       // Handle different response types based on content type
       if (data.questions) {
         // Standalone questions (math, verbal, analogy, synonym)
+        console.log('🔍 DAILY LIMITS: Received questions:', data.questions.length)
         setQuestions(data.questions, 'questions', request)
       } else if (data.passages) {
         // Reading comprehension - keep passages in their natural structure
+        console.log('🔍 DAILY LIMITS: Received passages:', data.passages.length)
         setPassages(data.passages, request)
       } else if (data.prompts) {
         // Writing prompts - convert to question-like format for display
+        console.log('🔍 DAILY LIMITS: Received writing prompts:', data.prompts.length)
         const promptQuestions = data.prompts.map((prompt: { prompt_text: string; visual_description?: string; instructions: string }, index: number) => ({
           id: `writing-${index}`,
           question_type: 'writing',
@@ -76,8 +104,22 @@ export default function CustomSectionPage() {
       }
       
     } catch (err) {
-      console.error('Failed to generate questions:', err)
-      setError(err instanceof Error ? err.message : 'Unknown error occurred')
+      console.error('🔍 DAILY LIMITS: ❌ Failed to generate questions:', err)
+      
+      // Handle limit exceeded errors specially
+      if (err instanceof Error && (err as any).limitExceeded) {
+        setError(err.message)
+        setLimitErrorInfo((err as any).limitsInfo)
+      } else if (err instanceof Error && err.message.includes('Daily limit exceeded')) {
+        setError('You have reached your daily limit for this content type. Please try again tomorrow or check your usage in your profile.')
+        setLimitErrorInfo(null)
+      } else if (err instanceof Error && err.message.includes("You've reached your daily limit")) {
+        setError(err.message)
+        setLimitErrorInfo(null)
+      } else {
+        setError(err instanceof Error ? err.message : 'Unknown error occurred')
+        setLimitErrorInfo(null)
+      }
     } finally {
       setLoading(false)
     }
@@ -110,10 +152,29 @@ export default function CustomSectionPage() {
             <div className="bg-red-50 border border-red-200 rounded-xl p-6">
               <div className="flex items-center">
                 <div className="text-red-600 font-medium">
-                  {t('Error generating questions')}
+                  {error.includes('daily limit') ? t('Daily limit exceeded') : t('Error generating questions')}
                 </div>
               </div>
               <p className="text-red-700 mt-2">{error}</p>
+              {error.includes('daily limit') && (
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-blue-800 text-sm">
+                    {t('Tip: Check your daily usage in your profile dropdown to see your current limits.')}
+                  </p>
+                  {limitErrorInfo && (
+                    <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                      <p className="text-gray-700 text-sm font-medium mb-2">{t('Current Usage:')}</p>
+                      <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                        <div>{t('Math')}: {limitErrorInfo.usage.quantitative_generated}/{limitErrorInfo.limits.quantitative}</div>
+                        <div>{t('Analogy')}: {limitErrorInfo.usage.analogy_generated}/{limitErrorInfo.limits.analogy}</div>
+                        <div>{t('Synonyms')}: {limitErrorInfo.usage.synonyms_generated}/{limitErrorInfo.limits.synonyms}</div>
+                        <div>{t('Reading')}: {limitErrorInfo.usage.reading_passages_generated}/{limitErrorInfo.limits.reading_passages}</div>
+                        <div>{t('Writing')}: {limitErrorInfo.usage.writing_generated}/{limitErrorInfo.limits.writing}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
