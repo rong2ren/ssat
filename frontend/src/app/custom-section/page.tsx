@@ -5,10 +5,13 @@ import { QuestionDisplay } from '@/components/QuestionDisplay'
 import { PracticeQuestionsForm } from '@/components/forms/PracticeQuestionsForm'
 import { QuestionRequest } from '@/types/api'
 import { useCustomSectionState, useCustomSectionActions, usePreferences } from '@/contexts/AppStateContext'
+import { useAuth } from '@/contexts/AuthContext'
 import AuthGuard from '@/components/auth/AuthGuard'
 import { getAuthHeaders } from '@/utils/auth'
+import { invalidateLimitsCache } from '@/components/DailyLimitsDisplay'
 
 export default function CustomSectionPage() {
+  const { user } = useAuth()
   // Use global state instead of local state
   const { questions, passages, contentType, loading, error } = useCustomSectionState()
   const { setLoading, setError, setQuestions, setPassages } = useCustomSectionActions()
@@ -69,6 +72,12 @@ export default function CustomSectionPage() {
       const data = await response.json()
       
       console.log('🔍 DAILY LIMITS: ✅ Generation completed successfully for:', request.question_type)
+      
+      // Invalidate limits cache to refresh the display
+      if (user?.id) {
+        invalidateLimitsCache(user.id)
+        console.log('🔍 DAILY LIMITS: Invalidated cache after generation')
+      }
       
       // Handle different response types based on content type
       if (data.questions) {

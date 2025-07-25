@@ -10,7 +10,7 @@ interface UserProfileProps {
   showChinese?: boolean
 }
 
-export default function UserProfile({ showChinese = false }: UserProfileProps) {
+function UserProfileComponent({ showChinese = false }: UserProfileProps) {
   const { user, logout, updateProfile, loading, error, clearError } = useAuth()
   const [showProfile, setShowProfile] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -369,4 +369,6 @@ export default function UserProfile({ showChinese = false }: UserProfileProps) {
       )}
     </div>
   )
-} 
+}
+
+export default React.memo(UserProfileComponent) 

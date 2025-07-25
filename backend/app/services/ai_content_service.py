@@ -8,7 +8,7 @@ from datetime import datetime
 import json
 
 from app.services.database import get_database_connection
-from app.services.embedding_service import embedding_service
+from app.services.embedding_service import get_embedding_service
 from app.models.responses import TestSection
 
 
@@ -164,6 +164,7 @@ class AIContentService:
                     logger.info(f"Extracted subsection: '{question_subsection}', tags: {question_tags}")
                 
                 # Generate embedding for the question
+                embedding_service = get_embedding_service()
                 question_embedding = embedding_service.generate_question_embedding(question_text, choices)
                 
                 # Use AI-generated subsection and tags, with intelligent fallbacks
@@ -236,6 +237,7 @@ class AIContentService:
                 else:
                     # Fallback
                     passage_text = getattr(section, 'passage', '')
+                embedding_service = get_embedding_service()
                 passage_embedding = embedding_service.generate_embedding(passage_text)
                 
                 # Build tags array with topic and any additional tags
@@ -412,6 +414,7 @@ class AIContentService:
                 
                 # WritingPrompt model uses 'prompt_text' not 'prompt'
                 prompt_text = prompt.prompt_text if hasattr(prompt, 'prompt_text') else getattr(prompt, 'prompt', '')
+                embedding_service = get_embedding_service()
                 prompt_embedding = embedding_service.generate_embedding(prompt_text)
                 
                 # Extract subsection from prompt data if available

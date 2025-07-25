@@ -5,9 +5,12 @@ import { ProgressiveTestGenerator } from '@/components/ProgressiveTestGenerator'
 import { CompleteTestForm } from '@/components/forms/CompleteTestForm'
 import { useFullTestState, useFullTestActions, usePreferences } from '@/contexts/AppStateContext'
 import { getAuthHeaders } from '@/utils/auth'
+import { useAuth } from '@/contexts/AuthContext'
+import { invalidateLimitsCache } from '@/components/DailyLimitsDisplay'
 
 export default function FullTestPage() {
-  // Use global state for persistent data (testRequest, showCompleteTest, jobStatus)
+  const { user } = useAuth()
+  // Use global state instead of local state
   const { testRequest, showCompleteTest, jobStatus } = useFullTestState()
   const { setTestRequest, setShowCompleteTest, setJobStatus } = useFullTestActions()
   const { showChinese } = usePreferences()
@@ -101,6 +104,13 @@ export default function FullTestPage() {
         setCurrentJobId(data.job_id)
         setIsPreparing(false) // Hide preparation state
         console.log('🚀 JOB CREATED:', data.job_id)
+        console.log('🔍 FULL TEST: ✅ Test generation started successfully')
+        
+        // Invalidate limits cache to refresh the display
+        if (user?.id) {
+          invalidateLimitsCache(user.id)
+          console.log('🔍 FULL TEST: Invalidated cache after test generation')
+        }
       } else {
         const errorData = await response.json().catch(() => ({}))
         const errorMessage = errorData.error || 'Failed to start test generation'

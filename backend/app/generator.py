@@ -13,6 +13,7 @@ from loguru import logger
 from app.llm import llm_client, LLMProvider
 from app.util import extract_json_from_text
 from app.settings import settings
+from app.services.embedding_service import get_embedding_service
 
 logger = logger
 
@@ -57,19 +58,14 @@ class SSATGenerator:
     """SSAT question generator with training examples from database."""
     
     def __init__(self):
-        """Initialize generator with Supabase connection and embedding model."""
+        """Initialize generator with Supabase connection and shared embedding service."""
         self.supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-        self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')  # 384 dimensions
-        logger.info("SSAT Generator initialized with database connection")
+        self.embedding_service = get_embedding_service()
+        logger.info("SSAT Generator initialized with database connection and shared embedding service")
     
-    def generate_embedding(self, text: str) -> List[float]:
-        """Generate embedding for text using Sentence-Transformers."""
-        try:
-            embedding = self.embedding_model.encode(text).tolist()
-            return embedding
-        except Exception as e:
-            logger.error(f"Failed to generate embedding: {e}")
-            return []
+    def generate_embedding(self, text: str) -> Optional[List[float]]:
+        """Generate embedding using the shared embedding service."""
+        return self.embedding_service.generate_embedding(text)
     
     def get_training_examples(self, request: QuestionRequest) -> List[Dict[str, Any]]:
         """Get real SSAT questions as training examples from database using embeddings."""

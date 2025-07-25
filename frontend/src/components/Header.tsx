@@ -1,5 +1,6 @@
 'use client'
 
+import React, { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { BookOpen, FileText, Home, Globe, LogIn, Target } from 'lucide-react'
@@ -12,10 +13,20 @@ interface HeaderProps {
   onLanguageToggle?: () => void
 }
 
-export function Header({ showChinese = false, onLanguageToggle }: HeaderProps) {
+function HeaderComponent({ showChinese = false, onLanguageToggle }: HeaderProps) {
   const pathname = usePathname()
   const { user, loading } = useAuth()
-  // console.log('🔄 Header: Component rendering', { user: !!user, loading })
+  
+  // Debug logging for auth state changes
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 Header: Auth state changed', { 
+        hasUser: !!user, 
+        loading,
+        userId: user?.id 
+      })
+    }
+  }, [user, loading])
 
   // UI translations
   const translations = {
@@ -104,23 +115,24 @@ export function Header({ showChinese = false, onLanguageToggle }: HeaderProps) {
             )}
 
             {/* Authentication */}
-            {!loading && (
-              <>
-                {user ? (
-                  <UserProfile showChinese={showChinese} />
-                ) : (
-                  <Link href="/auth">
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="flex items-center space-x-1 sm:space-x-2 px-1.5 sm:px-3 h-8 sm:h-9"
-                    >
-                      <LogIn className="h-3 w-3 sm:h-4 sm:w-4" />
-                      <span className="text-xs sm:text-sm hidden sm:inline">{t('Sign In')}</span>
-                    </Button>
-                  </Link>
-                )}
-              </>
+            {user ? (
+              <UserProfile showChinese={showChinese} />
+            ) : !loading ? (
+              <Link href="/auth">
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="flex items-center space-x-1 sm:space-x-2 px-1.5 sm:px-3 h-8 sm:h-9"
+                >
+                  <LogIn className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="text-xs sm:text-sm hidden sm:inline">{t('Sign In')}</span>
+                </Button>
+              </Link>
+            ) : (
+              // Show loading state while checking authentication
+              <div className="flex items-center space-x-1 sm:space-x-2 px-1.5 sm:px-3 h-8 sm:h-9">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              </div>
             )}
           </div>
         </div>
@@ -128,3 +140,5 @@ export function Header({ showChinese = false, onLanguageToggle }: HeaderProps) {
     </header>
   )
 }
+
+export const Header = React.memo(HeaderComponent)

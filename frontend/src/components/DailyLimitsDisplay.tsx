@@ -7,7 +7,43 @@ import { Progress } from './ui/Progress'
 
 // Global cache to prevent multiple API calls
 const limitsCache = new Map<string, { data: any; timestamp: number }>()
-const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+const CACHE_DURATION = 15 * 60 * 1000 // 15 minutes (increased from 5 minutes)
+
+// Cache key for localStorage
+const CACHE_STORAGE_KEY = 'daily_limits_cache'
+
+// Load cache from localStorage on module load
+try {
+  const stored = localStorage.getItem(CACHE_STORAGE_KEY)
+  if (stored) {
+    const parsed = JSON.parse(stored)
+    Object.entries(parsed).forEach(([key, value]: [string, any]) => {
+      limitsCache.set(key, value)
+    })
+    console.log('🔍 DailyLimitsDisplay: Loaded cache from localStorage:', Object.keys(parsed))
+  }
+} catch (error) {
+  console.warn('Failed to load limits cache from localStorage:', error)
+}
+
+// Save cache to localStorage
+const saveCacheToStorage = () => {
+  try {
+    const cacheObj = Object.fromEntries(limitsCache.entries())
+    localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(cacheObj))
+  } catch (error) {
+    console.warn('Failed to save limits cache to localStorage:', error)
+  }
+}
+
+// Function to invalidate cache for a user
+export const invalidateLimitsCache = (userId?: string) => {
+  if (userId) {
+    limitsCache.delete(userId)
+    saveCacheToStorage()
+    console.log('🔍 DailyLimitsDisplay: Invalidated cache for user:', userId)
+  }
+}
 
 interface DailyLimitsDisplayProps {
   showChinese?: boolean
@@ -38,7 +74,7 @@ interface LimitsData {
   }
 }
 
-export function DailyLimitsDisplay({ showChinese = false, className = '' }: DailyLimitsDisplayProps) {
+function DailyLimitsDisplayComponent({ showChinese = false, className = '' }: DailyLimitsDisplayProps) {
   const { user } = useAuth()
   const [limits, setLimits] = useState<LimitsData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -114,6 +150,7 @@ export function DailyLimitsDisplay({ showChinese = false, className = '' }: Dail
           setLimits(data.data)
           // Cache the result
           limitsCache.set(user.id, { data: data.data, timestamp: now })
+          saveCacheToStorage() // Save to localStorage
           console.log('🔍 DailyLimitsDisplay: Successfully fetched and cached limits')
         } else {
           throw new Error('Invalid response format')
@@ -233,4 +270,6 @@ export function DailyLimitsDisplay({ showChinese = false, className = '' }: Dail
       </div>
     </div>
   )
-} 
+}
+
+export const DailyLimitsDisplay = React.memo(DailyLimitsDisplayComponent)

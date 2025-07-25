@@ -35,6 +35,7 @@ from app.auth import router as auth_router, get_current_user, security
 from app.models.user import UserProfile
 from app.services.daily_limit_service import DailyLimitService
 from app.services.database import get_database_connection
+from app.services.embedding_service import get_embedding_service
 from supabase import create_client
 
 # Initialize Supabase client
@@ -114,6 +115,25 @@ async def get_provider_status():
     except Exception as e:
         logger.error(f"Failed to get provider status: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get provider status: {str(e)}")
+
+@app.get("/embedding/status")
+async def get_embedding_status():
+    """Get status of the embedding service."""
+    try:
+        embedding_service = get_embedding_service()
+        model_info = embedding_service.get_model_info()
+        available_models = embedding_service.get_available_models()
+        
+        return {
+            "embedding_service": model_info,
+            "backup_models": embedding_service.BACKUP_MODELS,
+            "cached_models": available_models,
+            "network_status": "offline" if not available_models else "online",
+            "timestamp": datetime.utcnow()
+        }
+    except Exception as e:
+        logger.error(f"Failed to get embedding status: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get embedding status")
 
 @app.post("/generate")
 async def generate_content(request: QuestionGenerationRequest, current_user: UserProfile = Depends(get_current_user)):
