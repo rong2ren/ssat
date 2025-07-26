@@ -46,6 +46,7 @@ class ReadingPassage(BaseModel):
 
 class WritingPrompt(BaseModel):
     """A writing prompt for the writing section."""
+    id: Optional[str] = Field(default=None, description="Unique prompt identifier")
     prompt_text: str = Field(..., description="The main writing prompt")
     instructions: str = Field(..., description="Instructions for students")
     visual_description: Optional[str] = Field(default=None, description="Description of visual prompt")

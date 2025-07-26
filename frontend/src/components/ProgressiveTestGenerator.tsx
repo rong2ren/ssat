@@ -121,7 +121,7 @@ export function ProgressiveTestGenerator({
   const defaultTestRequest = {
     difficulty: 'Medium',
     include_sections: ['quantitative', 'verbal', 'reading', 'writing'],
-    custom_counts: { quantitative: 30, verbal: 30, reading: 28, writing: 1 },
+    custom_counts: { quantitative: 30, verbal: 30, reading: 7, writing: 1 },
     is_official_format: true
   }
 
@@ -719,9 +719,6 @@ export function ProgressiveTestGenerator({
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
               <div className="flex items-center space-x-2">
                 <CheckCircle className="h-5 w-5 text-green-600" />
-                <span className="text-sm font-medium text-gray-900">
-                  {t('Test Complete')}
-                </span>
               </div>
               
               <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">

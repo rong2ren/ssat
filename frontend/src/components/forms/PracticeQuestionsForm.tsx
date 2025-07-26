@@ -71,7 +71,7 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
     { value: 'quantitative', label: t('Quantitative') },
     { value: 'reading', label: t('Reading') },
     { value: 'analogy', label: t('Analogies') },
-    { value: 'synonym', label: t('Synonyms') },
+    { value: 'synonyms', label: t('Synonyms') },
     { value: 'writing', label: t('Writing') }
   ]
 

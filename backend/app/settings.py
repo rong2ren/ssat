@@ -7,7 +7,6 @@ class Settings(BaseSettings):
     # create a subclass called Settings that inherits from BaseSettings
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
-    SUPABASE_JWT_SECRET: str = ""  # JWT secret for token verification
     SUPABASE_SERVICE_ROLE_KEY: str = ""  # Service role key for admin operations
     
     # LLM Provider API Keys
@@ -15,7 +14,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     DEEPSEEK_API_KEY: str = ""
     
-    EMBEDDING_MODEL_NAME: str = "all-MiniLM-L6-v2"  # optional
+    # EMBEDDING_MODEL_NAME removed - using automatic model fallback instead
     APP_ENV: str = "dev"  # optional, tracks environment (dev/staging/prod)
 
     class Config:

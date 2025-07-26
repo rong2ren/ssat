@@ -135,6 +135,34 @@ async def get_embedding_status():
         logger.error(f"Failed to get embedding status: {e}")
         raise HTTPException(status_code=500, detail="Failed to get embedding status")
 
+@app.get("/pool/status")
+async def get_pool_status(current_user: UserProfile = Depends(get_current_user)):
+    """Get pool statistics and user usage information."""
+    try:
+        from app.services.pool_selection_service import PoolSelectionService
+        
+        pool_service = PoolSelectionService()
+        
+        # Get overall pool statistics
+        pool_stats = await pool_service.get_pool_statistics()
+        
+        # Get user-specific usage statistics
+        user_stats = await pool_service.get_user_usage_statistics(str(current_user.id))
+        
+        return {
+            "status": "success",
+            "data": {
+                "pool_statistics": pool_stats,
+                "user_statistics": user_stats
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error getting pool status: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
 @app.post("/generate")
 async def generate_content(request: QuestionGenerationRequest, current_user: UserProfile = Depends(get_current_user)):
     """Generate SSAT content based on request parameters. Returns type-specific response."""
@@ -232,6 +260,289 @@ async def generate_content(request: QuestionGenerationRequest, current_user: Use
             logger.error(f"🔍 DAILY LIMITS: ❌ Error checking daily limits: {e}")
             # Continue with generation even if limit check fails
         
+        # Try to get questions from existing AI-generated content pool first
+        from app.services.pool_selection_service import PoolSelectionService
+        from app.services.pool_response_converter import PoolResponseConverter
+        
+        pool_service = PoolSelectionService()
+        pool_converter = PoolResponseConverter()
+        
+        # Determine section mapping for pool lookup
+        section_mapping = {
+            "quantitative": "Quantitative",
+            "analogy": "Verbal",    # Analogies are part of Verbal section in database
+            "synonyms": "Verbal"    # Synonyms are part of Verbal section in database
+        }
+        
+        # Determine subsection mapping for filtering
+        subsection_mapping = {
+            "analogy": "Analogies",
+            "synonyms": "Synonyms"
+        }
+        
+        pool_result = None
+        
+        if request.question_type.value in ["quantitative", "analogy", "synonyms"]:
+            # For regular questions
+            section_name = section_mapping.get(request.question_type.value, "Verbal")
+            subsection_name = subsection_mapping.get(request.question_type.value)
+            difficulty = request.difficulty.value if request.difficulty else None
+            
+            logger.info(f"🔍 POOL DEBUG: Attempting pool retrieval for {request.question_type.value} questions")
+            logger.info(f"🔍 POOL DEBUG: Section={section_name}, Subsection={subsection_name}, Difficulty={difficulty}, Count={request.count}")
+            
+            pool_questions = await pool_service.get_unused_questions_for_user(
+                user_id=str(current_user.id),
+                section=section_name,
+                subsection=subsection_name,  # Add subsection filtering
+                count=request.count,
+                difficulty=difficulty
+            )
+            
+            logger.info(f"🔍 POOL DEBUG: Retrieved {len(pool_questions)} questions from pool, need {request.count}")
+            
+            if len(pool_questions) >= request.count:
+                logger.info(f"🔍 POOL: ✅ Found {len(pool_questions)} unused questions in pool for user {current_user.id}")
+                logger.info(f"🔍 POOL DEBUG: Question IDs: {[q['id'][:8] + '...' for q in pool_questions[:request.count]]}")
+                
+                # Convert pool questions to API response format
+                pool_result = pool_converter.convert_questions_to_response(pool_questions[:request.count], request)
+                
+                # Mark questions as used with specific content type
+                question_ids = [q['id'] for q in pool_questions[:request.count]]
+                await pool_service.mark_content_as_used(
+                    user_id=str(current_user.id),
+                    question_ids=question_ids,
+                    usage_type="custom_section",
+                    content_type=request.question_type.value  # Pass specific content type
+                )
+                
+                logger.info(f"🔍 POOL: ✅ Successfully delivered {request.count} questions from pool")
+                logger.info(f"🔍 POOL DEBUG: Marked questions as used: {[qid[:8] + '...' for qid in question_ids]}")
+            elif len(pool_questions) > 0:
+                # Pool has some questions but not enough - use what's available and generate the rest
+                logger.info(f"🔍 POOL: ⚠️ Pool partially available - found {len(pool_questions)} questions, need {request.count}")
+                logger.info(f"🔍 POOL DEBUG: Will use {len(pool_questions)} from pool and generate {request.count - len(pool_questions)} more")
+                
+                # Mark the available pool questions as used
+                question_ids = [q['id'] for q in pool_questions]
+                await pool_service.mark_content_as_used(
+                    user_id=str(current_user.id),
+                    question_ids=question_ids,
+                    usage_type="custom_section",
+                    content_type=request.question_type.value
+                )
+                logger.info(f"🔍 POOL: ✅ Marked {len(question_ids)} pool questions as used")
+                
+                # Convert pool questions to response format
+                pool_questions_response = pool_converter.convert_questions_to_response(pool_questions, request)
+                
+                # Generate the remaining questions on-demand
+                remaining_count = request.count - len(pool_questions)
+                logger.info(f"🔍 POOL: 🔄 Generating {remaining_count} additional questions on-demand")
+                
+                # Create a new request for the remaining questions
+                remaining_request = request.model_copy(update={"count": remaining_count})
+                remaining_result = await content_service.generate_content(remaining_request)
+                
+                # Combine pool questions with generated questions
+                if isinstance(remaining_result, QuestionGenerationResponse):
+                    combined_questions = pool_questions_response.questions + remaining_result.questions
+                    pool_result = QuestionGenerationResponse(
+                        questions=combined_questions,
+                        metadata=remaining_result.metadata,
+                        status="success",
+                        count=len(combined_questions)
+                    )
+                    logger.info(f"🔍 POOL: ✅ Combined {len(pool_questions)} pool questions + {len(remaining_result.questions)} generated questions")
+                else:
+                    # Fallback if generation failed
+                    pool_result = pool_questions_response
+                    logger.warning(f"🔍 POOL: ⚠️ Generation failed, returning only pool questions")
+            else:
+                logger.info(f"🔍 POOL: ❌ Pool exhausted - no questions available, need {request.count}")
+        
+        elif request.question_type.value == "reading":
+            # For reading content
+            logger.info(f"🔍 POOL DEBUG: Attempting pool retrieval for reading passages")
+            logger.info(f"🔍 POOL DEBUG: Count={request.count}")
+            
+            pool_passages = await pool_service.get_unused_reading_content_for_user(
+                user_id=str(current_user.id),
+                count=request.count
+            )
+            
+            logger.info(f"🔍 POOL DEBUG: Retrieved {len(pool_passages)} reading passages from pool, need {request.count}")
+            
+            if len(pool_passages) >= request.count:
+                logger.info(f"🔍 POOL: ✅ Found {len(pool_passages)} unused reading passages in pool for user {current_user.id}")
+                logger.info(f"🔍 POOL DEBUG: Passage IDs: {[p['passage_id'][:8] + '...' for p in pool_passages[:request.count]]}")
+                
+                # Convert pool passages to API response format
+                pool_result = pool_converter.convert_reading_to_response(pool_passages[:request.count], request)
+                
+                # Mark passages as used
+                passage_ids = [p['passage_id'] for p in pool_passages[:request.count]]
+                await pool_service.mark_content_as_used(
+                    user_id=str(current_user.id),
+                    passage_ids=passage_ids,
+                    usage_type="custom_section"
+                )
+                
+                logger.info(f"🔍 POOL: ✅ Successfully delivered {request.count} reading passages from pool")
+                logger.info(f"🔍 POOL DEBUG: Marked passages as used: {[pid[:8] + '...' for pid in passage_ids]}")
+            elif len(pool_passages) > 0:
+                # Pool has some passages but not enough - use what's available and generate the rest
+                logger.info(f"🔍 POOL: ⚠️ Pool partially available - found {len(pool_passages)} passages, need {request.count}")
+                logger.info(f"🔍 POOL DEBUG: Will use {len(pool_passages)} from pool and generate {request.count - len(pool_passages)} more")
+                
+                # Mark the available pool passages as used
+                passage_ids = [p['passage_id'] for p in pool_passages]
+                await pool_service.mark_content_as_used(
+                    user_id=str(current_user.id),
+                    passage_ids=passage_ids,
+                    usage_type="custom_section"
+                )
+                logger.info(f"🔍 POOL: ✅ Marked {len(passage_ids)} pool passages as used")
+                
+                # Convert pool passages to response format
+                pool_passages_response = pool_converter.convert_reading_to_response(pool_passages, request)
+                
+                # Generate the remaining passages on-demand
+                remaining_count = request.count - len(pool_passages)
+                logger.info(f"🔍 POOL: 🔄 Generating {remaining_count} additional reading passages on-demand")
+                
+                # Create a new request for the remaining passages
+                remaining_request = request.model_copy(update={"count": remaining_count})
+                remaining_result = await content_service.generate_content(remaining_request)
+                
+                # Combine pool passages with generated passages
+                if isinstance(remaining_result, ReadingGenerationResponse):
+                    combined_passages = pool_passages_response.passages + remaining_result.passages
+                    pool_result = ReadingGenerationResponse(
+                        passages=combined_passages,
+                        metadata=remaining_result.metadata,
+                        status="success",
+                        count=len(combined_passages),
+                        total_questions=sum(len(p.questions) for p in combined_passages)
+                    )
+                    logger.info(f"🔍 POOL: ✅ Combined {len(pool_passages)} pool passages + {len(remaining_result.passages)} generated passages")
+                else:
+                    # Fallback if generation failed
+                    pool_result = pool_passages_response
+                    logger.warning(f"🔍 POOL: ⚠️ Generation failed, returning only pool passages")
+            else:
+                logger.info(f"🔍 POOL: ❌ Pool exhausted - no reading passages available, need {request.count}")
+        
+        elif request.question_type.value == "writing":
+            # For writing prompts
+            logger.info(f"🔍 POOL DEBUG: Attempting pool retrieval for writing prompts")
+            logger.info(f"🔍 POOL DEBUG: Count={request.count}")
+            
+            pool_prompts = await pool_service.get_unused_writing_prompts_for_user(
+                user_id=str(current_user.id),
+                count=request.count
+            )
+            
+            logger.info(f"🔍 POOL DEBUG: Retrieved {len(pool_prompts)} writing prompts from pool, need {request.count}")
+            
+            if len(pool_prompts) >= request.count:
+                logger.info(f"🔍 POOL: ✅ Found {len(pool_prompts)} unused writing prompts in pool for user {current_user.id}")
+                logger.info(f"🔍 POOL DEBUG: Prompt IDs: {[p['id'][:8] + '...' for p in pool_prompts[:request.count]]}")
+                
+                # Convert pool prompts to API response format
+                pool_result = pool_converter.convert_writing_to_response(pool_prompts[:request.count], request)
+                
+                # Mark prompts as used
+                prompt_ids = [p['id'] for p in pool_prompts[:request.count]]
+                await pool_service.mark_content_as_used(
+                    user_id=str(current_user.id),
+                    writing_prompt_ids=prompt_ids,
+                    usage_type="custom_section"
+                )
+                
+                logger.info(f"🔍 POOL: ✅ Successfully delivered {request.count} writing prompts from pool")
+                logger.info(f"🔍 POOL DEBUG: Marked prompts as used: {[pid[:8] + '...' for pid in prompt_ids]}")
+            elif len(pool_prompts) > 0:
+                # Pool has some prompts but not enough - use what's available and generate the rest
+                logger.info(f"🔍 POOL: ⚠️ Pool partially available - found {len(pool_prompts)} prompts, need {request.count}")
+                logger.info(f"🔍 POOL DEBUG: Will use {len(pool_prompts)} from pool and generate {request.count - len(pool_prompts)} more")
+                
+                # Mark the available pool prompts as used
+                prompt_ids = [p['id'] for p in pool_prompts]
+                await pool_service.mark_content_as_used(
+                    user_id=str(current_user.id),
+                    writing_prompt_ids=prompt_ids,
+                    usage_type="custom_section"
+                )
+                logger.info(f"🔍 POOL: ✅ Marked {len(prompt_ids)} pool prompts as used")
+                
+                # Convert pool prompts to response format
+                pool_prompts_response = pool_converter.convert_writing_to_response(pool_prompts, request)
+                
+                # Generate the remaining prompts on-demand
+                remaining_count = request.count - len(pool_prompts)
+                logger.info(f"🔍 POOL: 🔄 Generating {remaining_count} additional writing prompts on-demand")
+                
+                # Create a new request for the remaining prompts
+                remaining_request = request.model_copy(update={"count": remaining_count})
+                remaining_result = await content_service.generate_content(remaining_request)
+                
+                # Combine pool prompts with generated prompts
+                if isinstance(remaining_result, WritingGenerationResponse):
+                    combined_prompts = pool_prompts_response.prompts + remaining_result.prompts
+                    pool_result = WritingGenerationResponse(
+                        prompts=combined_prompts,
+                        metadata=remaining_result.metadata,
+                        status="success",
+                        count=len(combined_prompts)
+                    )
+                    logger.info(f"🔍 POOL: ✅ Combined {len(pool_prompts)} pool prompts + {len(remaining_result.prompts)} generated prompts")
+                else:
+                    # Fallback if generation failed
+                    pool_result = pool_prompts_response
+                    logger.warning(f"🔍 POOL: ⚠️ Generation failed, returning only pool prompts")
+            else:
+                logger.info(f"🔍 POOL: ❌ Pool exhausted - no writing prompts available, need {request.count}")
+        
+        # If pool result is available, return it; otherwise fallback to on-demand generation
+        if pool_result:
+            logger.info(f"🔍 POOL: 🎉 Returning pool result - instant delivery!")
+            
+            # INCREMENT PHASE: Increment usage after successful pool delivery
+            try:
+                # Determine the count to increment based on section type and actual result
+                increment_count = 0
+                if section == "quantitative" or section == "analogy" or section == "synonyms":
+                    increment_count = request.count
+                elif section == "reading_passages":
+                    increment_count = request.count
+                elif section == "writing":
+                    increment_count = request.count
+                
+                logger.info(f"🔍 DAILY LIMITS: Incrementing usage for user {current_user.id}, section '{section}' by {increment_count}")
+                
+                response = supabase.rpc(
+                    'increment_user_daily_usage',
+                    {
+                        'p_user_id': str(current_user.id),
+                        'p_section': section,
+                        'p_amount': increment_count
+                    }
+                ).execute()
+                
+                logger.info(f"🔍 DAILY LIMITS: Increment response: {response.data}")
+                
+            except Exception as e:
+                logger.error(f"🔍 DAILY LIMITS: ❌ Error incrementing usage: {e}")
+                # Don't fail the request if increment fails
+            
+            return pool_result
+        
+        # Fallback to on-demand generation if pool is exhausted
+        logger.info(f"🔍 POOL: ⚠️ Pool exhausted for user {current_user.id}, falling back to on-demand generation")
+        logger.info(f"🔍 POOL DEBUG: Starting AI generation for {request.question_type.value} questions")
+        
         # Use unified content service for proper type-specific generation
         result = await content_service.generate_content(request)
         
@@ -255,33 +566,47 @@ async def generate_content(request: QuestionGenerationRequest, current_user: Use
             if isinstance(result, WritingGenerationResponse):
                 # WritingGenerationResponse has .prompts
                 logger.info(f"Saving writing prompts to database - session: {session_id}, prompts count: {len(result.prompts)}")
-                await ai_content_service.save_writing_prompts(session_id, {"writing_prompts": result.prompts}, training_example_ids)
+                saved_prompt_ids = await ai_content_service.save_writing_prompts(session_id, {"writing_prompts": result.prompts}, training_example_ids)
+                
+                # Assign the database IDs back to the WritingPrompt objects
+                for i, prompt in enumerate(result.prompts):
+                    if i < len(saved_prompt_ids):
+                        prompt.id = saved_prompt_ids[i]
+                        logger.debug(f"Assigned database ID {saved_prompt_ids[i]} to writing prompt {i}")
+                
                 logger.info(f"Successfully saved writing prompts to database")
             elif isinstance(result, ReadingGenerationResponse):
                 # ReadingGenerationResponse has .passages
                 logger.info(f"Saving reading content to database - session: {session_id}, passages count: {len(result.passages)}")
-                await ai_content_service.save_reading_content(
+                saved_ids = await ai_content_service.save_reading_content(
                     session_id, 
                     {"reading_sections": result.passages}, 
                     training_example_ids,
                     topic=request.topic or ""  # Pass the topic for tagging, default to empty string
                 )
+                
+                # Assign the database IDs back to the ReadingPassage objects
+                for i, passage in enumerate(result.passages):
+                    if i < len(saved_ids.get('passage_ids', [])):
+                        passage.id = saved_ids['passage_ids'][i]
+                        logger.debug(f"Assigned database ID {saved_ids['passage_ids'][i]} to passage {i}")
+                
                 logger.info(f"Successfully saved reading content to database")
             elif isinstance(result, QuestionGenerationResponse):
-                # Regular questions (quantitative, analogy, synonym)
+                # Regular questions (quantitative, analogy, synonyms)
                 # QuestionGenerationResponse has .questions
                 section_mapping = {
                     "quantitative": "Quantitative",
                     "analogy": "Verbal",    # Analogies are part of Verbal section in database
-                    "synonym": "Verbal"     # Synonyms are part of Verbal section in database
+                    "synonyms": "Verbal"    # Synonyms are part of Verbal section in database
                 }
                 section_name = section_mapping.get(request.question_type.value, "Verbal")
                 
                 # Use AI-determined subsection - DO NOT OVERRIDE the AI's intelligent categorization
                 if request.question_type.value == "analogy":
                     subsection = "Analogies"  # Fixed subsection for analogy questions
-                elif request.question_type.value == "synonym":
-                    subsection = "Synonyms"  # Fixed subsection for synonym questions
+                elif request.question_type.value == "synonyms":
+                    subsection = "Synonyms"  # Fixed subsection for synonyms questions
                 else:
                     # For quantitative and verbal questions, ALWAYS use AI-determined subsection
                     # The AI has analyzed the content and provided specific, educational categorization
@@ -291,13 +616,20 @@ async def generate_content(request: QuestionGenerationRequest, current_user: Use
                 training_example_ids = result.metadata.training_example_ids
                 logger.debug(f"Using training example IDs from result metadata: {training_example_ids}")
                 
-                await ai_content_service.save_generated_questions(
+                # Save questions to database and get the generated IDs
+                saved_question_ids = await ai_content_service.save_generated_questions(
                     session_id, 
                     result.questions,
                     section_name, 
                     subsection or "",  # Convert None to empty string
                     training_example_ids
                 )
+                
+                # Assign the database IDs back to the GeneratedQuestion objects
+                for i, question in enumerate(result.questions):
+                    if i < len(saved_question_ids):
+                        question.id = saved_question_ids[i]
+                        logger.debug(f"Assigned database ID {saved_question_ids[i]} to question {i}")
             
             # Get the provider used from the result metadata
             provider_used = result.metadata.provider_used
@@ -351,6 +683,46 @@ async def generate_content(request: QuestionGenerationRequest, current_user: Use
             ).execute()
             
             logger.info(f"🔍 DAILY LIMITS: Increment response: {response.data}")
+            
+            # MARK CONTENT AS USED: Mark on-demand generated content as used in user_question_usage table
+            try:
+                if isinstance(result, QuestionGenerationResponse):
+                    # For regular questions, mark each question as used
+                    question_ids = [q.id for q in result.questions if q.id is not None]
+                    if question_ids:
+                        await pool_service.mark_content_as_used(
+                            user_id=str(current_user.id),
+                            question_ids=question_ids,
+                            usage_type="custom_section",
+                            content_type=request.question_type.value
+                        )
+                        logger.info(f"🔍 POOL: ✅ Marked {len(question_ids)} on-demand generated questions as used")
+                    else:
+                        logger.warning(f"🔍 POOL: ⚠️ No valid question IDs found to mark as used")
+                elif isinstance(result, ReadingGenerationResponse):
+                    # For reading content, mark each passage as used
+                    passage_ids = [p.id for p in result.passages]
+                    await pool_service.mark_content_as_used(
+                        user_id=str(current_user.id),
+                        passage_ids=passage_ids,
+                        usage_type="custom_section"
+                    )
+                    logger.info(f"🔍 POOL: ✅ Marked {len(passage_ids)} on-demand generated reading passages as used")
+                elif isinstance(result, WritingGenerationResponse):
+                    # For writing prompts, mark each prompt as used
+                    prompt_ids = [p.id for p in result.prompts if p.id is not None]
+                    if prompt_ids:
+                        await pool_service.mark_content_as_used(
+                            user_id=str(current_user.id),
+                            writing_prompt_ids=prompt_ids,
+                            usage_type="custom_section"
+                        )
+                        logger.info(f"🔍 POOL: ✅ Marked {len(prompt_ids)} on-demand generated writing prompts as used")
+                    else:
+                        logger.warning(f"🔍 POOL: ⚠️ No valid writing prompt IDs found to mark as used")
+            except Exception as mark_error:
+                logger.error(f"🔍 POOL: ❌ Error marking on-demand content as used: {mark_error}")
+                # Don't fail the request if marking as used fails
             
         except Exception as e:
             logger.error(f"🔍 DAILY LIMITS: ❌ Error incrementing usage: {e}")
@@ -573,7 +945,7 @@ async def generate_test_sections_background(job_id: str, request: CompleteTestRe
                     
                     # Count questions based on section type
                     section_questions = 0
-                    if section_type in ['quantitative', 'analogy', 'synonym']:
+                    if section_type in ['quantitative', 'analogy', 'synonyms']:
                         # Question-based sections
                         if 'questions' in section_data:
                             section_questions = len(section_data['questions'])
@@ -634,7 +1006,7 @@ async def generate_test_sections_background(job_id: str, request: CompleteTestRe
                         elif section_type == 'analogy':
                             if 'questions' in section_data:
                                 analogy += len(section_data['questions'])
-                        elif section_type == 'synonym':
+                        elif section_type == 'synonyms':
                             if 'questions' in section_data:
                                 synonyms += len(section_data['questions'])
                         elif section_type == 'reading':
@@ -642,7 +1014,10 @@ async def generate_test_sections_background(job_id: str, request: CompleteTestRe
                                 reading_passages += len(section_data['passages'])
                         elif section_type == 'writing':
                             # Count writing prompts from section data
-                            if 'prompts' in section_data:
+                            if 'prompt' in section_data:
+                                # WritingSection has a single 'prompt' field
+                                writing += 1
+                            elif 'prompts' in section_data:
                                 writing += len(section_data['prompts'])
                             elif 'writing_prompts' in section_data:
                                 writing += len(section_data['writing_prompts'])
@@ -693,35 +1068,262 @@ async def generate_single_section_background(job_id: str, section_type, request:
         custom_counts = request.custom_counts or {}
         logger.debug(f"🔍 DEBUG: Section {section_type.value}, custom_counts: {custom_counts}")
         section_count = custom_counts.get(section_type.value, {
-            "quantitative": 1, "analogy": 1, "synonym": 1, "reading": 1, "writing": 1
+            "quantitative": 1, "analogy": 1, "synonyms": 1, "reading": 1, "writing": 1
         }.get(section_type.value, 5))
         logger.debug(f"🔍 DEBUG: Final section_count for {section_type.value}: {section_count}")
         
-        # Update progress: about to start LLM generation (50% of section progress)
+        # Update progress: about to start generation (50% of section progress)
         job_manager.update_section_progress(job_id, section_type.value, 50, f"Generating {section_count} questions...")
         
-        # Generate the section using async service methods for true parallelism
-        logger.debug(f"🔍 DEBUG: Generating section {section_type.value} with is_official_format={request.is_official_format}")
+        # Try to get questions from existing AI-generated content pool first
+        from app.services.pool_selection_service import PoolSelectionService
+        from app.services.pool_response_converter import PoolResponseConverter
         
-        if section_type.value == "writing":
-            logger.debug(f"📝 DEBUG: Using writing section generation")
-            section = await question_service._generate_writing_section(request.difficulty)
+        pool_service = PoolSelectionService()
+        pool_converter = PoolResponseConverter()
+        
+        # Get job to access user_id
+        job = job_manager.get_job(job_id)
+        if not job or not job.user_id:
+            logger.error(f"Job {job_id} not found or has no user_id")
+            return
+        
+        # Determine section mapping for pool lookup
+        section_mapping = {
+            "quantitative": "Quantitative",
+            "analogy": "Verbal",    # Analogies are part of Verbal section in database
+            "synonyms": "Verbal"    # Synonyms are part of Verbal section in database
+        }
+        
+        # Determine subsection mapping for filtering
+        subsection_mapping = {
+            "analogy": "Analogies",
+            "synonyms": "Synonyms"
+        }
+        
+        pool_result = None
+        
+        if section_type.value in ["quantitative", "analogy", "synonyms"]:
+            # For regular questions
+            section_name = section_mapping.get(section_type.value, "Verbal")
+            subsection_name = subsection_mapping.get(section_type.value)
+            difficulty = request.difficulty.value if request.difficulty else None
+            
+            logger.info(f"🔍 POOL DEBUG: Attempting pool retrieval for {section_type.value} questions")
+            logger.info(f"🔍 POOL DEBUG: Section={section_name}, Subsection={subsection_name}, Difficulty={difficulty}, Count={section_count}")
+            
+            pool_questions = await pool_service.get_unused_questions_for_user(
+                user_id=job.user_id,  # Use job.user_id since we don't have current_user here
+                section=section_name,
+                subsection=subsection_name,
+                count=section_count,
+                difficulty=difficulty
+            )
+            
+            logger.info(f"🔍 POOL DEBUG: Retrieved {len(pool_questions)} questions from pool, need {section_count}")
+            
+            if len(pool_questions) >= section_count:
+                logger.info(f"🔍 POOL: ✅ Found {len(pool_questions)} unused questions in pool for user {job.user_id}")
+                logger.info(f"🔍 POOL DEBUG: Question IDs: {[q['id'][:8] + '...' for q in pool_questions[:section_count]]}")
+                
+                # Convert pool questions to API response format
+                # Create a mock request object for the converter
+                mock_request = QuestionGenerationRequest(
+                    question_type=section_type,
+                    difficulty=request.difficulty,
+                    count=section_count,
+                    is_official_format=request.is_official_format
+                )
+                pool_result = pool_converter.convert_questions_to_section(pool_questions[:section_count], section_type.value)
+                
+                # Mark questions as used with specific content type
+                question_ids = [q['id'] for q in pool_questions[:section_count]]
+                await pool_service.mark_content_as_used(
+                    user_id=job.user_id,
+                    question_ids=question_ids,
+                    usage_type="complete_test",
+                    content_type=section_type.value
+                )
+                
+                logger.info(f"🔍 POOL: ✅ Successfully delivered {section_count} questions from pool")
+                logger.info(f"🔍 POOL DEBUG: Marked questions as used: {[qid[:8] + '...' for qid in question_ids]}")
+            elif len(pool_questions) > 0:
+                # Pool has some questions but not enough - use what's available and generate the rest
+                logger.info(f"🔍 POOL: ⚠️ Pool partially available - found {len(pool_questions)} questions, need {section_count}")
+                logger.info(f"🔍 POOL DEBUG: Will use {len(pool_questions)} from pool and generate {section_count - len(pool_questions)} more")
+                
+                # Mark the available pool questions as used
+                question_ids = [q['id'] for q in pool_questions]
+                await pool_service.mark_content_as_used(
+                    user_id=job.user_id,
+                    question_ids=question_ids,
+                    usage_type="complete_test",
+                    content_type=section_type.value
+                )
+                
+                # Convert available pool questions
+                mock_request = QuestionGenerationRequest(
+                    question_type=section_type,
+                    difficulty=request.difficulty,
+                    count=len(pool_questions),
+                    is_official_format=request.is_official_format
+                )
+                pool_result = pool_converter.convert_questions_to_section(pool_questions, section_type.value)
+                
+                # Update section_count to generate only the remaining questions
+                section_count = section_count - len(pool_questions)
+                logger.info(f"🔍 POOL: Will generate {section_count} additional questions on-demand")
+            else:
+                logger.info(f"🔍 POOL: ❌ No questions available in pool for {section_type.value}, will generate {section_count} on-demand")
+        
         elif section_type.value == "reading":
-            logger.debug(f"📖 DEBUG: Using reading section generation")
-            section = await question_service._generate_reading_section(
-                request.difficulty, section_count, request.provider, use_async=True
+            # For reading sections
+            logger.info(f"🔍 POOL DEBUG: Attempting pool retrieval for reading content")
+            
+            pool_content = await pool_service.get_unused_reading_content_for_user(
+                user_id=job.user_id,
+                count=section_count
             )
-        elif section_type.value == "quantitative" and request.is_official_format:
-            # Use official topic breakdown for quantitative questions
-            logger.debug(f"🎯 DEBUG: Using OFFICIAL quantitative generation with topic breakdown for {section_count} questions")
-            section = await question_service._generate_quantitative_section_official(
-                request.difficulty, section_count, request.provider, use_async=True
+            
+            logger.info(f"🔍 POOL DEBUG: Retrieved {len(pool_content)} reading passages from pool, need {section_count}")
+            
+            if len(pool_content) >= section_count:
+                logger.info(f"🔍 POOL: ✅ Found {len(pool_content)} unused reading passages in pool for user {job.user_id}")
+                
+                # Convert pool content to API response format
+                mock_request = QuestionGenerationRequest(
+                    question_type=section_type,
+                    difficulty=request.difficulty,
+                    count=section_count,
+                    is_official_format=request.is_official_format
+                )
+                pool_result = pool_converter.convert_reading_to_section(pool_content[:section_count])
+                
+                # Mark passages as used
+                passage_ids = [item['passage_id'] for item in pool_content[:section_count]]
+                await pool_service.mark_content_as_used(
+                    user_id=job.user_id,
+                    passage_ids=passage_ids,
+                    usage_type="complete_test"
+                )
+                
+                logger.info(f"🔍 POOL: ✅ Successfully delivered {section_count} reading passages from pool")
+            elif len(pool_content) > 0:
+                # Pool has some passages but not enough
+                logger.info(f"🔍 POOL: ⚠️ Pool partially available - found {len(pool_content)} passages, need {section_count}")
+                
+                # Mark available passages as used
+                passage_ids = [item['passage_id'] for item in pool_content]
+                await pool_service.mark_content_as_used(
+                    user_id=job.user_id,
+                    passage_ids=passage_ids,
+                    usage_type="complete_test"
+                )
+                
+                # Convert available pool content
+                mock_request = QuestionGenerationRequest(
+                    question_type=section_type,
+                    difficulty=request.difficulty,
+                    count=len(pool_content),
+                    is_official_format=request.is_official_format
+                )
+                pool_result = pool_converter.convert_reading_to_section(pool_content)
+                
+                # Update section_count to generate only the remaining passages
+                section_count = section_count - len(pool_content)
+                logger.info(f"🔍 POOL: Will generate {section_count} additional reading passages on-demand")
+            else:
+                logger.info(f"🔍 POOL: ❌ No reading content available in pool, will generate {section_count} on-demand")
+        
+        elif section_type.value == "writing":
+            # For writing sections
+            logger.info(f"🔍 POOL DEBUG: Attempting pool retrieval for writing prompts")
+            
+            pool_prompts = await pool_service.get_unused_writing_prompts_for_user(
+                user_id=job.user_id,
+                count=section_count
             )
+            
+            logger.info(f"🔍 POOL DEBUG: Retrieved {len(pool_prompts)} writing prompts from pool, need {section_count}")
+            
+            if len(pool_prompts) >= section_count:
+                logger.info(f"🔍 POOL: ✅ Found {len(pool_prompts)} unused writing prompts in pool for user {job.user_id}")
+                
+                # Convert pool content to API response format
+                mock_request = QuestionGenerationRequest(
+                    question_type=section_type,
+                    difficulty=request.difficulty,
+                    count=section_count,
+                    is_official_format=request.is_official_format
+                )
+                pool_result = pool_converter.convert_writing_to_section(pool_prompts[:section_count])
+                
+                # Mark prompts as used
+                prompt_ids = [item['id'] for item in pool_prompts[:section_count]]
+                await pool_service.mark_content_as_used(
+                    user_id=job.user_id,
+                    writing_prompt_ids=prompt_ids,
+                    usage_type="complete_test"
+                )
+                
+                logger.info(f"🔍 POOL: ✅ Successfully delivered {section_count} writing prompts from pool")
+            elif len(pool_prompts) > 0:
+                # Pool has some prompts but not enough
+                logger.info(f"🔍 POOL: ⚠️ Pool partially available - found {len(pool_prompts)} prompts, need {section_count}")
+                
+                # Mark available prompts as used
+                prompt_ids = [item['id'] for item in pool_prompts]
+                await pool_service.mark_content_as_used(
+                    user_id=job.user_id,
+                    writing_prompt_ids=prompt_ids,
+                    usage_type="complete_test"
+                )
+                
+                # Convert available pool content
+                mock_request = QuestionGenerationRequest(
+                    question_type=section_type,
+                    difficulty=request.difficulty,
+                    count=len(pool_prompts),
+                    is_official_format=request.is_official_format
+                )
+                pool_result = pool_converter.convert_writing_to_section(pool_prompts)
+                
+                # Update section_count to generate only the remaining prompts
+                section_count = section_count - len(pool_prompts)
+                logger.info(f"🔍 POOL: Will generate {section_count} additional writing prompts on-demand")
+            else:
+                logger.info(f"🔍 POOL: ❌ No writing prompts available in pool, will generate {section_count} on-demand")
+        
+        # If we have pool results, use them; otherwise generate on-demand
+        if pool_result:
+            logger.info(f"🔍 POOL: ✅ Using pool results for {section_type.value}")
+            section = pool_result
         else:
-            logger.debug(f"⚙️ DEBUG: Using regular standalone generation for {section_type.value}")
-            section = await question_service._generate_standalone_section(
-                section_type, request.difficulty, section_count, request.provider, use_async=True, is_official_format=request.is_official_format
-            )
+            # Generate the section using async service methods for true parallelism
+            logger.debug(f"🔍 DEBUG: Generating section {section_type.value} with is_official_format={request.is_official_format}")
+            
+            # Update progress: about to start LLM generation
+            job_manager.update_section_progress(job_id, section_type.value, 50, f"Generating {section_count} questions...")
+            
+            if section_type.value == "writing":
+                logger.debug(f"📝 DEBUG: Using writing section generation")
+                section = await question_service._generate_writing_section(request.difficulty)
+            elif section_type.value == "reading":
+                logger.debug(f"📖 DEBUG: Using reading section generation")
+                section = await question_service._generate_reading_section(
+                    request.difficulty, section_count, request.provider, use_async=True
+                )
+            elif section_type.value == "quantitative" and request.is_official_format:
+                # Use official topic breakdown for quantitative questions
+                logger.debug(f"🎯 DEBUG: Using OFFICIAL quantitative generation with topic breakdown for {section_count} questions")
+                section = await question_service._generate_quantitative_section_official(
+                    request.difficulty, section_count, request.provider, use_async=True
+                )
+            else:
+                logger.debug(f"⚙️ DEBUG: Using regular standalone generation for {section_type.value}")
+                section = await question_service._generate_standalone_section(
+                    section_type, request.difficulty, section_count, request.provider, use_async=True, is_official_format=request.is_official_format
+                )
         
         # Update progress: generation complete, processing results (90%)
         job_manager.update_section_progress(job_id, section_type.value, 90, "Processing results...")
@@ -736,7 +1338,7 @@ async def generate_single_section_background(job_id: str, section_type, request:
         provider_used = None
         
         # Extract provider from section_data based on section type
-        if section_type.value in ['quantitative', 'analogy', 'synonym']:
+        if section_type.value in ['quantitative', 'analogy', 'synonyms']:
             # For question-based sections
             if 'questions' in section_data and section_data['questions']:
                 for question in section_data['questions']:

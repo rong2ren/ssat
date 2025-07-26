@@ -55,15 +55,15 @@ export default function FullTestPage() {
       }
       console.log('🔧 DEBUG: Using CUSTOM format:', newTestRequest)
     } else {
-      // Use official SSAT Elementary format - separate verbal into analogy and synonym
+      // Use official SSAT Elementary format - separate verbal into analogy and synonyms
       newTestRequest = {
         difficulty: 'Medium',
-        include_sections: ['quantitative', 'analogy', 'synonym', 'reading', 'writing'],
+        include_sections: ['quantitative', 'analogy', 'synonyms', 'reading', 'writing'],
         custom_counts: { 
           quantitative: 30, 
           analogy: 12,  // 40% of 30 = 12 questions
-          synonym: 18,  // 60% of 30 = 18 questions
-          reading: 28, 
+          synonyms: 18,  // 60% of 30 = 18 questions
+          reading: 7, 
           writing: 1 
         },
         is_official_format: true // Official format
@@ -184,7 +184,7 @@ export default function FullTestPage() {
                 </div>
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-red-800 mb-2">
-                    {t('Daily limit exceeded')}
+                    {limitErrorInfo ? t('Daily limit exceeded') : t('Error')}
                   </h3>
                   <p className="text-red-700 mb-3">{error}</p>
                   

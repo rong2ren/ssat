@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class DailyLimitService:
     """Service for managing user daily usage limits by SSAT section"""
     
-    # Default limits for free users
+    # Default limits for free users - one full test
     DEFAULT_LIMITS = {
         "quantitative": 30,      # 30 math questions per day
         "analogy": 18,           # 18 analogy questions per day
@@ -22,7 +22,7 @@ class DailyLimitService:
         "writing": 1             # 1 writing prompts per day
     }
     
-    # Premium user limits (2x free limits)
+    # Premium user limits (4 full tests)
     PREMIUM_LIMITS = {
         "quantitative": 120,
         "analogy": 120,

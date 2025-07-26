@@ -102,7 +102,6 @@ class AIContentService:
                 question_ids.append(question_id)
                 
                 # Extract question data based on structure
-                logger.info(f"Question type: {type(question)}, has 'text' attr: {hasattr(question, 'text')}, has 'question' attr: {hasattr(question, 'question')}")
                 if hasattr(question, 'text'):
                     # GeneratedQuestion model format
                     question_text = question.text
@@ -171,9 +170,11 @@ class AIContentService:
                 final_subsection = question_subsection or subsection or "General"
                 final_tags = question_tags if question_tags else []
                 
-                # Log what we're using for categorization with detailed breakdown
-                logger.debug(f"Subsection decision: question_subsection='{question_subsection}', passed_subsection='{subsection}', final='{final_subsection}'")
-                logger.debug(f"Tags: question_tags={question_tags}, final_tags={final_tags}")
+                # Only log if there are differences or issues
+                if question_subsection != subsection and question_subsection and subsection:
+                    logger.debug(f"Subsection decision: question_subsection='{question_subsection}', passed_subsection='{subsection}', final='{final_subsection}'")
+                if question_tags and len(question_tags) > 0:
+                    logger.debug(f"Using AI-generated tags: {question_tags}")
                 
                 question_data = {
                     "id": question_id,
@@ -257,7 +258,7 @@ class AIContentService:
                 
                 # Use AI-generated topic if available, otherwise use passed topic parameter
                 final_topic = ai_generated_topic or topic
-                logger.info(f"Using topic for passage {passage_id}: '{final_topic}' (AI-generated: {bool(ai_generated_topic)}, Parameter: {bool(topic)})")
+                # logger.info(f"Using topic for passage {passage_id}: '{final_topic}' (AI-generated: {bool(ai_generated_topic)}, Parameter: {bool(topic)})")
                 if final_topic:
                     passage_tags.append(final_topic)
                 
@@ -293,7 +294,7 @@ class AIContentService:
                 }
                 
                 # Debug logging for training examples
-                logger.debug(f"📚 DEBUG: Saving passage {passage_id} with training_examples_used: {training_examples_used or []}")
+                # logger.debug(f"📚 DEBUG: Saving passage {passage_id} with training_examples_used: {training_examples_used or []}")
                 
                 try:
                     result = self.supabase.table("ai_generated_reading_passages").insert(passage_data).execute()
@@ -379,7 +380,7 @@ class AIContentService:
                     }
                     
                     self.supabase.table("ai_generated_reading_questions").insert(question_data).execute()
-                    logger.info(f"Successfully saved reading question {question_id} for passage {passage_id}")
+                    # logger.info(f"Successfully saved reading question {question_id} for passage {passage_id}")
             
             logger.info(f"Saved reading content for session {session_id}: {len(result_ids['passage_ids'])} passages, {len(result_ids['question_ids'])} questions")
             return result_ids
@@ -452,10 +453,10 @@ class AIContentService:
                 self.supabase.table("ai_generated_writing_prompts").insert(prompt_data).execute()
                 
                 # Log training examples info
-                if training_examples_from_prompt:
-                    logger.info(f"📚 DEBUG: Writing prompt {prompt_id} used {len(training_examples_from_prompt)} training examples: {training_examples_from_prompt}")
-                else:
-                    logger.info(f"📚 DEBUG: Writing prompt {prompt_id} used no training examples (fallback/static)")
+                # if training_examples_from_prompt:
+                #     logger.info(f"📚 DEBUG: Writing prompt {prompt_id} used {len(training_examples_from_prompt)} training examples: {training_examples_from_prompt}")
+                # else:
+                #     logger.info(f"📚 DEBUG: Writing prompt {prompt_id} used no training examples (fallback/static)")
             
             logger.info(f"Saved {len(prompt_ids)} writing prompts for session {session_id}")
             return prompt_ids
@@ -482,11 +483,11 @@ class AIContentService:
                     # Extract training examples from passage metadata
                     if hasattr(first_passage, 'metadata') and first_passage.metadata:
                         training_examples_from_section = first_passage.metadata.get('training_examples_used', [])
-                        logger.info(f"📚 DEBUG: Extracted training_examples_used from reading section: {training_examples_from_section}")
+                        # logger.info(f"📚 DEBUG: Extracted training_examples_used from reading section: {training_examples_from_section}")
                 
                 # Use training examples from section metadata if available, otherwise use passed parameter
                 final_training_examples = training_examples_from_section or training_examples_used
-                logger.info(f"📚 DEBUG: Final training_examples_used for reading section: {final_training_examples}")
+                # logger.info(f"📚 DEBUG: Final training_examples_used for reading section: {final_training_examples}")
                 
                 saved_ids = await self.save_reading_content(session_id, section, final_training_examples, topic=topic)
             elif section.section_type == "writing":
