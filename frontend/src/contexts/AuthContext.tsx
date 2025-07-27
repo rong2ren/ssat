@@ -28,22 +28,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Initialize auth state and listen for auth changes
   useEffect(() => {
-    // console.log('🔄 AuthContext: useEffect started - initializing auth state')
     
     // Get initial session
     const getInitialSession = async () => {
-      // console.log('🔄 AuthContext: getInitialSession started')
-      const startTime = performance.now()
       
       const { data: { session } } = await supabase.auth.getSession()
-              const sessionTime = performance.now() - startTime
-        // console.log(`🔄 AuthContext: getSession completed in ${sessionTime.toFixed(2)}ms`, { hasSession: !!session, hasUser: !!session?.user })
       
       if (session?.user) {
-                  // console.log('🔄 AuthContext: Session found, calling fetchUserProfile')
           await fetchUserProfile(session)
         } else {
-          // console.log('🔄 AuthContext: No session found, setting loading to false')
           setLoading(false)
         }
     }
@@ -54,17 +47,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         const eventTime = performance.now()
-        // console.log(`🔄 AuthContext: Auth state changed at ${eventTime.toFixed(2)}ms:`, event, session?.user?.email)
         
         if (event === 'SIGNED_IN' && session?.user) {
-          // console.log('🔄 AuthContext: SIGNED_IN event, calling fetchUserProfile')
-          await fetchUserProfile(session)
+          // Only treat as successful login if email is confirmed
+          if (session.user.email_confirmed_at) {
+            await fetchUserProfile(session)
+          } else {
+            // Email not confirmed - don't set user as logged in
+            setLoading(false)
+          }
         } else if (event === 'SIGNED_OUT') {
-          // console.log('🔄 AuthContext: SIGNED_OUT event, clearing user')
           setUser(null)
           setLoading(false)
         } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-          // console.log('🔄 AuthContext: TOKEN_REFRESHED event, calling fetchUserProfile')
           await fetchUserProfile(session)
         }
       }
@@ -74,12 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const fetchUserProfile = async (session: any) => {
-    // console.log('🔄 AuthContext: fetchUserProfile started')
-    const startTime = performance.now()
     
     try {
       if (!session?.user) {
-        // console.log('🔄 AuthContext: No user in session, clearing state')
         setUser(null)
         setLoading(false)
         return
@@ -98,23 +90,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updated_at: session.user.updated_at || session.user.created_at
       }
       
-      // console.log('🔄 AuthContext: Profile created, setting user state')
       setUser(profile)
       
-      const profileTime = performance.now() - startTime
-      // console.log(`🔄 AuthContext: fetchUserProfile completed in ${profileTime.toFixed(2)}ms`)
-      
     } catch (err) {
-      // console.error('🔄 AuthContext: Failed to create user profile from session:', err)
       await supabase.auth.signOut()
     } finally {
-      // console.log('🔄 AuthContext: Setting loading to false')
       setLoading(false)
     }
   }
 
                 const login = async (credentials: UserLogin): Promise<boolean> => {
-                // console.log('🔄 AuthContext: login started')
                 const startTime = performance.now()
                 
                 try {
@@ -122,7 +107,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   setError(null)
 
                   // Use Supabase auth directly
-                  // console.log('🔄 AuthContext: Calling supabase.auth.signInWithPassword...')
                   const authStartTime = performance.now()
                   
                   // Add timeout for slow connections
@@ -139,30 +123,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                   const authTime = performance.now() - authStartTime
                   const totalTime = performance.now() - startTime
-                  // console.log(`🔄 AuthContext: signInWithPassword completed in ${authTime.toFixed(2)}ms (total: ${totalTime.toFixed(2)}ms)`, { hasError: !!error, hasUser: !!data.user, hasSession: !!data.session })
 
                   if (error) {
-                    // console.log('🔄 AuthContext: Login error:', error.message)
                     setError(error.message)
                     return false
                   }
 
                   if (data.user && data.session) {
-                    // console.log('🔄 AuthContext: Login successful, profile will be set by onAuthStateChange')
                     
-                    // console.log(`🔄 AuthContext: login completed in ${totalTime.toFixed(2)}ms`)
                     return true
                   } else {
-                    // console.log('🔄 AuthContext: Login failed - no user or session')
                     setError('Login failed')
                     return false
                   }
                 } catch (err) {
-                  // console.error('🔄 AuthContext: Login exception:', err)
                   setError('Network error. Please try again.')
                   return false
                 } finally {
-                  // console.log('🔄 AuthContext: Login finally block - setting loading to false')
                   setLoading(false)
                 }
               }
@@ -236,19 +213,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   })
 
                   if (error) {
-                    setError(error.message)
+                    
+                    // Provide user-friendly error messages
+                    let userFriendlyError = error.message
+                    
+                    if (error.message.includes('Error sending confirmation email')) {
+                      userFriendlyError = 'Unable to send verification email. Please try again in a few minutes or contact support.'
+                    } else if (error.message.includes('rate limit')) {
+                      userFriendlyError = 'Too many registration attempts. Please wait a few minutes before trying again.'
+                    } else if (error.message.includes('network') || error.message.includes('timeout')) {
+                      userFriendlyError = 'Network connection issue. Please check your internet connection and try again.'
+                    } else if (error.message.includes('email')) {
+                      userFriendlyError = 'Invalid email address. Please check your email and try again.'
+                    } else if (error.message.includes('password')) {
+                      userFriendlyError = 'Password is too weak. Please use a stronger password (at least 6 characters).'
+                    }
+                    
+                    setError(userFriendlyError)
                     return false
                   }
 
                   if (data.user) {
                     if (data.session) {
-                      // Email already confirmed, user logged in
                       await fetchUserProfile(data.session)
                       return true
                     } else {
-                      // Email confirmation required
-                      setError('Please check your email to confirm your account before logging in.')
-                      return false
+                      return true
                     }
                   } else {
                     setError('Registration failed')

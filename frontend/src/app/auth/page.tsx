@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePreferences } from '@/contexts/AppStateContext'
@@ -16,6 +16,7 @@ export default function AuthPage() {
   const { user, loading, clearError } = useAuth()
   const { showChinese, dispatch } = usePreferences()
   const router = useRouter()
+  const previousModeRef = useRef<AuthMode>('login')
 
   // UI translations
   const translations = {
@@ -26,10 +27,13 @@ export default function AuthPage() {
 
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
 
-  // Clear any lingering error messages when component mounts
+  // Clear errors only when switching between auth modes
   useEffect(() => {
-    clearError()
-  }, [clearError])
+    if (previousModeRef.current !== mode) {
+      clearError()
+      previousModeRef.current = mode
+    }
+  }, [mode, clearError])
 
   // Redirect if user is already authenticated
   useEffect(() => {

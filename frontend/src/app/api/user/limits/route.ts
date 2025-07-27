@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     const authHeader = request.headers.get('authorization')
     
     if (!authHeader) {
+      console.error(`❌ Frontend API Error: GET /user/limits - Missing authorization header`)
       return NextResponse.json(
         { error: 'Authorization header required' },
         { status: 401 }
@@ -26,6 +27,8 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text()
+      console.error(`❌ Frontend API Error: GET /user/limits - Status: ${response.status}`)
+      console.error(`❌ Error Details:`, errorText)
       return NextResponse.json(
         { error: `Backend error: ${response.status} - ${errorText}` },
         { status: response.status }
@@ -43,7 +46,8 @@ export async function GET(request: NextRequest) {
       headers: responseHeaders
     })
   } catch (error) {
-    console.error('API proxy error:', error)
+    console.error(`❌ Frontend API Exception: GET /user/limits`)
+    console.error(`❌ Exception Details:`, error)
     return NextResponse.json(
       { error: 'Failed to connect to backend' },
       { status: 500 }

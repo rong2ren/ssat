@@ -34,13 +34,17 @@ export async function POST(request: NextRequest) {
         errorData = { error: errorText }
       }
       
+      console.error(`❌ Frontend API Error: POST /generate - Status: ${response.status}`)
+      console.error(`❌ Error Details:`, errorData)
+      
       return NextResponse.json(errorData, { status: response.status })
     }
 
     const data = await response.json()
     return NextResponse.json(data)
   } catch (error) {
-    console.error('API proxy error:', error)
+    console.error(`❌ Frontend API Exception: POST /generate`)
+    console.error(`❌ Exception Details:`, error)
     return NextResponse.json(
       { error: 'Failed to connect to backend' },
       { status: 500 }

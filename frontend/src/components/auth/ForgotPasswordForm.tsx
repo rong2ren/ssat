@@ -23,7 +23,10 @@ export default function ForgotPasswordForm({ onSwitchToLogin, showChinese = fals
     'Email': '邮箱',
     'Enter your email': '请输入您的邮箱',
     'Send Reset Link': '发送重置链接',
-    'Sending...': '发送中...'
+    'Sending...': '发送中...',
+    'You will receive a password reset email from our authentication service.': '您将收到来自我们认证服务的密码重置邮件。',
+    'Note: The email may appear to be from "Supabase" - this is our secure authentication provider.': '注意：邮件可能显示来自"Supabase" - 这是我们安全的认证服务提供商。',
+    'The reset link will expire in 24 hours.': '重置链接将在24小时后过期。'
   }
 
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
@@ -55,8 +58,17 @@ export default function ForgotPasswordForm({ onSwitchToLogin, showChinese = fals
               {t('Password reset email sent to')} {email}
             </div>
             
-            <p className="text-gray-600">
+            <p className="text-gray-600 mb-2">
               {t('We\'ve sent you a password reset link. Please check your email and click the link to reset your password.')}
+            </p>
+            <p className="text-gray-600 mb-2">
+              {t('You will receive a password reset email from our authentication service.')}
+            </p>
+            <p className="text-sm bg-yellow-50 p-2 rounded border border-yellow-200 text-gray-700">
+              <strong>ℹ️ {t('Note: The email may appear to be from "Supabase" - this is our secure authentication provider.')}</strong>
+            </p>
+            <p className="text-gray-600 text-sm">
+              {t('The reset link will expire in 24 hours.')}
             </p>
             
             <button
