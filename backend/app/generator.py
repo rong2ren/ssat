@@ -258,8 +258,7 @@ OUTPUT FORMAT - Return ONLY a JSON object:
     {{
       "prompt": "Complete writing prompt text here (JUST the creative prompt, NO instructions)",
       "visual_description": "Description of the picture that would accompany this prompt",
-      "grade_level": "3-4",
-      "story_elements": ["element1", "element2", "element3"],
+      "grade_level": "4",
       "prompt_type": "picture_story",
       "subsection": "Collaborative Problem-Solving Narratives",
       "tags": ["teamwork-themes", "problem-solving-process", "character-interaction", "descriptive-language"]
@@ -336,7 +335,6 @@ OUTPUT FORMAT - Return ONLY a JSON object:
       "prompt": "Complete writing prompt text here (JUST the creative prompt, NO instructions)",
       "visual_description": "Description of the picture that would accompany this prompt",
       "grade_level": "3-4",
-      "story_elements": ["element1", "element2", "element3"],
       "prompt_type": "picture_story",
       "subsection": "Character-Driven Visual Narratives",
       "tags": ["character-development", "visual-inspiration", "emotional-expression", "narrative-structure"]
@@ -890,7 +888,6 @@ OUTPUT FORMAT - Return ONLY a JSON object:
       "prompt": "Complete writing prompt text here (JUST the creative prompt, NO instructions)",
       "visual_description": "Description of the picture that would accompany this prompt",
       "grade_level": "3-4",
-      "story_elements": ["element1", "element2", "element3"],
       "prompt_type": "picture_story",
       "subsection": "Specific subsection name",
       "tags": ["tag1", "tag2", "tag3", "tag4"]

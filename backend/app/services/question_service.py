@@ -150,24 +150,7 @@ class QuestionService:
         }
         return instructions.get(section_type, "Answer all questions to the best of your ability.")
     
-    def _get_section_time_limit(self, section_type: QuestionType, question_count: int) -> int:
-        """Get recommended time limit for a section based on type and question count."""
-        # For practice sections, use reasonable minimums to avoid 0-minute confusion
-        # Time per question in minutes (with minimums)
-        time_per_question = {
-            QuestionType.QUANTITATIVE: 1.5,
-            QuestionType.VERBAL: 1.0,
-            QuestionType.READING: 2.0,
-            QuestionType.WRITING: 15.0,
-            QuestionType.ANALOGY: 1.0,    # 1 minute per analogy
-            QuestionType.SYNONYM: 1.0     # 1 minute per synonym (increased from 0.5)
-        }
-        
-        base_time = time_per_question.get(section_type, 1.0)
-        calculated_time = base_time * question_count
-        
-        # Ensure minimum of 1 minute for any section
-        return max(1, int(calculated_time))
+
     
     async def get_topic_suggestions(self, question_type: str) -> List[str]:
         """Get suggested topics for a given question type."""
@@ -220,7 +203,7 @@ class QuestionService:
                     "instructions": writing_prompt.instructions,  # type: ignore[attr-defined]
                     "visual_description": writing_prompt.visual_description,  # type: ignore[attr-defined]
                     "grade_level": writing_prompt.grade_level,  # type: ignore[attr-defined]
-                    "story_elements": writing_prompt.story_elements,  # type: ignore[attr-defined]
+    
                     "prompt_type": writing_prompt.prompt_type,  # type: ignore[attr-defined]
                     "subsection": writing_prompt.subsection,  # type: ignore[attr-defined]
                     "tags": writing_prompt.tags,  # type: ignore[attr-defined]
@@ -241,10 +224,9 @@ class QuestionService:
             return {
                 "prompt_text": prompt_data["prompt"],
                 "instructions": "Write a story based on the prompt. Use proper grammar, punctuation, and spelling. Your story should have a clear beginning, middle, and end.",
-                "time_limit_minutes": 15,
                 "visual_description": prompt_data.get("visual_description", ""),
                 "grade_level": prompt_data.get("grade_level", "3-4"),
-                "story_elements": prompt_data.get("story_elements", []),
+
                 "training_examples_used": [],
                 "provider_used": "static"
             }
@@ -354,15 +336,13 @@ class QuestionService:
         
         logger.info(f"🎲 DEBUG: Shuffled and trimmed to {len(all_questions)} questions")
         
-        # Get section instructions and time limit
+        # Get section instructions
         instructions = self._get_section_instructions(QuestionType.QUANTITATIVE)
-        time_limit = self._get_section_time_limit(QuestionType.QUANTITATIVE, total_count)
         
         logger.info(f"✅ DEBUG: OFFICIAL quantitative section complete with {len(all_questions)} questions")
         
         return QuantitativeSection(
             questions=all_questions,
-            time_limit_minutes=time_limit,
             instructions=instructions
         )
     
@@ -412,36 +392,31 @@ class QuestionService:
             section_result = await self.generate_questions(section_request)
             api_questions = section_result["questions"]
         
-        # Get section instructions and time limit
+        # Get section instructions
         instructions = self._get_section_instructions(section_type)
-        time_limit = self._get_section_time_limit(section_type, count)
         
         # Route to appropriate section type based on question type
         if section_type == QuestionType.QUANTITATIVE:
             return QuantitativeSection(
                 questions=api_questions,
-                time_limit_minutes=time_limit,
                 instructions=instructions
             )
         elif section_type == QuestionType.SYNONYM:
             return SynonymSection(
                 questions=api_questions,
-                time_limit_minutes=time_limit,
                 instructions=instructions
             )
         elif section_type == QuestionType.ANALOGY:
             return AnalogySection(
                 questions=api_questions,
-                time_limit_minutes=time_limit,
                 instructions=instructions
             )
         else:
             raise ValueError(f"Unsupported section type for standalone generation: {section_type}")
     
-    async def _generate_reading_section(self, difficulty: DifficultyLevel, total_questions: int, provider: Optional[Any], use_async: bool = False) -> ReadingSection:
+    async def _generate_reading_section(self, difficulty: DifficultyLevel, num_passages: int, provider: Optional[Any], use_async: bool = False) -> ReadingSection:
         """Generate a reading section with passages and questions."""
-        # Calculate number of passages needed (4 questions per passage)
-        num_passages = max(1, total_questions // 4)
+        # num_passages is now the direct input (no calculation needed)
         
         # Get training examples metadata first
         from app.generator import SSATGenerator
@@ -459,12 +434,10 @@ class QuestionService:
             passages.append(passage)
         
         instructions = self._get_section_instructions(QuestionType.READING)
-        time_limit = self._get_section_time_limit(QuestionType.READING, total_questions)
         
         return ReadingSection(
             section_type=QuestionType.READING,
             passages=passages,
-            time_limit_minutes=time_limit,
             instructions=instructions
         )
     
@@ -478,7 +451,6 @@ class QuestionService:
             instructions=prompt_data["instructions"],
             visual_description=prompt_data.get("visual_description"),
             grade_level=prompt_data.get("grade_level", "3-4"),
-            story_elements=prompt_data.get("story_elements", []),
             prompt_type=prompt_data.get("prompt_type", "picture_story"),
             tags=prompt_data.get("tags", []),
             metadata={
@@ -488,12 +460,10 @@ class QuestionService:
         )
         
         instructions = self._get_section_instructions(QuestionType.WRITING)
-        time_limit = self._get_section_time_limit(QuestionType.WRITING, 1)
         
         return WritingSection(
             section_type=QuestionType.WRITING,
             prompt=writing_prompt,
-            time_limit_minutes=time_limit,
             instructions=instructions
         )
     

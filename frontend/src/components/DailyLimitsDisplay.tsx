@@ -12,18 +12,27 @@ const CACHE_DURATION = 15 * 60 * 1000 // 15 minutes (increased from 5 minutes)
 // Cache key for localStorage
 const CACHE_STORAGE_KEY = 'daily_limits_cache'
 
-// Load cache from localStorage on module load
-try {
-  const stored = localStorage.getItem(CACHE_STORAGE_KEY)
-  if (stored) {
-    const parsed = JSON.parse(stored)
-    Object.entries(parsed).forEach(([key, value]: [string, any]) => {
-      limitsCache.set(key, value)
-    })
-    console.log('🔍 DailyLimitsDisplay: Loaded cache from localStorage:', Object.keys(parsed))
+// Load cache from localStorage on module load (only in browser)
+const loadCacheFromStorage = () => {
+  if (typeof window === 'undefined') return // Skip during SSR
+  
+  try {
+    const stored = localStorage.getItem(CACHE_STORAGE_KEY)
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      Object.entries(parsed).forEach(([key, value]: [string, any]) => {
+        limitsCache.set(key, value)
+      })
+      console.log('🔍 DailyLimitsDisplay: Loaded cache from localStorage:', Object.keys(parsed))
+    }
+  } catch (error) {
+    console.warn('Failed to load limits cache from localStorage:', error)
   }
-} catch (error) {
-  console.warn('Failed to load limits cache from localStorage:', error)
+}
+
+// Initialize cache when component mounts (browser only)
+if (typeof window !== 'undefined') {
+  loadCacheFromStorage()
 }
 
 // Save cache to localStorage
@@ -92,9 +101,9 @@ function DailyLimitsDisplayComponent({ showChinese = false, className = '' }: Da
     'remaining': '剩余',
     'of': '共',
     'left': '剩余',
-    'Loading limits...': '加载限制中...',
-    'Failed to load limits': '加载限制失败',
-    'Loading...': '加载中...',
+    'Loading daily limits...': '正在加载每日使用限制...',
+    'Failed to load limits': '每日使用限制加载失败',
+    'Loading...': '正在加载...',
     'Today': '今日'
   }
 
@@ -118,11 +127,6 @@ function DailyLimitsDisplayComponent({ showChinese = false, className = '' }: Da
         return
       }
 
-      // Don't fetch if we already have limits data for this user
-      if (limits && !loading) {
-        return
-      }
-
       // Don't fetch if we've already fetched for this user in this session
       if (hasFetchedRef.current) {
         console.log('🔍 DailyLimitsDisplay: Already fetched limits in this session, skipping API call')
@@ -138,7 +142,9 @@ function DailyLimitsDisplayComponent({ showChinese = false, className = '' }: Da
       try {
         const headers = await getAuthHeaders()
         const response = await fetch('/api/user/limits', {
-          headers
+          headers,
+          // Add cache control to prevent unnecessary refetches
+          cache: 'default'
         })
 
         if (!response.ok) {
@@ -174,7 +180,10 @@ function DailyLimitsDisplayComponent({ showChinese = false, className = '' }: Da
   if (loading) {
     return (
       <div className={`text-sm text-gray-600 ${className}`}>
-        {t('Loading limits...')}
+        <div className="flex items-center space-x-2">
+          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-600"></div>
+          <span>{t('Loading daily limits...')}</span>
+        </div>
       </div>
     )
   }
@@ -188,7 +197,25 @@ function DailyLimitsDisplayComponent({ showChinese = false, className = '' }: Da
   }
 
   if (!limits) {
-    return null
+    return (
+      <div className={`space-y-3 ${className}`}>
+        <div className="flex items-center justify-between">
+          <div className="h-3 bg-gray-200 rounded w-20 animate-pulse"></div>
+          <div className="h-3 bg-gray-200 rounded w-12 animate-pulse"></div>
+        </div>
+        <div className="space-y-2">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="bg-gray-50 rounded-lg p-2">
+              <div className="flex items-center justify-between mb-1">
+                <div className="h-3 bg-gray-200 rounded w-16 animate-pulse"></div>
+                <div className="h-3 bg-gray-200 rounded w-12 animate-pulse"></div>
+              </div>
+              <div className="h-1.5 bg-gray-200 rounded animate-pulse"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   const { usage, limits: limitsData, remaining } = limits
@@ -259,9 +286,6 @@ function DailyLimitsDisplayComponent({ showChinese = false, className = '' }: Da
                     className="h-1.5 bg-gray-200"
                     indicatorClassName={`${color} rounded-full`}
                   />
-                  {percentage >= 90 && (
-                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                  )}
                 </div>
               )}
             </div>

@@ -62,6 +62,8 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
     'Total': '总计',
     'Please select at least one section': '请至少选择一个部分',
     'Question counts must be between 1 and 15 for custom generation': '自定义生成题目数量必须在1到15之间',
+    'Reading passages must be between 1-3 for custom generation': '阅读段落数量必须在1到3之间',
+    'Reading passages must be between 1-3, other sections must be between 1-15 questions': '阅读段落数量必须在1到3之间，其他部分题目数量必须在1到15之间',
     'Math Breakdown': '数学细分',
     'Number Operations': '数字运算',
     'Algebra Functions': '代数函数',
@@ -95,12 +97,28 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
       
       const invalidCounts = selectedSections.filter(section => {
         const count = customCounts[section] || 0
-        // For custom generation, limit to 15 questions per section
-        return count < 1 || count > 15
+        if (section === 'reading') {
+          // For reading: 1-3 passages (each with 4 questions)
+          return count < 1 || count > 3
+        } else {
+          // For other sections: 1-15 questions
+          return count < 1 || count > 15
+        }
       })
       
       if (invalidCounts.length > 0) {
-        alert(t('Question counts must be between 1 and 15 for custom generation'))
+        const readingInvalid = invalidCounts.includes('reading')
+        const otherInvalid = invalidCounts.filter(s => s !== 'reading')
+        
+        let errorMessage = ''
+        if (readingInvalid && otherInvalid.length > 0) {
+          errorMessage = t('Reading passages must be between 1-3, other sections must be between 1-15 questions')
+        } else if (readingInvalid) {
+          errorMessage = t('Reading passages must be between 1-3 for custom generation')
+        } else {
+          errorMessage = t('Question counts must be between 1 and 15 for custom generation')
+        }
+        alert(errorMessage)
         return
       }
       

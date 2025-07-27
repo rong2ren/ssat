@@ -33,7 +33,15 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json()
-    return NextResponse.json(data)
+    
+    // Add cache headers to improve performance
+    const responseHeaders = new Headers()
+    responseHeaders.set('Cache-Control', 'public, max-age=300') // Cache for 5 minutes
+    responseHeaders.set('ETag', `"${Date.now()}"`) // Simple ETag for caching
+    
+    return NextResponse.json(data, {
+      headers: responseHeaders
+    })
   } catch (error) {
     console.error('API proxy error:', error)
     return NextResponse.json(

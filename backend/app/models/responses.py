@@ -51,7 +51,6 @@ class WritingPrompt(BaseModel):
     instructions: str = Field(..., description="Instructions for students")
     visual_description: Optional[str] = Field(default=None, description="Description of visual prompt")
     grade_level: str = Field(default="3-4", description="Target grade level")
-    story_elements: List[str] = Field(default_factory=list, description="Suggested story elements")
     prompt_type: str = Field(default="picture_story", description="Type of writing prompt")
     tags: List[str] = Field(default_factory=list, description="Writing skills and element tags")
     subsection: Optional[str] = Field(default=None, description="AI-generated subsection categorization")
@@ -74,35 +73,30 @@ class QuantitativeSection(BaseModel):
     """Mathematics section - arithmetic, fractions, geometry, word problems."""
     section_type: Literal[QuestionType.QUANTITATIVE] = QuestionType.QUANTITATIVE
     questions: List[GeneratedQuestion] = Field(..., description="Math questions")
-    time_limit_minutes: int = Field(..., description="Time limit for this section")
     instructions: str = Field(..., description="Section instructions")
 
 class SynonymSection(BaseModel):
     """Vocabulary section - word meaning and definition questions."""
     section_type: Literal[QuestionType.SYNONYM] = QuestionType.SYNONYM
     questions: List[GeneratedQuestion] = Field(..., description="Synonym questions")
-    time_limit_minutes: int = Field(..., description="Time limit for this section")
     instructions: str = Field(..., description="Section instructions")
 
 class AnalogySection(BaseModel):
     """Word relationship section - logical reasoning with word pairs."""
     section_type: Literal[QuestionType.ANALOGY] = QuestionType.ANALOGY
     questions: List[GeneratedQuestion] = Field(..., description="Analogy questions")
-    time_limit_minutes: int = Field(..., description="Time limit for this section")
     instructions: str = Field(..., description="Section instructions")
 
 class ReadingSection(BaseModel):
     """Reading comprehension section with passages and questions."""
     section_type: Literal[QuestionType.READING] = QuestionType.READING
     passages: List[ReadingPassage] = Field(..., description="Reading passages with questions")
-    time_limit_minutes: int = Field(..., description="Time limit for this section")
     instructions: str = Field(..., description="Section instructions")
 
 class WritingSection(BaseModel):
     """Writing section with a single prompt."""
     section_type: Literal[QuestionType.WRITING] = QuestionType.WRITING
     prompt: WritingPrompt = Field(..., description="Writing prompt")
-    time_limit_minutes: int = Field(..., description="Time limit for this section")
     instructions: str = Field(..., description="Section instructions")
 
 # Union type for polymorphic sections

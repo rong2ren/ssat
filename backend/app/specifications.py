@@ -98,49 +98,49 @@ ELEMENTARY_WRITING_PROMPTS = [
         "prompt": "Look at this picture of children building a treehouse. Write a story about their adventure.",
         "visual_description": "Children working together with wood and tools to build a treehouse",
         "grade_level": "3-4",
-        "story_elements": ["teamwork", "problem-solving", "outdoor adventure"]
+
     },
     {
         "prompt": "You find a magic key that can open any door. Write a story about where you go and what you discover.",
         "visual_description": "An ornate, glowing key lying on a wooden table",
         "grade_level": "3-4",
-        "story_elements": ["magic", "exploration", "discovery"]
+
     },
     {
         "prompt": "A friendly robot appears in your backyard. Write a story about what happens next.",
         "visual_description": "Small, colorful robot with friendly LED eyes standing in a garden",
         "grade_level": "3-4",
-        "story_elements": ["friendship", "technology", "adventure"]
+
     },
     {
         "prompt": "You wake up to find your pet can talk for one day. Write a story about your conversations.",
         "visual_description": "Child sitting with a dog that appears to be speaking",
         "grade_level": "3-4",
-        "story_elements": ["communication", "pets", "daily life"]
+
     },
     {
         "prompt": "Your family goes camping and you discover a hidden cave. Write a story about what you find inside.",
         "visual_description": "Family with flashlights near the entrance of a mysterious cave",
         "grade_level": "3-4",
-        "story_elements": ["family", "exploration", "mystery"]
+
     },
     {
         "prompt": "A new student joins your class who is from another planet. Write a story about your friendship.",
         "visual_description": "Two children sitting together, one looking slightly unusual with kind eyes",
         "grade_level": "3-4",
-        "story_elements": ["friendship", "differences", "school life"]
+
     },
     {
         "prompt": "You find an old treasure map in your grandmother's attic. Write a story about following the map.",
         "visual_description": "An aged, folded map with an X marking a location",
         "grade_level": "3-4", 
-        "story_elements": ["family", "adventure", "treasure hunting"]
+
     },
     {
         "prompt": "The animals in the zoo can talk to you for one hour. Write a story about what they tell you.",
         "visual_description": "Child standing in front of various zoo animals who appear to be speaking",
         "grade_level": "3-4",
-        "story_elements": ["animals", "communication", "learning"]
+
     }
 ]
 

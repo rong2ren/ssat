@@ -106,7 +106,6 @@ class WritingPrompt:
         self.instructions = prompt_data.get("instructions", "Write a story with a beginning, middle, and end.")
         self.visual_description = prompt_data.get("visual_description")
         self.grade_level = prompt_data.get("grade_level", "3-4")
-        self.story_elements = prompt_data.get("story_elements", [])
         self.prompt_type = prompt_data.get("prompt_type", "picture_story")
         self.subsection = prompt_data.get("subsection", "Picture Story")  # AI-determined subsection
         self.tags = prompt_data.get("tags", [])  # AI-determined tags
@@ -265,8 +264,8 @@ def generate_writing_prompts_with_metadata(request: QuestionRequest, llm: Option
         # Parse generated prompts
         prompts = []
         for prompt_data in data["prompts"]:
-            # Add standard instructions
-            prompt_data["instructions"] = "Look at the picture and write a story with a beginning, middle, and end. Use proper grammar, punctuation, and spelling."
+            # Remove redundant instructions - section instructions will be used instead
+            prompt_data["instructions"] = ""
             prompt = WritingPrompt(prompt_data)
             prompts.append(prompt)
         
@@ -305,9 +304,9 @@ def generate_static_writing_prompts(request: QuestionRequest) -> List[WritingPro
     selected_prompts = random.sample(available_prompts, actual_count)
     
     for i, prompt_data in enumerate(selected_prompts):
-        # Add standard instructions
+        # Remove redundant instructions - section instructions will be used instead
         prompt_data = prompt_data.copy()  # Don't modify the original
-        prompt_data["instructions"] = "Look at the picture and write a story with a beginning, middle, and end. Use proper grammar, punctuation, and spelling."
+        prompt_data["instructions"] = ""
         
         prompt = WritingPrompt(prompt_data)
         prompts.append(prompt)

@@ -15,7 +15,7 @@ interface PracticeQuestionsFormProps {
 
 export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }: PracticeQuestionsFormProps) {
   const [formData, setFormData] = useState({
-    question_type: 'analogy' as const,
+    question_type: 'analogy' as 'quantitative' | 'reading' | 'analogy' | 'synonym' | 'writing',
     difficulty: 'Medium' as const,
     topic: '',
     count: 1
@@ -40,7 +40,9 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
     'Easy': '简单',
     'Medium': '中等',
     'Hard': '困难',
-    'Between 1-15 questions': '1-15道题目'
+    'Between 1-15 questions': '1-15道题目',
+    'Number of Passages': '段落数量',
+    'Between 1-3 passages (4 questions each)': '1-3篇（每篇4道题）'
   }
 
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
@@ -50,7 +52,16 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
     
     // Validate count from current input (in case user didn't blur)
     const inputValue = parseInt(countInput) || 1
-    const validCount = Math.max(1, Math.min(15, inputValue))
+    
+    // Different validation for reading (passages) vs other sections (questions)
+    let validCount: number
+    if (formData.question_type === 'reading') {
+      // For reading: 1-3 passages (each with 4 questions)
+      validCount = Math.max(1, Math.min(3, inputValue))
+    } else {
+      // For other sections: 1-15 questions
+      validCount = Math.max(1, Math.min(15, inputValue))
+    }
     
     // Update the input display to show corrected value
     if (validCount.toString() !== countInput) {
@@ -71,7 +82,7 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
     { value: 'quantitative', label: t('Quantitative') },
     { value: 'reading', label: t('Reading') },
     { value: 'analogy', label: t('Analogies') },
-    { value: 'synonyms', label: t('Synonyms') },
+    { value: 'synonym', label: t('Synonyms') },
     { value: 'writing', label: t('Writing') }
   ]
 
@@ -117,22 +128,36 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Count */}
           <div className="space-y-2">
-            <Label htmlFor="practice-count">{t('Number of Questions')} *</Label>
+            <Label htmlFor="practice-count">
+              {formData.question_type === 'reading' ? t('Number of Passages') : t('Number of Questions')} *
+            </Label>
             <Input
               id="practice-count"
               type="number"
               min="1"
-              max="15"
+              max={formData.question_type === 'reading' ? 3 : 15}
               value={countInput}
               onChange={(e) => setCountInput(e.target.value)}
               onBlur={() => {
                 const value = parseInt(countInput) || 1
-                const clampedValue = Math.max(1, Math.min(15, value))
+                let clampedValue: number
+                if (formData.question_type === 'reading') {
+                  // For reading: 1-3 passages (each with 4 questions)
+                  clampedValue = Math.max(1, Math.min(3, value))
+                } else {
+                  // For other sections: 1-15 questions
+                  clampedValue = Math.max(1, Math.min(15, value))
+                }
                 setCountInput(clampedValue.toString())
                 setFormData(prev => ({ ...prev, count: clampedValue }))
               }}
             />
-            <p className="text-xs text-gray-500">{t('Between 1-15 questions')}</p>
+            <p className="text-xs text-gray-500">
+              {formData.question_type === 'reading' 
+                ? t('Between 1-3 passages (4 questions each)') 
+                : t('Between 1-15 questions')
+              }
+            </p>
           </div>
 
           {/* Topic */}

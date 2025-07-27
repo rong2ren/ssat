@@ -780,7 +780,7 @@ export function ProgressiveTestGenerator({
             {/* Preparation Progress Bar */}
             <div className="mt-3">
               <div className="w-full bg-blue-400 bg-opacity-30 rounded-full h-3">
-                <div className="bg-white h-3 rounded-full animate-pulse" style={{ width: '20%' }}>
+                <div className="bg-white h-3 rounded-full animate-pulse flex items-center justify-center" style={{ width: '8%' }}>
                   <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
                 </div>
               </div>

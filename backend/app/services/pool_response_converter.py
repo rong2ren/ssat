@@ -162,7 +162,7 @@ class PoolResponseConverter:
             # Create WritingPrompt object with correct field names
             prompt = WritingPrompt(
                 prompt_text=pool_prompt.get('prompt_text', pool_prompt.get('prompt', '')),
-                instructions="Write a response to the following prompt:",
+                instructions="",  # Remove redundant instructions - section instructions will be used instead
                 visual_description=pool_prompt.get('visual_description'),
                 tags=pool_prompt.get('tags', []),
                 metadata={
@@ -233,26 +233,22 @@ class PoolResponseConverter:
         if section_type == "quantitative":
             return QuantitativeSection(
                 questions=questions,
-                time_limit_minutes=30,
                 instructions="Complete the following math questions. Choose the best answer for each question."
             )
         elif section_type == "synonyms":
             return SynonymSection(
                 questions=questions,
-                time_limit_minutes=15,
                 instructions="Choose the word that means the same as the given word."
             )
         elif section_type == "analogy":
             return AnalogySection(
                 questions=questions,
-                time_limit_minutes=15,
                 instructions="Complete each analogy by choosing the word that best fits the relationship."
             )
         else:
             # Fallback to QuantitativeSection
             return QuantitativeSection(
                 questions=questions,
-                time_limit_minutes=30,
                 instructions="Complete the following math questions. Choose the best answer for each question."
             )
     
@@ -319,7 +315,6 @@ class PoolResponseConverter:
 
         return ReadingSection(
             passages=passages,
-            time_limit_minutes=25,
             instructions="Read each passage carefully and answer the questions that follow."
         )
     
@@ -336,7 +331,7 @@ class PoolResponseConverter:
         # Create WritingPrompt object with correct field names
         prompt = WritingPrompt(
             prompt_text=pool_prompt.get('prompt_text', pool_prompt.get('prompt', '')),
-            instructions="Write a response to the following prompt:",
+            instructions="",  # Remove redundant instructions - section instructions will be used instead
             visual_description=pool_prompt.get('visual_description'),
             tags=pool_prompt.get('tags', []),
             metadata={
@@ -348,6 +343,5 @@ class PoolResponseConverter:
         
         return WritingSection(
             prompt=prompt,
-            time_limit_minutes=25,
-            instructions="Write a creative story based on the given prompt. Use your imagination and include details to make your story engaging."
+            instructions="Look at the picture and tell a story about what happened. Make sure your story includes a beginning, a middle, and an end."
         ) 

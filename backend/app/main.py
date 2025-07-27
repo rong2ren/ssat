@@ -363,13 +363,13 @@ async def generate_content(request: QuestionGenerationRequest, current_user: Use
                 logger.info(f"🔍 POOL: ❌ Pool exhausted - no questions available, need {request.count}")
         
         elif request.question_type.value == "reading":
-            # For reading content
+            # For reading content - request.count now represents passages
             logger.info(f"🔍 POOL DEBUG: Attempting pool retrieval for reading passages")
-            logger.info(f"🔍 POOL DEBUG: Count={request.count}")
+            logger.info(f"🔍 POOL DEBUG: Passages requested={request.count}")
             
             pool_passages = await pool_service.get_unused_reading_content_for_user(
                 user_id=str(current_user.id),
-                count=request.count
+                count=request.count  # This is now passages, not questions
             )
             
             logger.info(f"🔍 POOL DEBUG: Retrieved {len(pool_passages)} reading passages from pool, need {request.count}")
@@ -1179,10 +1179,11 @@ async def generate_single_section_background(job_id: str, section_type, request:
         elif section_type.value == "reading":
             # For reading sections
             logger.info(f"🔍 POOL DEBUG: Attempting pool retrieval for reading content")
+            logger.info(f"🔍 POOL DEBUG: Passages requested={section_count}")
             
             pool_content = await pool_service.get_unused_reading_content_for_user(
                 user_id=job.user_id,
-                count=section_count
+                count=section_count  # This is now passages, not questions
             )
             
             logger.info(f"🔍 POOL DEBUG: Retrieved {len(pool_content)} reading passages from pool, need {section_count}")

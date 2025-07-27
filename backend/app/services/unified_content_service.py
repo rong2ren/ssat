@@ -111,7 +111,6 @@ class UnifiedContentService:
             "prompt_text": prompt.prompt_text,
             "instructions": prompt.instructions,
             "grade_level": prompt.grade_level,
-            "story_elements": prompt.story_elements,
             "prompt_type": prompt.prompt_type,
             "tags": prompt.tags,  # Include AI-generated tags
             "subsection": prompt.subsection  # Include AI-generated subsection

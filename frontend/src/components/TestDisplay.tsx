@@ -141,30 +141,9 @@ function WritingSectionDisplay({ section, showAnswers }: { section: WritingSecti
             </div>
           )}
           
-          <div className="bg-white p-4 border border-purple-200 rounded">
-            <p className="text-sm text-purple-900 mb-2">
-              <strong>Instructions:</strong> {prompt.instructions}
-            </p>
-            
-            {prompt.story_elements && prompt.story_elements.length > 0 && (
-              <div className="mt-3">
-                <p className="text-sm text-purple-800 mb-2"><strong>Story Elements to Consider:</strong></p>
-                <div className="flex flex-wrap gap-2">
-                  {prompt.story_elements.map((element, index) => (
-                    <span key={index} className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded">
-                      {element}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+
           
-          {/* <div className="bg-gray-50 p-4 border rounded">
-            <p className="text-sm text-gray-600 italic">
-              [Student would write their story here during the actual test]
-            </p>
-          </div> */}
+
         </div>
       </div>
     </div>
@@ -254,7 +233,7 @@ function SectionHeader({ section, sectionIndex, showAnswers: globalShowAnswers }
         <div>
           <h3 className="text-lg font-semibold capitalize">{section.section_type} Section</h3>
           <p className="text-sm text-gray-600">
-            Time limit: {section.time_limit_minutes} minutes • {section.instructions}
+            {section.instructions}
           </p>
         </div>
         

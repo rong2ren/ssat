@@ -61,28 +61,24 @@ export interface WritingPrompt {
   instructions: string
   visual_description?: string
   grade_level: string
-  story_elements: string[]
   prompt_type: string
 }
 
 export interface StandaloneSection {
   section_type: 'quantitative' | 'analogy' | 'synonym'
   questions: Question[]
-  time_limit_minutes: number
   instructions: string
 }
 
 export interface ReadingSection {
   section_type: 'reading'
   passages: ReadingPassage[]
-  time_limit_minutes: number
   instructions: string
 }
 
 export interface WritingSection {
   section_type: 'writing'
   prompt: WritingPrompt
-  time_limit_minutes: number
   instructions: string
 }
 
