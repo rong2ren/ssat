@@ -3,7 +3,7 @@
 import React, { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { BookOpen, FileText, Home, Globe, LogIn, Target } from 'lucide-react'
+import { BookOpen, Home, Globe, LogIn, Target } from 'lucide-react'
 import { Button } from './ui/Button'
 import { useAuth } from '@/contexts/AuthContext'
 import UserProfile from './auth/UserProfile'

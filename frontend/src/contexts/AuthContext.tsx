@@ -1,9 +1,8 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { UserProfile, UserLogin, UserRegister, UserProfileUpdate, UserContentStats, AuthResponse, ResetPasswordRequest } from '@/types/api'
-import { supabase } from '@/lib/supabase'
-import { User } from '@supabase/supabase-js'
+import { UserProfile, UserLogin, UserRegister, UserProfileUpdate, UserContentStats } from '@/types/api'
+import { supabase } from '@/lib'
 
             interface AuthContextType {
               user: UserProfile | null
@@ -46,7 +45,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        const eventTime = performance.now()
         
         if (event === 'SIGNED_IN' && session?.user) {
           // Only treat as successful login if email is confirmed
@@ -92,7 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       setUser(profile)
       
-    } catch (err) {
+    } catch {
       await supabase.auth.signOut()
     } finally {
       setLoading(false)
@@ -100,14 +98,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
                 const login = async (credentials: UserLogin): Promise<boolean> => {
-                const startTime = performance.now()
-                
                 try {
                   setLoading(true)
                   setError(null)
 
                   // Use Supabase auth directly
-                  const authStartTime = performance.now()
                   
                   // Add timeout for slow connections
                   const timeoutPromise = new Promise((_, reject) => 
@@ -121,9 +116,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   
                   const { data, error } = await Promise.race([authPromise, timeoutPromise]) as any
 
-                  const authTime = performance.now() - authStartTime
-                  const totalTime = performance.now() - startTime
-
                   if (error) {
                     setError(error.message)
                     return false
@@ -136,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     setError('Login failed')
                     return false
                   }
-                } catch (err) {
+                } catch {
                   setError('Network error. Please try again.')
                   return false
                 } finally {
@@ -161,7 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                   setError('Confirmation email sent. Please check your inbox.')
                   return true
-                } catch (err) {
+                } catch {
                   setError('Network error. Please try again.')
                   return false
                 } finally {
@@ -185,7 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                   setError('Password reset email sent. Please check your inbox.')
                   return true
-                } catch (err) {
+                } catch {
                   setError('Network error. Please try again.')
                   return false
                 } finally {
@@ -244,7 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     setError('Registration failed')
                     return false
                   }
-                } catch (err) {
+                } catch {
                   setError('Network error. Please try again.')
                   return false
                 } finally {
@@ -255,7 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async (): Promise<void> => {
     try {
       await supabase.auth.signOut()
-    } catch (err) {
+    } catch {
       // console.error('Logout error:', err)
     } finally {
       setUser(null)
@@ -296,7 +288,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError('Profile update failed')
         return false
       }
-    } catch (err) {
+    } catch {
       setError('Network error. Please try again.')
       return false
     } finally {
@@ -323,7 +315,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return data.stats || null
       }
       return null
-    } catch (err) {
+    } catch {
       // console.error('Failed to get user stats:', err)
       return null
     }

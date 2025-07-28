@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { UserProfileUpdate, GradeLevel } from '@/types/api'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib'
 import { DailyLimitsDisplay } from '@/components/DailyLimitsDisplay'
 
 interface UserProfileProps {
@@ -11,11 +11,10 @@ interface UserProfileProps {
 }
 
 function UserProfileComponent({ showChinese = false }: UserProfileProps) {
-  const { user, logout, updateProfile, loading, error, clearError } = useAuth()
+  const { user, logout, updateProfile, loading } = useAuth()
   const [showProfile, setShowProfile] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [isResettingPassword, setIsResettingPassword] = useState(false)
-  const [localLoading, setLocalLoading] = useState(false)
   const [logoutLoading, setLogoutLoading] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -165,9 +164,9 @@ function UserProfileComponent({ showChinese = false }: UserProfileProps) {
       setIsResettingPassword(false)
       setNewPassword('')
       setSuccessMessage(t('Password updated successfully!'))
-    } catch (err) {
-      setSuccessMessage(t('Failed to update password. Please try again.'))
-    }
+          } catch {
+        setSuccessMessage(t('Failed to update password. Please try again.'))
+      }
   }
 
   if (!user) return null

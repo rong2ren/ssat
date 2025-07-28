@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     DEEPSEEK_API_KEY: str = ""
     
+    # Email service
+    RESEND_API: str = ""
+    
     # EMBEDDING_MODEL_NAME removed - using automatic model fallback instead
     APP_ENV: str = "dev"  # optional, tracks environment (dev/staging/prod)
 

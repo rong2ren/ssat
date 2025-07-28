@@ -15,8 +15,6 @@ interface TestDisplayProps {
 export function TestDisplay({ sections, showChinese }: TestDisplayProps) {
   const [showAnswers, setShowAnswers] = useState(false)
 
-  const t = (key: string) => key // Simplified for now
-
   const handleDownloadCompleteTest = () => {
     generateUnifiedPDF(sections, {
       title: 'Complete SSAT Practice Test',

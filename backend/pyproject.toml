@@ -33,7 +33,6 @@ dependencies = [
     
     # ML and embeddings (required for question generation)
     "sentence-transformers>=4.1.0,<5.0.0",
-    "transformers>=4.51.3,<5.0.0",
 ]
 
 [project.optional-dependencies]

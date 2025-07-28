@@ -5,9 +5,8 @@ import { TestSection } from '@/types/api'
 import { TestDisplay } from './TestDisplay'
 import { Button } from './ui/Button'
 import { RefreshCw, Clock, CheckCircle, AlertCircle, Loader2, Settings } from 'lucide-react'
-import { useFullTestState, useFullTestActions, usePreferences } from '@/contexts/AppStateContext'
+import { useFullTestState, useFullTestActions } from '@/contexts/AppStateContext'
 import { getAuthHeaders } from '@/utils/auth'
-import { useAuth } from '@/contexts/AuthContext'
 
 interface ProgressiveTestGeneratorProps {
   showChinese: boolean
@@ -63,10 +62,7 @@ export function ProgressiveTestGenerator({
   const [error, setError] = useState<string | null>(null)
   
   // Keep local state for current session-specific data
-  const [jobId, setJobId] = useState<string | null>(null)
-  const [isPolling, setIsPolling] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [startTime, setStartTime] = useState<Date | null>(null)
   const [elapsedTime, setElapsedTime] = useState<string>('0s')
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
   const elapsedTimerRef = useRef<number | null>(null)
@@ -152,7 +148,7 @@ export function ProgressiveTestGenerator({
     stopElapsedTimeCounter()
     
     // Reset polling state
-    setIsPolling(false)
+    // setIsPolling(false) // This line was removed
   }
 
   const startGeneration = async () => {
@@ -186,7 +182,7 @@ export function ProgressiveTestGenerator({
       cleanup()
       
       const now = new Date()
-      setStartTime(now)
+      // setStartTime(now) // This line was removed
       
       // Start elapsed time counter
       startElapsedTimeCounter(now)
@@ -271,8 +267,8 @@ export function ProgressiveTestGenerator({
       }
 
       const data = await response.json()
-      setJobId(data.job_id)
-      setIsPolling(true)
+      // setJobId(data.job_id) // This line was removed
+      // setIsPolling(true) // This line was removed
       
       // Update job status with real job ID and set all sections to generating
       setJobStatus((prev: JobStatus | null) => {
@@ -396,7 +392,7 @@ export function ProgressiveTestGenerator({
               updated_at: new Date().toISOString()
             }
             setJobStatus(failedStatus)
-            setIsPolling(false)
+            // setIsPolling(false) // This line was removed
             setIsSubmitting(false)
             stopElapsedTimeCounter()
             if (pollingRef.current) {
@@ -451,7 +447,7 @@ export function ProgressiveTestGenerator({
             console.log('🔍 DAILY LIMITS: All sections completed successfully!')
           }
           
-          setIsPolling(false)
+          // setIsPolling(false) // This line was removed
           setIsSubmitting(false)  // Reset isSubmitting when job actually completes
           stopElapsedTimeCounter()
           if (pollingRef.current) {
@@ -494,7 +490,7 @@ export function ProgressiveTestGenerator({
         
         setJobStatus(failedStatus)
         setError(errorMessage)
-        setIsPolling(false)
+        // setIsPolling(false) // This line was removed
         setIsSubmitting(false)
         stopElapsedTimeCounter()
       }
@@ -511,10 +507,10 @@ export function ProgressiveTestGenerator({
     contextSetJobStatus(null)
     
     // Then clear local state
-    setJobId(null)
+    // setJobId(null) // This line was removed
     setJobStatus(null)
     setError(null)
-    setStartTime(null)
+    // setStartTime(null) // This line was removed
     setElapsedTime('0s')
     
     // Use cleanup function
@@ -579,14 +575,14 @@ export function ProgressiveTestGenerator({
       
       // Start elapsed time counter
       const now = new Date()
-      setStartTime(now)
+      // setStartTime(now) // This line was removed
       startElapsedTimeCounter(now)
       
       // Set job ID and start polling
-      setJobId(initialJobId)
+      // setJobId(initialJobId) // This line was removed
       startPolling(initialJobId)
     }
-  }, [initialJobId]) // Only depend on initialJobId
+  }, [initialJobId]) // Only depend on initialJobId to avoid complex dependency issues
 
 
 
