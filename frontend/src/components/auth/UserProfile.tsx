@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { UserProfileUpdate, GradeLevel } from '@/types/api'
-import { supabase } from '@/lib'
+import { supabase } from '../../lib/supabase'
 import { DailyLimitsDisplay } from '@/components/DailyLimitsDisplay'
 
 interface UserProfileProps {

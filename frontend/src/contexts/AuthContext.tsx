@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { UserProfile, UserLogin, UserRegister, UserProfileUpdate, UserContentStats } from '@/types/api'
-import { supabase } from '@/lib'
+import { supabase } from '../lib/supabase'
 
             interface AuthContextType {
               user: UserProfile | null

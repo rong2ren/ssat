@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib'
+import { supabase } from '../../lib/supabase'
 
 interface ResetPasswordFormProps {
   showChinese?: boolean
