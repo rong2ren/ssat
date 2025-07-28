@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { UserProfile, UserLogin, UserRegister, UserProfileUpdate, UserContentStats } from '@/types/api'
 import { supabase } from '../lib/supabase'
+import { clearAllLimitsCache } from '@/components/DailyLimitsDisplay'
 
             interface AuthContextType {
               user: UserProfile | null
@@ -247,6 +248,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async (): Promise<void> => {
     try {
       await supabase.auth.signOut()
+      
+      // Clear all limits cache on logout
+      clearAllLimitsCache()
     } catch {
       // console.error('Logout error:', err)
     } finally {
