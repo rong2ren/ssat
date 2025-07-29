@@ -136,7 +136,6 @@ function WritingSectionDisplay({ section, showAnswers }: { section: WritingSecti
   return (
     <div className="space-y-6">
       <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
-        <h4 className="text-lg font-semibold text-purple-900 mb-3">Writing Prompt</h4>
         
         <div className="space-y-4">
           <p className="text-purple-900 text-lg leading-relaxed">{prompt.prompt_text}</p>

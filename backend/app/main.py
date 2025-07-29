@@ -239,7 +239,7 @@ async def generate_content(request: QuestionGenerationRequest, current_user: Use
                     }
                     
                     section_display_name = section_names.get(section, section)
-                    error_message = f"You've reached your daily limit for {section_display_name}. Please try again tomorrow or upgrade your account for higher limits."
+                    error_message = f"You've reached your daily limit for {section_display_name}. Please try again tomorrow or email ssat@schoolbase.org to upgrade your account."
                     
                     return JSONResponse(
                         status_code=400,  # Bad Request (more user-friendly than 429)
@@ -845,7 +845,7 @@ async def start_progressive_test_generation(request: CompleteTestRequest, curren
                     }
                     
                     section_display_name = section_names.get(section_name, section_name)
-                    error_message = f"You've reached your daily limit for {section_display_name}. Please try again tomorrow or upgrade your account for higher limits."
+                    error_message = f"You've reached your daily limit for {section_display_name}. Please try again tomorrow or email ssat@schoolbase.org to upgrade your account."
                     
                     return JSONResponse(
                         status_code=400,  # Bad Request (more user-friendly than 429)

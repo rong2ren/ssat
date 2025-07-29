@@ -3,6 +3,9 @@
 import { Button } from './ui/Button'
 import { BookOpen, Target, Zap, Clock, Award, ArrowRight, Calculator, FileText, PenTool } from 'lucide-react'
 import Link from 'next/link'
+import quantitativeScreenshot from '../../screenshots/quantiative.png'
+import readingScreenshot from '../../screenshots/reading.png'
+import Image from 'next/image'
 
 interface HomePageProps {
   showChinese?: boolean
@@ -76,7 +79,14 @@ export function HomePage({ showChinese = false }: HomePageProps) {
     'Grammar': '语法',
     'Punctuation': '标点',
     'Sentence Structure': '句子结构',
-    'Style': '写作风格'
+    'Style': '写作风格',
+    'See SmartSSAT in Action': '体验SmartSSAT实际效果',
+    'Experience our AI-powered SSAT practice platform with real questions and detailed explanations.':
+    '体验我们的AI智能SSAT练习平台，真实题目与详细解析。',
+    'Quantitative Practice': '数学练习',
+    'Mathematical reasoning questions with step-by-step explanations': '数学推理题目，配有逐步解析',
+    'Reading Comprehension': '阅读理解',
+    'Reading passages with comprehension questions and detailed analysis': '阅读文章配有理解题目和详细分析'
   }
 
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
@@ -89,7 +99,7 @@ export function HomePage({ showChinese = false }: HomePageProps) {
           <div className="text-center">
             <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
               {t('Master the')} <span className="text-blue-600">{t('SSAT')}</span> {t('with')}
-              <br />
+              <br className="mb-4" />
               <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                 {t('AI-Powered Practice')}
               </span>
@@ -242,6 +252,50 @@ export function HomePage({ showChinese = false }: HomePageProps) {
                 </ul>
               </div>
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Product Showcase Section */}
+      <section className="py-20 bg-gradient-to-br from-gray-50 to-blue-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">{t('See SmartSSAT in Action')}</h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              {t('Experience our AI-powered SSAT practice platform with real questions and detailed explanations.')}
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+            <div className="space-y-4">
+              <h3 className="text-xl font-semibold text-gray-900 text-center">{t('Quantitative Practice')}</h3>
+              <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
+                <Image 
+                  src={quantitativeScreenshot} 
+                  alt="SmartSSAT Quantitative Practice Interface"
+                  width={600}
+                  height={400}
+                />
+              </div>
+              <p className="text-sm text-gray-600 text-center">
+                {t('Mathematical reasoning questions with step-by-step explanations')}
+              </p>
+            </div>
+            
+            <div className="space-y-4">
+              <h3 className="text-xl font-semibold text-gray-900 text-center">{t('Reading Comprehension')}</h3>
+              <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
+                <Image 
+                  src={readingScreenshot} 
+                  alt="SmartSSAT Reading Practice Interface"
+                  width={600}
+                  height={400}
+                />
+              </div>
+              <p className="text-sm text-gray-600 text-center">
+                {t('Reading passages with comprehension questions and detailed analysis')}
+              </p>
+            </div>
           </div>
         </div>
       </section>
