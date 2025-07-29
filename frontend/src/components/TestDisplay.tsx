@@ -25,6 +25,16 @@ export function TestDisplay({ sections, showChinese }: TestDisplayProps) {
     })
   }
 
+  const translations = {
+    'Complete SmartSSAT Practice Test': '完整SmartSSAT练习测试',
+    'Back to Home': '返回首页',
+    'Download PDF': '下载PDF',
+    'Print Test': '打印测试',
+    'Loading test...': '加载测试中...',
+    'Error loading test': '加载测试出错',
+    'No test data available': '没有可用的测试数据'
+  }
+
 
   if (sections.length === 0) {
     return null
@@ -36,7 +46,7 @@ export function TestDisplay({ sections, showChinese }: TestDisplayProps) {
       <div className="border-b border-gray-200 p-4 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
           <div>
-            <h2 className="text-xl sm:text-2xl font-semibold text-gray-800">Complete SSAT Test</h2>
+            <h2 className="text-xl sm:text-2xl font-semibold text-gray-800">Complete SmartSSAT Test</h2>
             <p className="text-sm sm:text-base text-gray-600">{sections.length} sections</p>
           </div>
           

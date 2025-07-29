@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS user_question_usage (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     question_id TEXT NOT NULL,                  -- ID from existing ai_generated_* tables
-    content_type TEXT NOT NULL,                 -- 'quantitative', 'analogy', 'synonyms', 'reading', 'writing'
+    content_type TEXT NOT NULL,                 -- 'quantitative', 'analogy', 'synonym', 'reading', 'writing'
     usage_type TEXT NOT NULL,                   -- 'full_test', 'custom_section'
     created_at TIMESTAMPTZ DEFAULT NOW(),
     

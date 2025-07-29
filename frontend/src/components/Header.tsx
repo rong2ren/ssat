@@ -30,12 +30,16 @@ function HeaderComponent({ showChinese = false, onLanguageToggle }: HeaderProps)
 
   // UI translations
   const translations = {
-    'SSAT Practice': 'SSAT 练习',
-    'AI-Powered Question Generator': 'AI驱动的题目生成器',
+    'SmartSSAT': 'SmartSSAT',
+    'AI-Powered SSAT Practice Platform': 'AI智能驱动的 SSAT 练习平台',
     'Home': '首页',
-    'Custom Section': '自定义练习',
+    'Single Section': '单项练习',
     'Full Test': '完整测试',
-    'Sign In': '登录'
+    'Admin': '管理员',
+    'Profile': '个人资料',
+    'Sign Out': '退出登录',
+    'Sign In': '登录',
+    'Register': '注册'
   }
 
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
@@ -52,8 +56,8 @@ function HeaderComponent({ showChinese = false, onLanguageToggle }: HeaderProps)
               <BookOpen className="h-6 w-6 text-white" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate">{t('SSAT Practice')}</h1>
-              <p className="text-xs text-gray-500 hidden sm:block">{t('AI-Powered Question Generator')}</p>
+              <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate">{t('SmartSSAT')}</h1>
+              <p className="text-xs text-gray-500 hidden sm:block">{t('AI-Powered SSAT Practice Platform')}</p>
             </div>
           </Link>
           
@@ -82,7 +86,7 @@ function HeaderComponent({ showChinese = false, onLanguageToggle }: HeaderProps)
                 }`}
               >
                 <Target className="h-4 w-4" />
-                <span className="hidden lg:inline ml-2 text-sm font-medium">{t('Custom Section')}</span>
+                <span className="hidden lg:inline ml-2 text-sm font-medium">{t('Single Section')}</span>
               </Link>
               
               <Link

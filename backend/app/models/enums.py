@@ -8,7 +8,7 @@ class QuestionType(str, Enum):
     READING = "reading"
     VERBAL = "verbal"
     ANALOGY = "analogy"
-    SYNONYM = "synonyms"
+    SYNONYM = "synonym"
     WRITING = "writing"
 
 class DifficultyLevel(str, Enum):

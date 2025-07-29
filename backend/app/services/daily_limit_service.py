@@ -17,7 +17,7 @@ class DailyLimitService:
     DEFAULT_LIMITS = {
         "quantitative": 30,      # 30 math questions per day
         "analogy": 18,           # 18 analogy questions per day
-        "synonyms": 12,          # 12 synonym questions per day
+        "synonym": 12,          # 12 synonym questions per day
         "reading_passages": 7,  # 7 reading passages per day
         "writing": 1             # 1 writing prompts per day
     }
@@ -26,7 +26,7 @@ class DailyLimitService:
     PREMIUM_LIMITS = {
         "quantitative": 120,
         "analogy": 120,
-        "synonyms": 120,
+        "synonym": 120,
         "reading_passages": 40,
         "writing": 4
     }
@@ -35,7 +35,7 @@ class DailyLimitService:
     UNLIMITED_LIMITS = {
         "quantitative": -1,      # -1 means unlimited
         "analogy": -1,
-        "synonyms": -1,
+        "synonym": -1,
         "reading_passages": -1,
         "writing": -1
     }
@@ -68,7 +68,7 @@ class DailyLimitService:
                         return {
                             "quantitative": custom_limits.get("quantitative", self.DEFAULT_LIMITS["quantitative"]),
                             "analogy": custom_limits.get("analogy", self.DEFAULT_LIMITS["analogy"]),
-                            "synonyms": custom_limits.get("synonyms", self.DEFAULT_LIMITS["synonyms"]),
+                            "synonym": custom_limits.get("synonym", self.DEFAULT_LIMITS["synonym"]),
                             "reading_passages": custom_limits.get("reading_passages", self.DEFAULT_LIMITS["reading_passages"]),
                             "writing": custom_limits.get("writing", self.DEFAULT_LIMITS["writing"])
                         }
@@ -103,7 +103,7 @@ class DailyLimitService:
                         "last_reset_date": usage_data.get("last_reset_date"),
                         "quantitative_generated": usage_data.get("quantitative_generated", 0),
                         "analogy_generated": usage_data.get("analogy_generated", 0),
-                        "synonyms_generated": usage_data.get("synonyms_generated", 0),
+                        "synonym_generated": usage_data.get("synonym_generated", 0),
                         "reading_passages_generated": usage_data.get("reading_passages_generated", 0),
                         "writing_generated": usage_data.get("writing_generated", 0),
                         "needs_reset": usage_data.get("needs_reset", False)
@@ -142,7 +142,7 @@ class DailyLimitService:
                 
                 # Query the user_daily_limits table directly
                 response = self.supabase.table('user_daily_limits').select(
-                    'last_reset_date, quantitative_generated, analogy_generated, synonyms_generated, reading_passages_generated, writing_generated'
+                    'last_reset_date, quantitative_generated, analogy_generated, synonym_generated, reading_passages_generated, writing_generated'
                 ).eq('user_id', user_id).execute()
                 
                 today = date.today()
@@ -159,7 +159,7 @@ class DailyLimitService:
                         "last_reset_date": today,
                         "quantitative_generated": 0,
                         "analogy_generated": 0,
-                        "synonyms_generated": 0,
+                        "synonym_generated": 0,
                         "reading_passages_generated": 0,
                         "writing_generated": 0,
                         "needs_reset": False
@@ -176,7 +176,7 @@ class DailyLimitService:
                     self.supabase.table('user_daily_limits').update({
                         'quantitative_generated': 0,
                         'analogy_generated': 0,
-                        'synonyms_generated': 0,
+                        'synonym_generated': 0,
                         'reading_passages_generated': 0,
                         'writing_generated': 0,
                         'last_reset_date': today.isoformat(),
@@ -188,7 +188,7 @@ class DailyLimitService:
                         "last_reset_date": today,
                         "quantitative_generated": 0,
                         "analogy_generated": 0,
-                        "synonyms_generated": 0,
+                        "synonym_generated": 0,
                         "reading_passages_generated": 0,
                         "writing_generated": 0,
                         "needs_reset": True
@@ -199,7 +199,7 @@ class DailyLimitService:
                     "last_reset_date": last_reset_date,
                     "quantitative_generated": row['quantitative_generated'],
                     "analogy_generated": row['analogy_generated'],
-                    "synonyms_generated": row['synonyms_generated'],
+                    "synonym_generated": row['synonym_generated'],
                     "reading_passages_generated": row['reading_passages_generated'],
                     "writing_generated": row['writing_generated'],
                     "needs_reset": False
@@ -216,7 +216,7 @@ class DailyLimitService:
                         "last_reset_date": date.today(),
                         "quantitative_generated": 0,
                         "analogy_generated": 0,
-                        "synonyms_generated": 0,
+                        "synonym_generated": 0,
                         "reading_passages_generated": 0,
                         "writing_generated": 0,
                         "needs_reset": False
@@ -233,7 +233,7 @@ class DailyLimitService:
             "last_reset_date": date.today(),
             "quantitative_generated": 0,
             "analogy_generated": 0,
-            "synonyms_generated": 0,
+            "synonym_generated": 0,
             "reading_passages_generated": 0,
             "writing_generated": 0,
             "needs_reset": False
@@ -378,7 +378,7 @@ class DailyLimitService:
             return {
                 "quantitative": 0,
                 "analogy": 0,
-                "synonyms": 0,
+                "synonym": 0,
                 "reading_passages": 0,
                 "writing": 0
             }
@@ -386,7 +386,7 @@ class DailyLimitService:
         return {
             "quantitative": -1 if limits.get("quantitative") == -1 else max(0, limits.get("quantitative", 0) - usage.get("quantitative_generated", 0)),
             "analogy": -1 if limits.get("analogy") == -1 else max(0, limits.get("analogy", 0) - usage.get("analogy_generated", 0)),
-            "synonyms": -1 if limits.get("synonyms") == -1 else max(0, limits.get("synonyms", 0) - usage.get("synonyms_generated", 0)),
+            "synonym": -1 if limits.get("synonym") == -1 else max(0, limits.get("synonym", 0) - usage.get("synonym_generated", 0)),
             "reading_passages": -1 if limits.get("reading_passages") == -1 else max(0, limits.get("reading_passages", 0) - usage.get("reading_passages_generated", 0)),
             "writing": -1 if limits.get("writing") == -1 else max(0, limits.get("writing", 0) - usage.get("writing_generated", 0))
         }
@@ -412,8 +412,8 @@ class DailyLimitService:
                 return "quantitative"
             elif question_type == "analogy":
                 return "analogy"
-            elif question_type == "synonym" or question_type == "synonyms":
-                return "synonyms"
+            elif question_type == "synonym":
+                return "synonym"
             else:
                 return "quantitative"  # Default fallback
         else:

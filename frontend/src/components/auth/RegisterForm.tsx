@@ -10,14 +10,13 @@ interface RegisterFormProps {
 }
 
 export default function RegisterForm({ onSwitchToLogin, showChinese = false }: RegisterFormProps) {
-  const { register, resendConfirmation, loading, error, clearError } = useAuth()
+  const { register, loading, error, clearError, successMessage, clearSuccessMessage, registrationSuccess, clearRegistrationSuccess } = useAuth()
   const [formData, setFormData] = useState<UserRegister>({
     email: '',
     password: '',
     full_name: '',
     grade_level: undefined
   })
-  const [registrationSuccess, setRegistrationSuccess] = useState(false)
 
   const gradeLevels: GradeLevel[] = ['3rd', '4th', '5th', '6th', '7th', '8th']
 
@@ -41,7 +40,6 @@ export default function RegisterForm({ onSwitchToLogin, showChinese = false }: R
     'Please check your email to verify your account.': '请检查您的邮箱以验证账户。',
     'You will receive a verification email from our authentication service.': '您将收到来自我们认证服务的验证邮件。',
     'Click the link in the email to complete your registration.': '点击邮件中的链接完成注册。',
-    'Note: The email may appear to be from "Supabase" - this is our secure authentication provider.': '注意：邮件可能显示来自"Supabase" - 这是我们安全的认证服务提供商。',
     'After verification, you can sign in with your email and password.': '验证后，您可以使用邮箱和密码登录。',
     'Create Another Account': '创建另一个账户',
     'Try Again': '重试'
@@ -52,19 +50,15 @@ export default function RegisterForm({ onSwitchToLogin, showChinese = false }: R
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     clearError()
-    setRegistrationSuccess(false)
+    clearRegistrationSuccess() // Clear success state on new submission
     
     const success = await register(formData)
     
     if (success) {
-      setRegistrationSuccess(true)
+      // Registration successful - success state will be displayed by AuthContext
     } else {
       // Registration failed - error will be displayed by AuthContext
     }
-  }
-
-  const handleResendConfirmation = async () => {
-    await resendConfirmation(formData.email)
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -87,24 +81,12 @@ export default function RegisterForm({ onSwitchToLogin, showChinese = false }: R
             <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
               <h3 className="font-semibold mb-2">{t('Account Created Successfully!')}</h3>
               <p className="mb-2">{t('Please check your email to verify your account.')}</p>
-              <p className="mb-2">{t('You will receive a verification email from our authentication service.')}</p>
-              <p className="mb-2">{t('Click the link in the email to complete your registration.')}</p>
-              <p className="mb-3 text-sm bg-yellow-50 p-2 rounded border border-yellow-200">
-                <strong>ℹ️ {t('Note: The email may appear to be from "Supabase" - this is our secure authentication provider.')}</strong>
-              </p>
               <p className="mb-3">{t('After verification, you can sign in with your email and password.')}</p>
-              <button
-                type="button"
-                onClick={handleResendConfirmation}
-                className="text-blue-600 hover:text-blue-800 underline text-sm"
-              >
-                {t('Resend confirmation email')}
-              </button>
             </div>
             <button
               type="button"
               onClick={() => {
-                setRegistrationSuccess(false)
+                clearRegistrationSuccess()
                 setFormData({ email: '', password: '', full_name: '', grade_level: undefined })
               }}
               className="w-full bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
@@ -127,13 +109,6 @@ export default function RegisterForm({ onSwitchToLogin, showChinese = false }: R
                       <p className="text-sm font-medium">{error}</p>
                       {error.includes('verification email') && (
                         <div className="mt-2">
-                          <button
-                            type="button"
-                            onClick={handleResendConfirmation}
-                            className="text-blue-600 hover:text-blue-800 underline text-sm"
-                          >
-                            {t('Resend confirmation email')}
-                          </button>
                         </div>
                       )}
                       {error.includes('Unable to send verification email') && (
@@ -142,7 +117,7 @@ export default function RegisterForm({ onSwitchToLogin, showChinese = false }: R
                             type="button"
                             onClick={() => {
                               clearError()
-                              setRegistrationSuccess(false)
+                              clearRegistrationSuccess()
                             }}
                             className="text-blue-600 hover:text-blue-800 underline text-sm"
                           >
@@ -150,6 +125,28 @@ export default function RegisterForm({ onSwitchToLogin, showChinese = false }: R
                           </button>
                         </div>
                       )}
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {successMessage && (
+                <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3 flex-1">
+                      <p className="text-sm font-medium">{successMessage}</p>
+                      <button
+                        type="button"
+                        onClick={clearSuccessMessage}
+                        className="text-green-600 hover:text-green-800 underline text-sm mt-1"
+                      >
+                        Dismiss
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -190,7 +187,7 @@ export default function RegisterForm({ onSwitchToLogin, showChinese = false }: R
               
               <div>
                 <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('Full Name')}
+                  {t('Full Name *')}
                 </label>
                 <input
                   type="text"
@@ -198,6 +195,7 @@ export default function RegisterForm({ onSwitchToLogin, showChinese = false }: R
                   name="full_name"
                   value={formData.full_name || ''}
                   onChange={handleChange}
+                  required
                   maxLength={50}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder={t('Enter your full name')}

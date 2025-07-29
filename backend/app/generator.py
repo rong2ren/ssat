@@ -258,7 +258,7 @@ OUTPUT FORMAT - Return ONLY a JSON object:
     {{
       "prompt": "Complete writing prompt text here (JUST the creative prompt, NO instructions)",
       "visual_description": "Description of the picture that would accompany this prompt",
-      "grade_level": "4",
+      "grade_level": "4-5",
       "prompt_type": "picture_story",
       "subsection": "Collaborative Problem-Solving Narratives",
       "tags": ["teamwork-themes", "problem-solving-process", "character-interaction", "descriptive-language"]
@@ -334,7 +334,7 @@ OUTPUT FORMAT - Return ONLY a JSON object:
     {{
       "prompt": "Complete writing prompt text here (JUST the creative prompt, NO instructions)",
       "visual_description": "Description of the picture that would accompany this prompt",
-      "grade_level": "3-4",
+      "grade_level": "4-5",
       "prompt_type": "picture_story",
       "subsection": "Character-Driven Visual Narratives",
       "tags": ["character-development", "visual-inspiration", "emotional-expression", "narrative-structure"]
@@ -526,7 +526,7 @@ OUTPUT FORMAT - Return ONLY a JSON object with SEPARATE passage and questions:
     "text": "The complete reading passage goes here (similar length to examples)",
     "title": "Optional passage title", 
     "passage_type": "Character-Driven Adventure Fiction",
-    "grade_level": "3-4",
+    "grade_level": "4-5",
     "topic": "passage topic"
   }},
   "questions": [
@@ -810,7 +810,7 @@ OUTPUT FORMAT - Return ONLY a JSON object:
     "text": "Complete reading passage text here",
     "title": "Passage title",
     "passage_type": "Specific passage type",
-    "grade_level": "3-4",
+    "grade_level": "4-5",
     "topic": "Passage topic"
   }},
   "questions": [
@@ -887,9 +887,9 @@ OUTPUT FORMAT - Return ONLY a JSON object:
     {{
       "prompt": "Complete writing prompt text here (JUST the creative prompt, NO instructions)",
       "visual_description": "Description of the picture that would accompany this prompt",
-      "grade_level": "3-4",
+      "grade_level": "4-5",
       "prompt_type": "picture_story",
-      "subsection": "Specific subsection name",
+      "subsection": "Writing",
       "tags": ["tag1", "tag2", "tag3", "tag4"]
     }}
   ]

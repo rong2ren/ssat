@@ -20,12 +20,12 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
   const [difficulty, setDifficulty] = useState('Medium')
   const [useCustomization, setUseCustomization] = useState(false)
   const [showOfficialDetails, setShowOfficialDetails] = useState(false)
-  const [selectedSections, setSelectedSections] = useState(['quantitative', 'analogy', 'synonyms', 'reading', 'writing'])
+  const [selectedSections, setSelectedSections] = useState(['quantitative', 'analogy', 'synonym', 'reading', 'writing'])
   const [customCounts, setCustomCounts] = useState<Record<string, number>>({
     quantitative: 1,
     reading: 1,
     analogy: 1,
-    synonyms: 1,
+    synonym: 1,
     writing: 1
   })
 
@@ -142,7 +142,7 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
   const sectionTypes = [
     { value: 'quantitative', label: t('Quantitative'), defaultCount: 1 },
     { value: 'analogy', label: t('Analogies'), defaultCount: 1 },
-    { value: 'synonyms', label: t('Synonyms'), defaultCount: 1 },
+    { value: 'synonym', label: t('Synonyms'), defaultCount: 1 },
     { value: 'reading', label: t('Reading'), defaultCount: 1 },
     { value: 'writing', label: t('Writing'), defaultCount: 1 }
   ]

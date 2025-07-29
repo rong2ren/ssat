@@ -101,7 +101,7 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
       </div>
       
       <form onSubmit={handleSubmit} className="space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Question Type */}
           <div className="space-y-2">
             <Label htmlFor="practice-question-type">{t('Question Type')} *</Label>
@@ -123,9 +123,7 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
               id="practice-difficulty"
             />
           </div>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Count */}
           <div className="space-y-2">
             <Label htmlFor="practice-count">
@@ -159,8 +157,11 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
               }
             </p>
           </div>
+        </div>
 
-          {/* Topic */}
+
+        {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
           <div className="space-y-2">
             <Label htmlFor="practice-topic">{t('Topic (Optional)')}</Label>
             <Input
@@ -173,7 +174,7 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
               {t('Specify a topic to focus on (e.g., fractions, geometry, vocabulary)')}
             </p>
           </div>
-        </div>
+        </div> */}
 
         {/* Submit Button */}
         <div className="flex justify-center pt-4">

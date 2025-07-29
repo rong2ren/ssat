@@ -71,6 +71,19 @@ export function ProgressiveTestGenerator({
 
   // UI translations
   const translations = {
+    'Your complete SmartSSAT practice test is ready.': '您的完整SmartSSAT练习测试已准备就绪。',
+    'Complete SmartSSAT Practice Test': '完整SmartSSAT练习测试',
+    'Test Generation Complete': '测试生成完成',
+    'Your personalized SSAT practice test has been generated successfully.': '您的个性化SSAT练习测试已成功生成。',
+    'View Test': '查看测试',
+    'Generate New Test': '生成新测试',
+    'Back to Home': '返回首页',
+    'Loading...': '加载中...',
+    'Generating your practice test...': '正在生成您的练习测试...',
+    'This may take a few moments.': '这可能需要几分钟时间。',
+    'Error generating test': '生成测试时出错',
+    'Please try again.': '请重试。',
+    'Retry': '重试',
     'Generate Another Test': '生成另一个测试',
     'Generate Another': '生成另一个',
     'Configure New Test': '配置新测试',
@@ -93,7 +106,6 @@ export function ProgressiveTestGenerator({
     'Test Generation Complete!': '测试生成完成！',
     'Generated': '已生成',
     'sections in': '个部分，用时',
-    'Your complete SSAT practice test is ready.': '您的完整SSAT练习测试已准备就绪。',
     'Generation Error': '生成错误',
     'pending': '等待中',
     'running': '运行中',
@@ -101,16 +113,15 @@ export function ProgressiveTestGenerator({
     'failed': '失败',
     'questions': '题',
     'question': '题',
-    'Complete SSAT Practice Test': '完整SSAT练习测试',
     'Test sections': '包含',
     'LIVE': '实时',
     'Generating Test': '正在生成测试',
     'Test Complete': '已完成',
-        'Test Failed': '生成失败',
+    'Test Failed': '生成失败',
     'elapsed': '已用时',
     'sections complete': '部分已完成',
     'Job was deleted or no longer exists. The test generation may have failed or been cleaned up.': '任务已删除或不存在。测试生成可能失败或被清理。'
-    }
+  }
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
 
   // Official SSAT Elementary format
@@ -682,7 +693,7 @@ export function ProgressiveTestGenerator({
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="bg-white rounded-lg shadow-lg p-6">
-        <h2 className="text-2xl font-semibold text-gray-800 mb-4">{t('Complete SSAT Practice Test')}</h2>
+        <h2 className="text-2xl font-semibold text-gray-800 mb-4">{t('Complete SmartSSAT Practice Test')}</h2>
         
         {/* Test Sections Info */}
         <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-4 sm:mb-6">

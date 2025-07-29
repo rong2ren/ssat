@@ -235,7 +235,7 @@ class PoolResponseConverter:
                 questions=questions,
                 instructions="Complete the following math questions. Choose the best answer for each question."
             )
-        elif section_type == "synonyms":
+        elif section_type == "synonym":
             return SynonymSection(
                 questions=questions,
                 instructions="Choose the word that means the same as the given word."

@@ -62,13 +62,13 @@ export default function FullTestPage() {
       // Use official SSAT Elementary format - separate verbal into analogy and synonyms
       newTestRequest = {
         difficulty: 'Medium',
-        include_sections: ['quantitative', 'analogy', 'synonyms', 'reading', 'writing'],
-        custom_counts: { 
-          quantitative: 30, 
-          analogy: 12,  // 40% of 30 = 12 questions
-          synonyms: 18,  // 60% of 30 = 18 questions
-          reading: 7, 
-          writing: 1 
+        include_sections: ['quantitative', 'analogy', 'synonym', 'reading', 'writing'],
+        custom_counts: {
+          quantitative: 30,  // 30 math questions
+          analogy: 12,       // 40% of 30 = 12 questions
+          synonym: 18,  // 60% of 30 = 18 questions
+          reading: 7,        // 7 passages
+          writing: 1         // 1 writing prompt
         },
         is_official_format: true // Official format
       }
@@ -241,7 +241,7 @@ export default function FullTestPage() {
                                 </div>
                                 <div className="flex justify-between items-center">
                                   <span className="text-gray-700 font-medium">{t('Synonyms')}:</span>
-                                  <span className="font-mono text-gray-900 font-semibold">{limitErrorInfo.usage.synonyms_generated}/{limitErrorInfo.limits.synonyms}</span>
+                                  <span className="font-mono text-gray-900 font-semibold">{limitErrorInfo.usage.synonym_generated}/{limitErrorInfo.limits.synonym}</span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                   <span className="text-gray-700 font-medium">{t('Reading')}:</span>

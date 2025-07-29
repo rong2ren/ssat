@@ -130,21 +130,21 @@ interface LimitsData {
   usage: {
     quantitative_generated: number
     analogy_generated: number
-    synonyms_generated: number
+    synonym_generated: number
     reading_passages_generated: number
     writing_generated: number
   }
   limits: {
     quantitative: number
     analogy: number
-    synonyms: number
+    synonym: number
     reading_passages: number
     writing: number
   }
   remaining: {
     quantitative: number
     analogy: number
-    synonyms: number
+    synonym: number
     reading_passages: number
     writing: number
   }
@@ -372,7 +372,7 @@ function DailyLimitsDisplayComponent({ showChinese = false, className = '' }: Da
   const sections = [
     { key: 'quantitative', label: 'Quantitative', used: usage.quantitative_generated, limit: limitsData.quantitative, remaining: remaining.quantitative },
     { key: 'analogy', label: 'Analogy', used: usage.analogy_generated, limit: limitsData.analogy, remaining: remaining.analogy },
-    { key: 'synonyms', label: 'Synonyms', used: usage.synonyms_generated, limit: limitsData.synonyms, remaining: remaining.synonyms },
+    { key: 'synonym', label: 'Synonyms', used: usage.synonym_generated, limit: limitsData.synonym, remaining: remaining.synonym },
     { key: 'reading_passages', label: 'Reading Passages', used: usage.reading_passages_generated, limit: limitsData.reading_passages, remaining: remaining.reading_passages },
     { key: 'writing', label: 'Writing', used: usage.writing_generated, limit: limitsData.writing, remaining: remaining.writing }
   ]

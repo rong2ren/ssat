@@ -166,8 +166,8 @@ class AIContentService:
                 embedding_service = get_embedding_service()
                 question_embedding = embedding_service.generate_question_embedding(question_text, choices)
                 
-                # Use AI-generated subsection and tags, with intelligent fallbacks
-                final_subsection = question_subsection or subsection or "General"
+                # Use passed subsection parameter first, then AI-generated subsection as fallback
+                final_subsection = subsection or question_subsection or "General"
                 final_tags = question_tags if question_tags else []
                 
                 # Only log if there are differences or issues

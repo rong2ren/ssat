@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SSAT Practice Generator - AI-Powered Question Generator",
+  title: "SmartSSAT - AI-Powered SSAT Practice Platform",
   description: "Generate unlimited, personalized SSAT practice questions with advanced AI. Practice individual sections or take full-length tests with instant feedback.",
 };
 

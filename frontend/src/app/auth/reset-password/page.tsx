@@ -10,8 +10,15 @@ export default function ResetPasswordPage() {
   
   // UI translations
   const translations = {
-    'SSAT Practice Platform': 'SSAT练习平台',
-    'Reset your password': '重置您的密码'
+    'SmartSSAT': 'SmartSSAT',
+    'Reset your password': '重置您的密码',
+    'Enter your email address and we\'ll send you a link to reset your password.': '请输入您的邮箱地址，我们将发送重置密码链接给您。',
+    'Email': '邮箱',
+    'Send reset link': '发送重置链接',
+    'Back to sign in': '返回登录',
+    'Enter your email': '请输入您的邮箱',
+    'Password reset email sent. Please check your inbox.': '密码重置邮件已发送，请查看您的收件箱。',
+    'Network error. Please try again.': '网络错误，请重试。'
   }
 
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
@@ -32,7 +39,7 @@ export default function ResetPasswordPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            {t('SSAT Practice Platform')}
+            {t('SmartSSAT')}
           </h1>
           <p className="text-gray-600">
             {t('Reset your password')}

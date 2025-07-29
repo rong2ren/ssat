@@ -1,6 +1,7 @@
 'use client'
 
 import { Header } from './Header'
+import Footer from './Footer'
 import { AppStateProvider, usePreferences } from '@/contexts/AppStateContext'
 
 interface LayoutWrapperProps {
@@ -16,13 +17,16 @@ function LayoutContent({ children }: LayoutWrapperProps) {
   }
 
   return (
-    <>
+    <div className="min-h-screen flex flex-col">
       <Header 
         showChinese={showChinese}
         onLanguageToggle={handleLanguageToggle}
       />
-      {children}
-    </>
+      <main className="flex-1">
+        {children}
+      </main>
+      <Footer showChinese={showChinese} />
+    </div>
   )
 }
 

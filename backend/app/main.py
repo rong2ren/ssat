@@ -233,7 +233,7 @@ async def generate_content(request: QuestionGenerationRequest, current_user: Use
                     section_names = {
                         "quantitative": "math questions",
                         "analogy": "analogy questions", 
-                        "synonyms": "synonym questions",
+                        "synonym": "synonym questions",
                         "reading_passages": "reading passages",
                         "writing": "writing prompts"
                     }
@@ -271,18 +271,18 @@ async def generate_content(request: QuestionGenerationRequest, current_user: Use
         section_mapping = {
             "quantitative": "Quantitative",
             "analogy": "Verbal",    # Analogies are part of Verbal section in database
-            "synonyms": "Verbal"    # Synonyms are part of Verbal section in database
+            "synonym": "Verbal"    # Synonyms are part of Verbal section in database
         }
         
         # Determine subsection mapping for filtering
         subsection_mapping = {
             "analogy": "Analogies",
-            "synonyms": "Synonyms"
+            "synonym": "Synonyms"
         }
         
         pool_result = None
         
-        if request.question_type.value in ["quantitative", "analogy", "synonyms"]:
+        if request.question_type.value in ["quantitative", "analogy", "synonym"]:
             # For regular questions
             section_name = section_mapping.get(request.question_type.value, "Verbal")
             subsection_name = subsection_mapping.get(request.question_type.value)
@@ -310,15 +310,25 @@ async def generate_content(request: QuestionGenerationRequest, current_user: Use
                 
                 # Mark questions as used with specific content type
                 question_ids = [q['id'] for q in pool_questions[:request.count]]
-                await pool_service.mark_content_as_used(
-                    user_id=str(current_user.id),
-                    question_ids=question_ids,
-                    usage_type="custom_section",
-                    content_type=request.question_type.value  # Pass specific content type
-                )
-                
-                logger.info(f"🔍 POOL: ✅ Successfully delivered {request.count} questions from pool")
-                logger.info(f"🔍 POOL DEBUG: Marked questions as used: {[qid[:8] + '...' for qid in question_ids]}")
+                try:
+                    await pool_service.mark_content_as_used(
+                        user_id=str(current_user.id),
+                        question_ids=question_ids,
+                        usage_type="custom_section",
+                        content_type=request.question_type.value  # Pass specific content type
+                    )
+                    
+                    logger.info(f"🔍 POOL: ✅ Successfully delivered {request.count} questions from pool")
+                    logger.info(f"🔍 POOL DEBUG: Marked questions as used: {[qid[:8] + '...' for qid in question_ids]}")
+                except Exception as mark_error:
+                    # If marking fails (e.g., questions already used), fall back to LLM generation
+                    if "duplicate key value violates unique constraint" in str(mark_error):
+                        logger.warning(f"🔍 POOL: ⚠️ Pool questions already used, falling back to LLM generation")
+                        logger.info(f"🔍 POOL DEBUG: Starting AI generation for {request.question_type.value} questions")
+                        pool_result = None  # Clear pool result to trigger LLM generation
+                    else:
+                        # Re-raise other errors
+                        raise mark_error
             elif len(pool_questions) > 0:
                 # Pool has some questions but not enough - use what's available and generate the rest
                 logger.info(f"🔍 POOL: ⚠️ Pool partially available - found {len(pool_questions)} questions, need {request.count}")
@@ -326,39 +336,49 @@ async def generate_content(request: QuestionGenerationRequest, current_user: Use
                 
                 # Mark the available pool questions as used
                 question_ids = [q['id'] for q in pool_questions]
-                await pool_service.mark_content_as_used(
-                    user_id=str(current_user.id),
-                    question_ids=question_ids,
-                    usage_type="custom_section",
-                    content_type=request.question_type.value
-                )
-                logger.info(f"🔍 POOL: ✅ Marked {len(question_ids)} pool questions as used")
-                
-                # Convert pool questions to response format
-                pool_questions_response = pool_converter.convert_questions_to_response(pool_questions, request)
-                
-                # Generate the remaining questions on-demand
-                remaining_count = request.count - len(pool_questions)
-                logger.info(f"🔍 POOL: 🔄 Generating {remaining_count} additional questions on-demand")
-                
-                # Create a new request for the remaining questions
-                remaining_request = request.model_copy(update={"count": remaining_count})
-                remaining_result = await content_service.generate_content(remaining_request)
-                
-                # Combine pool questions with generated questions
-                if isinstance(remaining_result, QuestionGenerationResponse):
-                    combined_questions = pool_questions_response.questions + remaining_result.questions
-                    pool_result = QuestionGenerationResponse(
-                        questions=combined_questions,
-                        metadata=remaining_result.metadata,
-                        status="success",
-                        count=len(combined_questions)
+                try:
+                    await pool_service.mark_content_as_used(
+                        user_id=str(current_user.id),
+                        question_ids=question_ids,
+                        usage_type="custom_section",
+                        content_type=request.question_type.value
                     )
-                    logger.info(f"🔍 POOL: ✅ Combined {len(pool_questions)} pool questions + {len(remaining_result.questions)} generated questions")
-                else:
-                    # Fallback if generation failed
-                    pool_result = pool_questions_response
-                    logger.warning(f"🔍 POOL: ⚠️ Generation failed, returning only pool questions")
+                    logger.info(f"🔍 POOL: ✅ Marked {len(question_ids)} pool questions as used")
+                    
+                    # Convert pool questions to response format
+                    pool_questions_response = pool_converter.convert_questions_to_response(pool_questions, request)
+                    
+                    # Generate the remaining questions on-demand
+                    remaining_count = request.count - len(pool_questions)
+                    logger.info(f"🔍 POOL: 🔄 Generating {remaining_count} additional questions on-demand")
+                    
+                    # Create a new request for the remaining questions
+                    remaining_request = request.model_copy(update={"count": remaining_count})
+                    remaining_result = await content_service.generate_content(remaining_request)
+                    
+                    # Combine pool questions with generated questions
+                    if isinstance(remaining_result, QuestionGenerationResponse):
+                        combined_questions = pool_questions_response.questions + remaining_result.questions
+                        pool_result = QuestionGenerationResponse(
+                            questions=combined_questions,
+                            metadata=remaining_result.metadata,
+                            status="success",
+                            count=len(combined_questions)
+                        )
+                        logger.info(f"🔍 POOL: ✅ Combined {len(pool_questions)} pool questions + {len(remaining_result.questions)} generated questions")
+                    else:
+                        # Fallback if generation failed
+                        pool_result = pool_questions_response
+                        logger.warning(f"🔍 POOL: ⚠️ Generation failed, returning only pool questions")
+                except Exception as mark_error:
+                    # If marking fails, fall back to full LLM generation
+                    if "duplicate key value violates unique constraint" in str(mark_error):
+                        logger.warning(f"🔍 POOL: ⚠️ Pool questions already used, falling back to full LLM generation")
+                        logger.info(f"🔍 POOL DEBUG: Starting AI generation for {request.question_type.value} questions")
+                        pool_result = None  # Clear pool result to trigger LLM generation
+                    else:
+                        # Re-raise other errors
+                        raise mark_error
             else:
                 logger.info(f"🔍 POOL: ❌ Pool exhausted - no questions available, need {request.count}")
         
@@ -513,7 +533,7 @@ async def generate_content(request: QuestionGenerationRequest, current_user: Use
             try:
                 # Determine the count to increment based on section type and actual result
                 increment_count = 0
-                if section == "quantitative" or section == "analogy" or section == "synonyms":
+                if section == "quantitative" or section == "analogy" or section == "synonym":
                     increment_count = request.count
                 elif section == "reading_passages":
                     increment_count = request.count
@@ -593,19 +613,19 @@ async def generate_content(request: QuestionGenerationRequest, current_user: Use
                 
                 logger.info(f"Successfully saved reading content to database")
             elif isinstance(result, QuestionGenerationResponse):
-                # Regular questions (quantitative, analogy, synonyms)
+                # Regular questions (quantitative, analogy, synonym)
                 # QuestionGenerationResponse has .questions
                 section_mapping = {
                     "quantitative": "Quantitative",
                     "analogy": "Verbal",    # Analogies are part of Verbal section in database
-                    "synonyms": "Verbal"    # Synonyms are part of Verbal section in database
+                    "synonym": "Verbal"    # Synonyms are part of Verbal section in database
                 }
                 section_name = section_mapping.get(request.question_type.value, "Verbal")
                 
                 # Use AI-determined subsection - DO NOT OVERRIDE the AI's intelligent categorization
                 if request.question_type.value == "analogy":
                     subsection = "Analogies"  # Fixed subsection for analogy questions
-                elif request.question_type.value == "synonyms":
+                elif request.question_type.value == "synonym":
                     subsection = "Synonyms"  # Fixed subsection for synonyms questions
                 else:
                     # For quantitative and verbal questions, ALWAYS use AI-determined subsection
@@ -655,7 +675,7 @@ async def generate_content(request: QuestionGenerationRequest, current_user: Use
         try:
             # Determine the count to increment based on section type and actual result
             increment_count = 0
-            if section == "quantitative" or section == "analogy" or section == "synonyms":
+            if section == "quantitative" or section == "analogy" or section == "synonym":
                 if isinstance(result, QuestionGenerationResponse):
                     increment_count = len(result.questions)
                 else:
@@ -776,9 +796,9 @@ async def start_progressive_test_generation(request: CompleteTestRequest, curren
                     verbal_count = (request.custom_counts or {}).get("verbal", 30)  # Default 30 questions
                     # Split between analogy and synonyms (rough estimate)
                     analogy_count = verbal_count // 2
-                    synonyms_count = verbal_count - analogy_count
+                    synonym_count = verbal_count - analogy_count
                     sections_to_check.append(("analogy", analogy_count))
-                    sections_to_check.append(("synonyms", synonyms_count))
+                    sections_to_check.append(("synonym", synonym_count))
             
             logger.debug(f"🔍 DAILY LIMITS: Complete test will check sections: {sections_to_check}")
             
@@ -819,7 +839,7 @@ async def start_progressive_test_generation(request: CompleteTestRequest, curren
                     section_names = {
                         "quantitative": "math questions",
                         "analogy": "analogy questions", 
-                        "synonyms": "synonym questions",
+                        "synonym": "synonym questions",
                         "reading_passages": "reading passages",
                         "writing": "writing prompts"
                     }
@@ -945,7 +965,7 @@ async def generate_test_sections_background(job_id: str, request: CompleteTestRe
                     
                     # Count questions based on section type
                     section_questions = 0
-                    if section_type in ['quantitative', 'analogy', 'synonyms']:
+                    if section_type in ['quantitative', 'analogy', 'synonym']:
                         # Question-based sections
                         if 'questions' in section_data:
                             section_questions = len(section_data['questions'])
@@ -993,7 +1013,7 @@ async def generate_test_sections_background(job_id: str, request: CompleteTestRe
                 # Aggregate counts for each section
                 quantitative = 0
                 analogy = 0
-                synonyms = 0
+                synonym = 0
                 reading_passages = 0
                 writing = 0
                 for section_progress in job.sections.values():
@@ -1006,9 +1026,9 @@ async def generate_test_sections_background(job_id: str, request: CompleteTestRe
                         elif section_type == 'analogy':
                             if 'questions' in section_data:
                                 analogy += len(section_data['questions'])
-                        elif section_type == 'synonyms':
+                        elif section_type == 'synonym':
                             if 'questions' in section_data:
-                                synonyms += len(section_data['questions'])
+                                synonym += len(section_data['questions'])
                         elif section_type == 'reading':
                             if 'passages' in section_data:
                                 reading_passages += len(section_data['passages'])
@@ -1026,14 +1046,14 @@ async def generate_test_sections_background(job_id: str, request: CompleteTestRe
                                 writing += 1
                 try:
                     supabase = get_database_connection()
-                    logger.info(f"🔍 DAILY LIMITS: Batch increment for user {job.user_id}: quantitative={quantitative}, analogy={analogy}, synonyms={synonyms}, reading_passages={reading_passages}, writing={writing}")
+                    logger.info(f"🔍 DAILY LIMITS: Batch increment for user {job.user_id}: quantitative={quantitative}, analogy={analogy}, synonym={synonym}, reading_passages={reading_passages}, writing={writing}")
                     response = supabase.rpc(
-                        'increment_user_daily_usage_batch',
+                        'increment_user_daily_limits',
                         {
                             'p_user_id': job.user_id,
                             'p_quantitative': quantitative,
                             'p_analogy': analogy,
-                            'p_synonyms': synonyms,
+                            'p_synonym': synonym,
                             'p_reading_passages': reading_passages,
                             'p_writing': writing
                         }
@@ -1068,7 +1088,7 @@ async def generate_single_section_background(job_id: str, section_type, request:
         custom_counts = request.custom_counts or {}
         logger.debug(f"🔍 DEBUG: Section {section_type.value}, custom_counts: {custom_counts}")
         section_count = custom_counts.get(section_type.value, {
-            "quantitative": 1, "analogy": 1, "synonyms": 1, "reading": 1, "writing": 1
+            "quantitative": 1, "analogy": 1, "synonym": 1, "reading": 1, "writing": 1
         }.get(section_type.value, 5))
         logger.debug(f"🔍 DEBUG: Final section_count for {section_type.value}: {section_count}")
         
@@ -1092,18 +1112,18 @@ async def generate_single_section_background(job_id: str, section_type, request:
         section_mapping = {
             "quantitative": "Quantitative",
             "analogy": "Verbal",    # Analogies are part of Verbal section in database
-            "synonyms": "Verbal"    # Synonyms are part of Verbal section in database
+            "synonym": "Verbal"    # Synonyms are part of Verbal section in database
         }
         
         # Determine subsection mapping for filtering
         subsection_mapping = {
             "analogy": "Analogies",
-            "synonyms": "Synonyms"
+            "synonym": "Synonyms"
         }
         
         pool_result = None
         
-        if section_type.value in ["quantitative", "analogy", "synonyms"]:
+        if section_type.value in ["quantitative", "analogy", "synonym"]:
             # For regular questions
             section_name = section_mapping.get(section_type.value, "Verbal")
             subsection_name = subsection_mapping.get(section_type.value)
@@ -1138,15 +1158,35 @@ async def generate_single_section_background(job_id: str, section_type, request:
                 
                 # Mark questions as used with specific content type
                 question_ids = [q['id'] for q in pool_questions[:section_count]]
-                await pool_service.mark_content_as_used(
-                    user_id=job.user_id,
-                    question_ids=question_ids,
-                    usage_type="complete_test",
-                    content_type=section_type.value
-                )
-                
-                logger.info(f"🔍 POOL: ✅ Successfully delivered {section_count} questions from pool")
-                logger.info(f"🔍 POOL DEBUG: Marked questions as used: {[qid[:8] + '...' for qid in question_ids]}")
+                try:
+                    await pool_service.mark_content_as_used(
+                        user_id=job.user_id,
+                        question_ids=question_ids,
+                        usage_type="complete_test",
+                        content_type=section_type.value
+                    )
+                    
+                    # Convert available pool questions
+                    mock_request = QuestionGenerationRequest(
+                        question_type=section_type,
+                        difficulty=request.difficulty,
+                        count=len(pool_questions),
+                        is_official_format=request.is_official_format
+                    )
+                    pool_result = pool_converter.convert_questions_to_section(pool_questions, section_type.value)
+                    
+                    # Update section_count to generate only the remaining questions
+                    section_count = section_count - len(pool_questions)
+                    logger.info(f"🔍 POOL: Will generate {section_count} additional questions on-demand")
+                except Exception as mark_error:
+                    # If marking fails, fall back to full LLM generation
+                    if "duplicate key value violates unique constraint" in str(mark_error):
+                        logger.warning(f"🔍 POOL: ⚠️ Pool questions already used, falling back to full LLM generation")
+                        logger.info(f"🔍 POOL DEBUG: Starting AI generation for {section_type.value} questions")
+                        pool_result = None  # Clear pool result to trigger LLM generation
+                    else:
+                        # Re-raise other errors
+                        raise mark_error
             elif len(pool_questions) > 0:
                 # Pool has some questions but not enough - use what's available and generate the rest
                 logger.info(f"🔍 POOL: ⚠️ Pool partially available - found {len(pool_questions)} questions, need {section_count}")
@@ -1154,25 +1194,49 @@ async def generate_single_section_background(job_id: str, section_type, request:
                 
                 # Mark the available pool questions as used
                 question_ids = [q['id'] for q in pool_questions]
-                await pool_service.mark_content_as_used(
-                    user_id=job.user_id,
-                    question_ids=question_ids,
-                    usage_type="complete_test",
-                    content_type=section_type.value
-                )
-                
-                # Convert available pool questions
-                mock_request = QuestionGenerationRequest(
-                    question_type=section_type,
-                    difficulty=request.difficulty,
-                    count=len(pool_questions),
-                    is_official_format=request.is_official_format
-                )
-                pool_result = pool_converter.convert_questions_to_section(pool_questions, section_type.value)
-                
-                # Update section_count to generate only the remaining questions
-                section_count = section_count - len(pool_questions)
-                logger.info(f"🔍 POOL: Will generate {section_count} additional questions on-demand")
+                try:
+                    await pool_service.mark_content_as_used(
+                        user_id=str(job.user_id),
+                        question_ids=question_ids,
+                        usage_type="custom_section",
+                        content_type=request.question_type.value
+                    )
+                    logger.info(f"🔍 POOL: ✅ Marked {len(question_ids)} pool questions as used")
+                    
+                    # Convert pool questions to response format
+                    pool_questions_response = pool_converter.convert_questions_to_response(pool_questions, request)
+                    
+                    # Generate the remaining questions on-demand
+                    remaining_count = request.count - len(pool_questions)
+                    logger.info(f"🔍 POOL: 🔄 Generating {remaining_count} additional questions on-demand")
+                    
+                    # Create a new request for the remaining questions
+                    remaining_request = request.model_copy(update={"count": remaining_count})
+                    remaining_result = await content_service.generate_content(remaining_request)
+                    
+                    # Combine pool questions with generated questions
+                    if isinstance(remaining_result, QuestionGenerationResponse):
+                        combined_questions = pool_questions_response.questions + remaining_result.questions
+                        pool_result = QuestionGenerationResponse(
+                            questions=combined_questions,
+                            metadata=remaining_result.metadata,
+                            status="success",
+                            count=len(combined_questions)
+                        )
+                        logger.info(f"🔍 POOL: ✅ Combined {len(pool_questions)} pool questions + {len(remaining_result.questions)} generated questions")
+                    else:
+                        # Fallback if generation failed
+                        pool_result = pool_questions_response
+                        logger.warning(f"🔍 POOL: ⚠️ Generation failed, returning only pool questions")
+                except Exception as mark_error:
+                    # If marking fails, fall back to full LLM generation
+                    if "duplicate key value violates unique constraint" in str(mark_error):
+                        logger.warning(f"🔍 POOL: ⚠️ Pool questions already used, falling back to full LLM generation")
+                        logger.info(f"🔍 POOL DEBUG: Starting AI generation for {request.question_type.value} questions")
+                        pool_result = None  # Clear pool result to trigger LLM generation
+                    else:
+                        # Re-raise other errors
+                        raise mark_error
             else:
                 logger.info(f"🔍 POOL: ❌ No questions available in pool for {section_type.value}, will generate {section_count} on-demand")
         
@@ -1339,7 +1403,7 @@ async def generate_single_section_background(job_id: str, section_type, request:
         provider_used = None
         
         # Extract provider from section_data based on section type
-        if section_type.value in ['quantitative', 'analogy', 'synonyms']:
+        if section_type.value in ['quantitative', 'analogy', 'synonym']:
             # For question-based sections
             if 'questions' in section_data and section_data['questions']:
                 for question in section_data['questions']:
@@ -1498,7 +1562,7 @@ async def get_all_users(current_user: UserProfile = Depends(get_current_user)):
                 limits = {
                     "quantitative": custom_limits.get("quantitative", DailyLimitService.DEFAULT_LIMITS["quantitative"]),
                     "analogy": custom_limits.get("analogy", DailyLimitService.DEFAULT_LIMITS["analogy"]),
-                    "synonyms": custom_limits.get("synonyms", DailyLimitService.DEFAULT_LIMITS["synonyms"]),
+                    "synonym": custom_limits.get("synonym", DailyLimitService.DEFAULT_LIMITS["synonym"]),
                     "reading_passages": custom_limits.get("reading_passages", DailyLimitService.DEFAULT_LIMITS["reading_passages"]),
                     "writing": custom_limits.get("writing", DailyLimitService.DEFAULT_LIMITS["writing"])
                 }
@@ -1512,7 +1576,7 @@ async def get_all_users(current_user: UserProfile = Depends(get_current_user)):
                 "usage": {
                     "quantitative_generated": user_limits.get('quantitative_generated', 0),
                     "analogy_generated": user_limits.get('analogy_generated', 0),
-                    "synonyms_generated": user_limits.get('synonyms_generated', 0),
+                    "synonym_generated": user_limits.get('synonym_generated', 0),
                     "reading_passages_generated": user_limits.get('reading_passages_generated', 0),
                     "writing_generated": user_limits.get('writing_generated', 0),
                     "last_reset_date": user_limits.get('last_reset_date')
@@ -1619,7 +1683,358 @@ async def update_user_role(
             detail="Failed to update user role"
         )
 
+@app.post("/admin/generate")
+async def admin_generate_content(request: QuestionGenerationRequest, current_user: UserProfile = Depends(get_current_user)):
+    """Admin endpoint to generate content directly with LLM and save to pool (bypasses daily limits)."""
+    import time
+    import uuid
+    start_time = time.time()
+    
+    try:
+        # Check if user is admin
+        if current_user.role != 'admin':
+            raise HTTPException(
+                status_code=403,
+                detail="Admin access required"
+            )
+        
+        logger.info(f"🔍 ADMIN GENERATE: Generating {request.count} {request.question_type.value} content for admin")
+        
+        # Create session for admin generation
+        session_id = str(uuid.uuid4())
+        
+        # Create session for admin generation
+        await ai_content_service.create_generation_session(session_id, {
+            "question_type": request.question_type.value,
+            "count": request.count,
+            "difficulty": request.difficulty.value if request.difficulty else None,
+            "topic": request.topic,
+            "provider": request.provider.value if request.provider else None,
+            "admin_generation": True  # Mark as admin generation
+        }, current_user.id)
+        
+        # Use unified content service for proper type-specific generation
+        result = await content_service.generate_content(request)
+        
+        # Save AI-generated content to database
+        try:
+            training_example_ids = result.metadata.training_example_ids if hasattr(result.metadata, 'training_example_ids') else []
+            
+            if isinstance(result, WritingGenerationResponse):
+                # WritingGenerationResponse has .prompts
+                logger.info(f"🔍 ADMIN GENERATE: Saving writing prompts to database - session: {session_id}, prompts count: {len(result.prompts)}")
+                saved_prompt_ids = await ai_content_service.save_writing_prompts(session_id, {"writing_prompts": result.prompts}, training_example_ids)
+                
+                # Assign the database IDs back to the WritingPrompt objects
+                for i, prompt in enumerate(result.prompts):
+                    if i < len(saved_prompt_ids):
+                        prompt.id = saved_prompt_ids[i]
+                        logger.debug(f"Assigned database ID {saved_prompt_ids[i]} to writing prompt {i}")
+                
+                logger.info(f"🔍 ADMIN GENERATE: Successfully saved writing prompts to database")
+            elif isinstance(result, ReadingGenerationResponse):
+                # ReadingGenerationResponse has .passages
+                logger.info(f"🔍 ADMIN GENERATE: Saving reading content to database - session: {session_id}, passages count: {len(result.passages)}")
+                saved_ids = await ai_content_service.save_reading_content(
+                    session_id, 
+                    {"reading_sections": result.passages}, 
+                    training_example_ids,
+                    topic=request.topic or ""  # Pass the topic for tagging, default to empty string
+                )
+                
+                # Assign the database IDs back to the ReadingPassage objects
+                for i, passage in enumerate(result.passages):
+                    if i < len(saved_ids.get('passage_ids', [])):
+                        passage.id = saved_ids['passage_ids'][i]
+                        logger.debug(f"Assigned database ID {saved_ids['passage_ids'][i]} to passage {i}")
+                
+                logger.info(f"🔍 ADMIN GENERATE: Successfully saved reading content to database")
+            elif isinstance(result, QuestionGenerationResponse):
+                # Regular questions (quantitative, analogy, synonym)
+                # QuestionGenerationResponse has .questions
+                section_mapping = {
+                    "quantitative": "Quantitative",
+                    "analogy": "Verbal",    # Analogies are part of Verbal section in database
+                    "synonym": "Verbal"    # Synonyms are part of Verbal section in database
+                }
+                section_name = section_mapping.get(request.question_type.value, "Verbal")
+                
+                # Use AI-determined subsection - DO NOT OVERRIDE the AI's intelligent categorization
+                if request.question_type.value == "analogy":
+                    subsection = "Analogies"  # Fixed subsection for analogy questions
+                elif request.question_type.value == "synonym":
+                    subsection = "Synonyms"  # Fixed subsection for synonyms questions
+                else:
+                    # For quantitative and verbal questions, ALWAYS use AI-determined subsection
+                    # The AI has analyzed the content and provided specific, educational categorization
+                    subsection = None  # Will be extracted per question in save_generated_questions
+                
+                # Get training example IDs from the result metadata
+                training_example_ids = result.metadata.training_example_ids
+                logger.debug(f"Using training example IDs from result metadata: {training_example_ids}")
+                
+                # Save questions to database and get the generated IDs
+                saved_question_ids = await ai_content_service.save_generated_questions(
+                    session_id, 
+                    result.questions,
+                    section_name, 
+                    subsection or "",  # Convert None to empty string
+                    training_example_ids
+                )
+                
+                # Assign the database IDs back to the GeneratedQuestion objects
+                for i, question in enumerate(result.questions):
+                    if i < len(saved_question_ids):
+                        question.id = saved_question_ids[i]
+                        logger.debug(f"Assigned database ID {saved_question_ids[i]} to question {i}")
+            
+            # Get the provider used from the result metadata
+            provider_used = result.metadata.provider_used
+            
+            # Calculate generation duration
+            generation_time_ms = int((time.time() - start_time) * 1000)
+            
+            # Update session as completed with provider information and duration
+            await ai_content_service.update_session_status(
+                session_id, 
+                "completed", 
+                request.count, 
+                [provider_used],
+                generation_time_ms
+            )
+            logger.info(f"🔍 ADMIN GENERATE: Saved admin generation to database: session {session_id} with provider: {provider_used}, duration: {generation_time_ms}ms")
+            
+        except Exception as save_error:
+            logger.error(f"🔍 ADMIN GENERATE: Failed to save admin generation: {save_error}")
+            # Continue without failing the request
+        
+        # Return the full generated content to admin
+        return {
+            "success": True,
+            "message": f"Successfully generated {request.count} {request.question_type.value} questions",
+            "session_id": session_id,
+            "generation_time_ms": generation_time_ms,
+            "provider_used": provider_used,
+            "content": result.model_dump() if hasattr(result, 'model_dump') else result
+        }
+        
+    except Exception as e:
+        logger.error(f"🔍 ADMIN GENERATE: Error in admin generation: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Admin generation failed: {str(e)}"
+        )
 
+@app.post("/admin/generate/complete-test")
+async def admin_generate_complete_test(request: CompleteTestRequest, current_user: UserProfile = Depends(get_current_user)):
+    """Admin endpoint to generate complete test directly with LLM and save to pool (bypasses daily limits)."""
+    import time
+    import uuid
+    import asyncio
+    start_time = time.time()
+    
+    try:
+        # Check if user is admin
+        if current_user.role != 'admin':
+            raise HTTPException(
+                status_code=403,
+                detail="Admin access required"
+            )
+        
+        logger.info(f"🔍 ADMIN COMPLETE TEST: Generating complete test for admin with sections: {[s.value for s in request.include_sections]}")
+        
+        # Create session for admin generation
+        session_id = str(uuid.uuid4())
+        
+        # Create session for admin generation
+        await ai_content_service.create_generation_session(session_id, {
+            "difficulty": request.difficulty.value,
+            "include_sections": [section.value for section in request.include_sections],
+            "custom_counts": request.custom_counts,
+            "provider": request.provider.value if request.provider else None,
+            "admin_generation": True,  # Mark as admin generation
+            "complete_test": True  # Mark as complete test generation
+        }, current_user.id)
+        
+        # Start background generation using existing function but bypass daily limits
+        asyncio.create_task(generate_test_sections_background_admin(session_id, request))
+        
+        return {
+            "success": True,
+            "message": f"Complete test generation started with {len(request.include_sections)} sections",
+            "session_id": session_id,
+            "sections": [s.value for s in request.include_sections],
+            "custom_counts": request.custom_counts
+        }
+        
+    except Exception as e:
+        logger.error(f"🔍 ADMIN COMPLETE TEST: Error in admin complete test generation: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Admin complete test generation failed: {str(e)}"
+        )
+
+async def generate_test_sections_background_admin(session_id: str, request: CompleteTestRequest):
+    """Background task to generate test sections for admin (bypasses daily limits)."""
+    from app.services.job_manager import JobStatus
+    
+    start_time = time.time()
+    providers_used = set()
+    total_questions = 0
+    completed_sections = []
+    
+    try:
+        logger.info(f"🔍 ADMIN COMPLETE TEST: Starting background generation for session {session_id}")
+        
+        # Create tasks for all sections to run in parallel
+        section_tasks = []
+        for section_type in request.include_sections:
+            task = asyncio.create_task(
+                generate_single_section_background_admin(session_id, section_type, request)
+            )
+            section_tasks.append(task)
+        
+        # Wait for all sections to complete (or fail)
+        section_results = await asyncio.gather(*section_tasks, return_exceptions=True)
+        
+        # Process results
+        for i, result in enumerate(section_results):
+            if isinstance(result, Exception):
+                logger.error(f"🔍 ADMIN COMPLETE TEST: Section {request.include_sections[i].value} failed: {result}")
+            elif isinstance(result, dict):
+                completed_sections.append(result)
+                if 'provider_used' in result and result['provider_used']:  # Only add non-None providers
+                    providers_used.add(result['provider_used'])
+                if 'question_count' in result:
+                    total_questions += result['question_count']
+        
+        # Update session as completed
+        generation_time_ms = int((time.time() - start_time) * 1000)
+        providers_list = list(providers_used)
+        await ai_content_service.update_session_status(
+            session_id, 
+            "completed", 
+            total_questions, 
+            providers_list, 
+            generation_time_ms
+        )
+        
+        logger.info(f"🔍 ADMIN COMPLETE TEST: Session {session_id} completed with {total_questions} total questions")
+        logger.info(f"🔍 ADMIN COMPLETE TEST: Providers used: {list(providers_used)}")
+        logger.info(f"🔍 ADMIN COMPLETE TEST: Completed sections: {[s.get('section_type', 'unknown') for s in completed_sections]}")
+        
+    except Exception as e:
+        logger.error(f"🔍 ADMIN COMPLETE TEST: Background generation failed for session {session_id}: {e}")
+        await ai_content_service.update_session_status(session_id, "failed")
+
+async def generate_single_section_background_admin(session_id: str, section_type, request: CompleteTestRequest):
+    """Generate a single section for admin (bypasses daily limits)."""
+    try:
+        logger.info(f"🔍 ADMIN COMPLETE TEST: Starting generation for section {section_type.value} in session {session_id}")
+        
+        # Get custom count for this section
+        custom_counts = request.custom_counts or {}
+        section_count = custom_counts.get(section_type.value, {
+            "quantitative": 25, "analogy": 15, "synonyms": 15, "reading": 7, "writing": 1
+        }.get(section_type.value, 5))
+        
+        logger.info(f"🔍 ADMIN COMPLETE TEST: Generating {section_count} items for section {section_type.value}")
+        
+        # Generate the section using existing service methods
+        if section_type.value == "writing":
+            logger.debug(f"📝 ADMIN COMPLETE TEST: Using writing section generation")
+            section = await question_service._generate_writing_section(request.difficulty)
+        elif section_type.value == "reading":
+            logger.debug(f"📖 ADMIN COMPLETE TEST: Using reading section generation")
+            section = await question_service._generate_reading_section(
+                request.difficulty, section_count, request.provider, use_async=True
+            )
+        elif section_type.value == "quantitative" and request.is_official_format:
+            # Use official topic breakdown for quantitative questions
+            logger.debug(f"🎯 ADMIN COMPLETE TEST: Using OFFICIAL quantitative generation with topic breakdown for {section_count} questions")
+            section = await question_service._generate_quantitative_section_official(
+                request.difficulty, section_count, request.provider, use_async=True
+            )
+        else:
+            logger.debug(f"⚙️ ADMIN COMPLETE TEST: Using regular standalone generation for {section_type.value}")
+            section = await question_service._generate_standalone_section(
+                section_type, request.difficulty, section_count, request.provider, use_async=True, is_official_format=request.is_official_format
+            )
+        
+        # Convert section to dict for storage
+        if hasattr(section, 'model_dump'):
+            section_data = section.model_dump()
+        else:
+            section_data = section.__dict__
+        
+        # Extract provider and question count
+        provider_used = None
+        question_count = 0
+        
+        # Extract provider from section_data based on section type
+        if section_type.value in ['quantitative', 'analogy', 'synonym']:
+            # For question-based sections
+            if 'questions' in section_data and section_data['questions']:
+                question_count = len(section_data['questions'])
+                for question in section_data['questions']:
+                    if isinstance(question, dict) and 'metadata' in question:
+                        provider_used = question['metadata'].get('provider_used')
+                        break
+        elif section_type.value == 'reading':
+            # For reading sections
+            if 'passages' in section_data and section_data['passages']:
+                for passage in section_data['passages']:
+                    if isinstance(passage, dict) and 'questions' in passage:
+                        question_count += len(passage['questions'])
+                        for question in passage['questions']:
+                            if isinstance(question, dict) and 'metadata' in question:
+                                provider_used = question['metadata'].get('provider_used')
+                                break
+                        if provider_used:
+                            break
+        elif section_type.value == 'writing':
+            # For writing sections
+            question_count = 1  # Count as 1 unit
+            if 'prompt' in section_data and section_data['prompt']:
+                if isinstance(section_data['prompt'], dict) and 'metadata' in section_data['prompt']:
+                    provider_used = section_data['prompt']['metadata'].get('provider_used')
+        
+        # Add metadata to section_data
+        if 'metadata' not in section_data:
+            section_data['metadata'] = {}
+        if provider_used:
+            section_data['metadata']['provider_used'] = provider_used
+        else:
+            # Fallback to request provider if available
+            fallback_provider = request.provider.value if request.provider else None
+            if fallback_provider:
+                section_data['metadata']['provider_used'] = fallback_provider
+        
+        # Save AI-generated content to database
+        try:
+            logger.info(f"📝 ADMIN COMPLETE TEST: Completed section {section_type.value}")
+            
+            saved_ids = await ai_content_service.save_test_section(session_id, section)
+            logger.info(f"🔍 ADMIN COMPLETE TEST: Saved AI content for section {section_type.value}: {saved_ids}")
+        except Exception as e:
+            logger.error(f"🔍 ADMIN COMPLETE TEST: Failed to save AI content for section {section_type.value}: {e}")
+            # Continue with session completion even if saving fails
+        
+        logger.info(f"🔍 ADMIN COMPLETE TEST: Completed section {section_type.value} for session {session_id}")
+        
+        return {
+            'section_type': section_type.value,
+            'provider_used': provider_used,
+            'question_count': question_count,
+            'section_data': section_data
+        }
+        
+    except Exception as e:
+        logger.error(f"🔍 ADMIN COMPLETE TEST: Failed to generate section {section_type.value} for session {session_id}: {e}")
+        return {
+            'section_type': section_type.value,
+            'error': str(e)
+        }
 
 # Error handlers
 @app.exception_handler(HTTPException)
@@ -1636,6 +2051,28 @@ async def general_exception_handler(request, exc):
         status_code=500,
         content={"error": "Internal server error", "status_code": 500}
     )
+
+@app.get("/specifications/official-format")
+async def get_official_format_specs():
+    """Get official SSAT Elementary format specifications."""
+    from app.specifications import OFFICIAL_ELEMENTARY_SPECS
+    
+    # Extract the counts from the official specs
+    specs = OFFICIAL_ELEMENTARY_SPECS
+    
+    # Calculate the counts based on the official distribution
+    verbal_distribution = specs["verbal_distribution"]
+    reading_structure = specs["reading_structure"]
+    
+    return {
+        "quantitative": specs["sections"][0].question_count,  # 30
+        "analogy": int(specs["sections"][1].question_count * verbal_distribution["analogies"]),  # 12 (40% of 30)
+        "synonym": int(specs["sections"][1].question_count * verbal_distribution["synonyms"]),   # 18 (60% of 30)
+        "reading": reading_structure["passages"],  # 7 passages
+        "writing": specs["sections"][3].question_count,  # 1
+        "total_questions": specs["total_scored_questions"],  # 88
+        "total_time": specs["total_time"]  # 110 minutes
+    }
 
 if __name__ == "__main__":
     import uvicorn

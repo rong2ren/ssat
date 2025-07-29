@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS user_daily_limits (
     last_reset_date DATE NOT NULL DEFAULT CURRENT_DATE,
     quantitative_generated INTEGER DEFAULT 0,
     analogy_generated INTEGER DEFAULT 0,
-    synonyms_generated INTEGER DEFAULT 0,
+    synonym_generated INTEGER DEFAULT 0,
     reading_passages_generated INTEGER DEFAULT 0,
     writing_generated INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -37,7 +37,7 @@ RETURNS TABLE (
     last_reset_date DATE,
     quantitative_generated INTEGER,
     analogy_generated INTEGER,
-    synonyms_generated INTEGER,
+            synonym_generated INTEGER,
     reading_passages_generated INTEGER,
     writing_generated INTEGER,
     needs_reset BOOLEAN
@@ -76,7 +76,7 @@ BEGIN
             SET 
                 quantitative_generated = 0,
                 analogy_generated = 0,
-                synonyms_generated = 0,
+                synonym_generated = 0,
                 reading_passages_generated = 0,
                 writing_generated = 0,
                 last_reset_date = today_date,
@@ -97,7 +97,7 @@ BEGIN
                 current_record.last_reset_date,
                 current_record.quantitative_generated,
                 current_record.analogy_generated,
-                current_record.synonyms_generated,
+                current_record.synonym_generated,
                 current_record.reading_passages_generated,
                 current_record.writing_generated,
                 FALSE;
@@ -139,9 +139,9 @@ BEGIN
             UPDATE user_daily_limits 
             SET analogy_generated = analogy_generated + p_amount, updated_at = NOW()
             WHERE user_daily_limits.user_id = p_user_id;
-        WHEN 'synonyms' THEN
+        WHEN 'synonym' THEN
             UPDATE user_daily_limits 
-            SET synonyms_generated = synonyms_generated + p_amount, updated_at = NOW()
+            SET synonym_generated = synonym_generated + p_amount, updated_at = NOW()
             WHERE user_daily_limits.user_id = p_user_id;
         WHEN 'reading_passages' THEN
             UPDATE user_daily_limits 
@@ -159,44 +159,12 @@ BEGIN
 END;
 $$;
 
--- Batched increment for multiple sections at once
-CREATE OR REPLACE FUNCTION increment_user_daily_usage_batch(
-    p_user_id UUID,
-    p_sections TEXT[],
-    p_amounts INTEGER[]
-)
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    i INTEGER;
-    section TEXT;
-    amount INTEGER;
-    success BOOLEAN := TRUE;
-BEGIN
-    IF array_length(p_sections, 1) IS DISTINCT FROM array_length(p_amounts, 1) THEN
-        RETURN FALSE; -- Mismatched array lengths
-    END IF;
-    
-    FOR i IN 1..array_length(p_sections, 1) LOOP
-        section := p_sections[i];
-        amount := p_amounts[i];
-        IF amount <= 0 THEN
-            CONTINUE;
-        END IF;
-        -- Use the single-section increment function for each
-        PERFORM increment_user_daily_usage(p_user_id, section, amount);
-    END LOOP;
-    RETURN success;
-END;
-$$;
-
 -- True batch increment for all sections in one call
 CREATE OR REPLACE FUNCTION increment_user_daily_limits(
     p_user_id UUID,
     p_quantitative INTEGER DEFAULT 0,
     p_analogy INTEGER DEFAULT 0,
-    p_synonyms INTEGER DEFAULT 0,
+    p_synonym INTEGER DEFAULT 0,
     p_reading_passages INTEGER DEFAULT 0,
     p_writing INTEGER DEFAULT 0
 )
@@ -208,7 +176,7 @@ BEGIN
     SET
         quantitative_generated = quantitative_generated + p_quantitative,
         analogy_generated = analogy_generated + p_analogy,
-        synonyms_generated = synonyms_generated + p_synonyms,
+        synonym_generated = synonym_generated + p_synonym,
         reading_passages_generated = reading_passages_generated + p_reading_passages,
         writing_generated = writing_generated + p_writing,
         updated_at = NOW()
@@ -237,7 +205,7 @@ $$;
 --     ul.last_reset_date,
 --     ul.quantitative_generated,
 --     ul.analogy_generated,
---     ul.synonyms_generated,
+--     ul.synonym_generated,
 --     ul.reading_passages_generated,
 --     ul.writing_generated,
 --     ul.updated_at
@@ -250,7 +218,7 @@ $$;
 -- SET 
 --     quantitative_generated = 0,
 --     analogy_generated = 0,
---     synonyms_generated = 0,
+--     synonym_generated = 0,
 --     reading_passages_generated = 0,
 --     writing_generated = 0,
 --     last_reset_date = CURRENT_DATE,

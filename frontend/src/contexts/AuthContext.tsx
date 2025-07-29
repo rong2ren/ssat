@@ -9,14 +9,17 @@ import { clearAllLimitsCache } from '@/components/DailyLimitsDisplay'
               user: UserProfile | null
               loading: boolean
               error: string | null
+              successMessage: string | null
+              registrationSuccess: boolean
               login: (credentials: UserLogin) => Promise<boolean>
               register: (userData: UserRegister) => Promise<boolean>
-              resendConfirmation: (email: string) => Promise<boolean>
               forgotPassword: (email: string) => Promise<boolean>
               logout: () => Promise<void>
               updateProfile: (data: UserProfileUpdate) => Promise<boolean>
               getUserStats: () => Promise<UserContentStats | null>
               clearError: () => void
+              clearSuccessMessage: () => void
+              clearRegistrationSuccess: () => void
             }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -25,6 +28,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [registrationSuccess, setRegistrationSuccess] = useState(false)
 
   // Initialize auth state and listen for auth changes
   useEffect(() => {
@@ -35,10 +40,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data: { session } } = await supabase.auth.getSession()
       
       if (session?.user) {
+        // Only treat as logged in if email is confirmed
+        if (session.user.email_confirmed_at) {
           await fetchUserProfile(session)
         } else {
+          // Email not confirmed - don't set user as logged in
+          setUser(null)
           setLoading(false)
         }
+      } else {
+        setLoading(false)
+      }
     }
 
     getInitialSession()
@@ -137,31 +149,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }
               }
 
-              const resendConfirmation = async (email: string): Promise<boolean> => {
-                try {
-                  setLoading(true)
-                  setError(null)
-
-                  const { error } = await supabase.auth.resend({
-                    type: 'signup',
-                    email: email
-                  })
-
-                  if (error) {
-                    setError(error.message)
-                    return false
-                  }
-
-                  setError('Confirmation email sent. Please check your inbox.')
-                  return true
-                } catch {
-                  setError('Network error. Please try again.')
-                  return false
-                } finally {
-                  setLoading(false)
-                }
-              }
-
               const forgotPassword = async (email: string): Promise<boolean> => {
                 try {
                   setLoading(true)
@@ -192,6 +179,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 try {
                   setLoading(true)
                   setError(null)
+                  setRegistrationSuccess(false)
+
+                  console.log('🔍 DEBUG: Starting registration for:', userData.email)
 
                   // Use Supabase auth directly
                   const { data, error } = await supabase.auth.signUp({
@@ -205,7 +195,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     }
                   })
 
+                  console.log('🔍 DEBUG: Supabase signUp response:', { data, error })
+
                   if (error) {
+                    console.log('🔍 DEBUG: Registration error:', error.message)
                     
                     // Provide user-friendly error messages
                     let userFriendlyError = error.message
@@ -227,17 +220,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   }
 
                   if (data.user) {
+                    console.log('🔍 DEBUG: User created successfully:', data.user.id)
+                    console.log('🔍 DEBUG: Session exists:', !!data.session)
+                    console.log('🔍 DEBUG: Email confirmed:', !!data.user.email_confirmed_at)
+                    
                     if (data.session) {
+                      // User is immediately signed in (email confirmation not required)
+                      console.log('🔍 DEBUG: User immediately signed in')
                       await fetchUserProfile(data.session)
                       return true
                     } else {
-                      return true
+                      // User created but email verification required
+                      console.log('🔍 DEBUG: User created, email verification required')
+                      // Don't set user as logged in - they need to verify email first
+                      setUser(null)
+                      setRegistrationSuccess(true)  // Set success state in AuthContext
+                      return true  // Return true to show success message in UI
                     }
                   } else {
+                    console.log('🔍 DEBUG: No user in response')
                     setError('Registration failed')
                     return false
                   }
-                } catch {
+                } catch (err) {
+                  console.log('🔍 DEBUG: Registration exception:', err)
                   setError('Network error. Please try again.')
                   return false
                 } finally {
@@ -329,20 +335,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null)
   }
 
+  const clearSuccessMessage = () => {
+    setSuccessMessage(null)
+  }
+
+  const clearRegistrationSuccess = () => {
+    setRegistrationSuccess(false)
+  }
+
   // Memoize the context value to prevent unnecessary re-renders
   const value: AuthContextType = React.useMemo(() => ({
     user,
     loading,
     error,
+    successMessage,
+    registrationSuccess,
     login,
     register,
-    resendConfirmation,
     forgotPassword,
     logout,
     updateProfile,
     getUserStats,
-    clearError
-  }), [user, loading, error])
+    clearError,
+    clearSuccessMessage,
+    clearRegistrationSuccess
+  }), [user, loading, error, successMessage, registrationSuccess])
 
   return (
     <AuthContext.Provider value={value}>

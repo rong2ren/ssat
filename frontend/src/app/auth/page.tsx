@@ -20,9 +20,22 @@ export default function AuthPage() {
 
   // UI translations
   const translations = {
-    'SSAT Practice Platform': 'SSAT练习平台',
+    'SmartSSAT': 'SmartSSAT',
     'Sign in to generate personalized SSAT practice questions': '登录即可获取个性化SSAT备考练习',
-    'Loading...': '加载中...'
+    'Email': '邮箱',
+    'Password': '密码',
+    'Sign In': '登录',
+    'Don\'t have an account?': '还没有账户？',
+    'Register': '注册',
+    'Forgot your password?': '忘记密码？',
+    'Reset Password': '重置密码',
+    'Enter your email': '请输入您的邮箱',
+    'Enter your password': '请输入您的密码',
+    'Sign in to your account': '登录您的账户',
+    'Sign in with Google': '使用Google登录',
+    'Or continue with': '或继续使用',
+    'Invalid email or password': '邮箱或密码错误',
+    'Network error. Please try again.': '网络错误，请重试。'
   }
 
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
@@ -75,7 +88,7 @@ export default function AuthPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            {t('SSAT Practice Platform')}
+            {t('SmartSSAT')}
           </h1>
           <p className="text-gray-600">
             {t('Sign in to generate personalized SSAT practice questions')}
