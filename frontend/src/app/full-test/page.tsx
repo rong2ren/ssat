@@ -28,7 +28,7 @@ export default function FullTestPage() {
     'Complete Practice Test': '完整模拟测试',
     'Generate comprehensive SSAT practice tests with multiple sections': '生成完整SSAT模拟测试题',
     'Daily limit exceeded': '已达到每日限制',
-    'Go Back to Configure': '返回配置',
+    'Go Back': '返回',
     'Current Usage:': '今日题型使用情况：',
     'Math': '数学',
     'Analogy': '类比',
@@ -263,7 +263,7 @@ export default function FullTestPage() {
                         onClick={handleBackToForms}
                         className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                       >
-                        {t('Go Back to Configure')}
+                        {t('Go Back')}
                       </button>
                     </div>
                   </div>

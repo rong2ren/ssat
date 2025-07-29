@@ -214,22 +214,8 @@ class QuestionService:
                 raise ValueError("AI generation returned no writing prompts")
                 
         except Exception as e:
-            logger.warning(f"AI writing prompt generation failed: {e}, falling back to static prompts")
-            
-            # Fallback to static prompts if AI generation fails
-            from app.specifications import ELEMENTARY_WRITING_PROMPTS
-            import random
-            
-            prompt_data = random.choice(ELEMENTARY_WRITING_PROMPTS)
-            return {
-                "prompt_text": prompt_data["prompt"],
-                "instructions": "Write a story based on the prompt. Use proper grammar, punctuation, and spelling. Your story should have a clear beginning, middle, and end.",
-                "visual_description": prompt_data.get("visual_description", ""),
-                "grade_level": prompt_data.get("grade_level", "3-4"),
-
-                "training_examples_used": [],
-                "provider_used": "static"
-            }
+            logger.error(f"AI writing prompt generation failed: {e}")
+            raise ValueError(f"Failed to generate writing prompt: {e}")
     
     async def _generate_quantitative_section_official(self, difficulty: DifficultyLevel, total_count: int, provider: Optional[Any], use_async: bool = False) -> QuantitativeSection:
         """Generate quantitative section with official SSAT topic distribution."""

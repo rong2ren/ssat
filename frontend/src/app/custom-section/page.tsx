@@ -28,7 +28,7 @@ export default function CustomSectionPage() {
     'Our AI is creating SSAT questions based on your requirements. This may take a few moments.': '我们的AI正在根据您的要求创建SSAT题目，请稍候片刻。',
     'Processing...': '处理中...',
     'Daily limit exceeded': '已达到每日限制',
-    'You have reached your daily limit for this content type. Please try again tomorrow or check your usage in your profile.': '您已达到此题型的每日限制。请明天再试。',
+    'You have reached your daily limit for this content type. Please try again tomorrow or email ssat@schoolbase.org to upgrade your account.': '您已达到此题型的每日限制。请明天再试或发送邮件至 ssat@schoolbase.org 升级您的账户。',
     'Tip: Check your daily usage in your profile dropdown to see your current limits.': '💡 提示：在您的个人资料下拉菜单中可以查看您的当前使用情况。',
     'Current Usage:': '今日题型使用情况：',
     'Math': '数学',
@@ -123,7 +123,7 @@ export default function CustomSectionPage() {
         setError(err.message)
         setLimitErrorInfo((err as any).limitsInfo)
       } else if (err instanceof Error && err.message.includes('Daily limit exceeded')) {
-        setError('You have reached your daily limit for this content type. Please try again tomorrow or check your usage in your profile.')
+        setError('You have reached your daily limit for this content type. Please try again tomorrow or email ssat@schoolbase.org to upgrade your account.')
         setLimitErrorInfo(null)
       } else if (err instanceof Error && err.message.includes("You've reached your daily limit")) {
         setError(err.message)

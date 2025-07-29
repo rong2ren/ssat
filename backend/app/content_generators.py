@@ -20,7 +20,7 @@ from app.models.enums import QuestionType, DifficultyLevel
 from app.generator import SSATGenerator, generate_questions, generate_reading_passage
 from app.llm import llm_client, LLMProvider
 from app.util import extract_json_from_text
-from app.specifications import OFFICIAL_ELEMENTARY_SPECS, ELEMENTARY_WRITING_PROMPTS
+from app.specifications import OFFICIAL_ELEMENTARY_SPECS
 
 logger = logging.getLogger(__name__)
 
@@ -252,6 +252,7 @@ def generate_writing_prompts_with_metadata(request: QuestionRequest, llm: Option
             provider=provider,
             system_message=system_message,
             prompt="Generate the writing prompts as specified.",
+            temperature=0.8,  # Higher temperature for more variety
         )
         
         if content is None:
@@ -278,43 +279,10 @@ def generate_writing_prompts_with_metadata(request: QuestionRequest, llm: Option
         
     except Exception as e:
         logger.error(f"Error in AI writing prompt generation: {e}")
-        # Fallback to static prompts
-        logger.info("Falling back to static writing prompts")
-        static_prompts = generate_static_writing_prompts(request)
-        return GenerationResult(
-            content=static_prompts,
-            training_example_ids=[],  # No training examples for static prompts
-            provider_used="static"
-        )
+        # No fallback - let the error propagate
+        raise ValueError(f"Failed to generate writing prompts: {e}")
 
-def generate_static_writing_prompts(request: QuestionRequest) -> List[WritingPrompt]:
-    """Fallback function that uses the current static approach."""
-    logger.info(f"Generating {request.count} static writing prompts (fallback)")
-    
-    prompts = []
-    
-    # Ensure we don't select more prompts than available
-    available_prompts = ELEMENTARY_WRITING_PROMPTS.copy()
-    actual_count = min(request.count, len(available_prompts))
-    
-    if request.count > len(available_prompts):
-        logger.warning(f"Requested {request.count} prompts but only {len(available_prompts)} available. Generating {actual_count} unique prompts.")
-    
-    # Select unique prompts without replacement
-    selected_prompts = random.sample(available_prompts, actual_count)
-    
-    for i, prompt_data in enumerate(selected_prompts):
-        # Remove redundant instructions - section instructions will be used instead
-        prompt_data = prompt_data.copy()  # Don't modify the original
-        prompt_data["instructions"] = ""
-        
-        prompt = WritingPrompt(prompt_data)
-        prompts.append(prompt)
-        
-        logger.info(f"Generated static writing prompt {i+1}/{actual_count}")
-    
-    logger.info(f"Generated {len(prompts)} unique static writing prompts total")
-    return prompts
+
 
 
 # Async versions for parallel generation
@@ -397,6 +365,7 @@ async def generate_writing_prompts_async(request: QuestionRequest, llm: Optional
             provider=provider,
             system_message=system_message,
             prompt="Generate the writing prompts as specified.",
+            temperature=0.8,  # Higher temperature for more variety
         )
         
         if content is None:
@@ -419,10 +388,8 @@ async def generate_writing_prompts_async(request: QuestionRequest, llm: Optional
         
     except Exception as e:
         logger.error(f"Error in async AI writing prompt generation: {e}")
-        # Fallback to static prompts for reliability
-        logger.info("Falling back to static writing prompts (async)")
-        static_prompts = generate_static_writing_prompts(request)
-        return static_prompts
+        # No fallback - let the error propagate
+        raise ValueError(f"Failed to generate writing prompts: {e}")
 
 
 async def generate_content_async(request: QuestionRequest, llm: Optional[str] = None) -> Union[List[Question], List[ReadingPassage], List[WritingPrompt]]:

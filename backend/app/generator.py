@@ -208,6 +208,8 @@ CRITICAL REQUIREMENTS:
 3. Include clear, engaging visual descriptions for picture prompts
 4. Focus on creative storytelling with beginning, middle, and end
 5. Use simple, age-appropriate language and concepts
+6. IMPORTANT: Generate DIFFERENT types of prompts - vary the themes, settings, and scenarios
+7. Avoid repeating the same prompt structure or theme multiple times
 
 """
         
@@ -731,6 +733,12 @@ TAGS QUALITY RULES:
 - Make tags specific enough for vocabulary assessment planning
 - Include both skill type and content area
 
+{topic_instruction_number + 2}. VARIETY REQUIREMENTS:
+- Generate DIFFERENT types of vocabulary questions
+- Vary the word relationships, contexts, and difficulty patterns
+- Avoid repeating the same question structure or word types
+- Use diverse vocabulary from different domains (academic, everyday, descriptive, action words)
+
 OUTPUT FORMAT - Return ONLY a JSON object:
 {{
   "questions": [
@@ -937,7 +945,8 @@ def generate_questions(request: QuestionRequest, llm: Optional[str] = "deepseek"
             provider=provider,
             system_message=system_message,
             prompt="Generate the questions as specified.",
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
+            temperature=0.8  # Higher temperature for more variety in verbal questions
         )
 
         if content is None:
@@ -1022,7 +1031,8 @@ def generate_reading_passage(request: QuestionRequest, llm: Optional[str] = "dee
             provider=provider,
             system_message=system_message,
             prompt="Generate the reading passage and questions as specified.",
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
+            temperature=0.8  # Higher temperature for more variety in reading content
         )
 
         if content is None:
@@ -1105,7 +1115,8 @@ async def generate_reading_passage_async(request: QuestionRequest, llm: Optional
             provider=provider,
             system_message=system_message,
             prompt="Generate the reading passage and questions as specified.",
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
+            temperature=0.8  # Higher temperature for more variety in reading content
         )
 
         if content is None:
@@ -1192,7 +1203,8 @@ async def generate_questions_async(request: QuestionRequest, llm: Optional[str] 
             provider=provider,
             system_message=system_message,
             prompt="Generate the questions as specified.",
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
+            temperature=0.8  # Higher temperature for more variety in verbal questions
         )
 
         if content is None:

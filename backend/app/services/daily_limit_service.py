@@ -22,13 +22,13 @@ class DailyLimitService:
         "writing": 1             # 1 writing prompts per day
     }
     
-    # Premium user limits (4 full tests)
+    # Premium user limits (unlimited access)
     PREMIUM_LIMITS = {
-        "quantitative": 120,
-        "analogy": 120,
-        "synonym": 120,
-        "reading_passages": 40,
-        "writing": 4
+        "quantitative": -1,      # -1 means unlimited
+        "analogy": -1,
+        "synonym": -1,
+        "reading_passages": -1,
+        "writing": -1
     }
     
     # Admin/Unlimited user limits
