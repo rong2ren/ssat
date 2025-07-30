@@ -103,24 +103,31 @@ export function ProgressiveTestGenerator({
     'Complete': '完成',
     'Generating...': '生成中',
     'Waiting': '等待',
-    'Test Generation Complete!': '测试生成完成！',
-    'Generated': '已生成',
-    'sections in': '个部分，用时',
-    'Generation Error': '生成错误',
-    'pending': '等待中',
-    'running': '运行中',
-    'completed': '已完成',
-    'failed': '失败',
-    'questions': '题',
-    'question': '题',
-    'Test sections': '包含',
-    'LIVE': '实时',
-    'Generating Test': '正在生成测试',
-    'Test Complete': '已完成',
-    'Test Failed': '生成失败',
-    'elapsed': '已用时',
-    'sections complete': '部分已完成',
-    'Job was deleted or no longer exists. The test generation may have failed or been cleaned up.': '任务已删除或不存在。测试生成可能失败或被清理。'
+    "Test Generation Complete!": "测试生成完成！",
+    "Generated": "已生成",
+    "sections in": "个部分，用时",
+    "Generation Error": "生成出错",
+    "pending": "待处理",
+    "running": "生成中",
+    "completed": "已完成",
+    "failed": "失败",
+    "questions": "题目",
+    "question": "题目",
+    "Test sections": "测试包含",
+    "LIVE": "实时",
+    "Generating Test": "正在生成测试",
+    "Test Complete": "测试完成",
+    "Test Failed": "测试生成失败",
+    "elapsed": "耗时",
+    "sections complete": "个部分已完成",
+    "Job was deleted or no longer exists. The test generation may have failed or been cleaned up.": "任务已被删除或不存在，测试生成可能失败或已被清除。",
+    "Starting Generation...": "开始生成中...",
+    "Generation Failed": "生成失败",
+    "Test Partially Generated": "测试仅部分生成完成",
+    "Generation Cancelled": "测试生成已取消",
+    "PREPARING": "准备中",
+    "Preparing Test Generation": "正在准备生成测试",
+    "Setting up job...": "正在设置生成任务..."
   }
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
 
@@ -674,13 +681,13 @@ export function ProgressiveTestGenerator({
       case 'running':
         return t('Generating Test')
       case 'completed':
-        return t('Test Complete')
+        return t('Test Generation Complete!')
       case 'failed':
-        return t('Test Failed')
+        return t('Generation Failed')
       case 'partial':
-        return t('Test Partially Complete')
+        return t('Test Partially Generated')
       case 'cancelled':
-        return t('Test Cancelled')
+        return t('Generation Cancelled')
       default:
         return t('Generating Test')
     }
@@ -726,6 +733,7 @@ export function ProgressiveTestGenerator({
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
               <div className="flex items-center space-x-2">
                 <CheckCircle className="h-5 w-5 text-green-600" />
+                <span className="font-medium text-gray-800">{t('Test Generation Complete!')}</span>
               </div>
               
               <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
@@ -777,10 +785,10 @@ export function ProgressiveTestGenerator({
               <div className="flex items-center space-x-2 sm:space-x-3">
                 <div className="flex items-center space-x-1 sm:space-x-2">
                   <div className="w-2 h-2 sm:w-3 sm:h-3 bg-blue-300 rounded-full animate-pulse"></div>
-                  <span className="font-medium text-xs sm:text-sm">PREPARING</span>
+                  <span className="font-medium text-xs sm:text-sm">{t('PREPARING')}</span>
                 </div>
-                <span className="text-base sm:text-lg font-semibold">Preparing Test Generation</span>
-                <span className="text-blue-100 text-xs sm:text-sm">• Setting up job...</span>
+                <span className="text-base sm:text-lg font-semibold">{t('Preparing Test Generation')}</span>
+                <span className="text-blue-100 text-xs sm:text-sm">• {t('Setting up job...')}</span>
               </div>
             </div>
             
@@ -798,36 +806,23 @@ export function ProgressiveTestGenerator({
         {/* Progress Tracking - show when generating or completed */}
         {jobStatus && (
           <>
-            {/* Prominent Status Card */}
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-3 sm:p-4 mb-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
-                <div className="flex items-center space-x-2 sm:space-x-3">
-                  <div className="flex items-center space-x-1 sm:space-x-2">
-                    <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-400 rounded-full animate-pulse"></div>
-                    <span className="font-medium text-xs sm:text-sm">{t('LIVE')}</span>
-                  </div>
-                  <span className="text-base sm:text-lg font-semibold">{getStatusText()}</span>
-                  <span className="text-blue-100 text-xs sm:text-sm">• {showChinese ? `${t('elapsed')}：${elapsedTime}` : `${elapsedTime} ${t('elapsed')}`}</span>
-                </div>
-                <div className="text-left sm:text-right">
-                  <div className="text-sm sm:text-lg font-bold">
-                    <span className="sm:hidden">{jobStatus?.progress?.completed || 0}/{jobStatus?.progress?.total || 0}</span>
-                    <span className="hidden sm:inline">{jobStatus?.progress?.completed || 0}/{jobStatus?.progress?.total || 0} {t('sections complete')}</span>
-                    <span className="block sm:inline sm:ml-1">({jobStatus?.progress?.percentage || 0}%)</span>
-                  </div>
-                </div>
+            {/* Simple Progress Card */}
+            <div className="bg-blue-500 text-white rounded-lg p-4 mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <span className="font-semibold">{getStatusText()}</span>
+                <span className="text-blue-100 text-sm">{elapsedTime}</span>
               </div>
               
-              {/* Enhanced Progress Bar */}
-              <div className="mt-3">
-                <div className="w-full bg-blue-400 bg-opacity-30 rounded-full h-3">
-                  <div 
-                    className="bg-white h-3 rounded-full transition-all duration-500 ease-out flex items-center justify-end pr-2"
-                    style={{ width: `${Math.max(jobStatus?.progress?.percentage || 0, 8)}%` }}
-                  >
-                    <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                  </div>
-                </div>
+              {/* Progress Bar */}
+              <div className="w-full bg-blue-400 bg-opacity-30 rounded-full h-3">
+                <div 
+                  className="bg-white h-3 rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${Math.max(jobStatus?.progress?.percentage || 0, 8)}%` }}
+                ></div>
+              </div>
+              
+              <div className="mt-2 text-center text-sm text-blue-100">
+                {jobStatus?.progress?.completed || 0}/{jobStatus?.progress?.total || 0} sections
               </div>
             </div>
 
