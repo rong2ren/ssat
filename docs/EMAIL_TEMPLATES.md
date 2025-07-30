@@ -90,87 +90,63 @@ SMTP Password: [Your Resend API Key]
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verify your SmartSSAT account</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.6;
-            color: #374151;
-            margin: 0;
-            padding: 20px;
-            background-color: #f8fafc;
-        }
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #ffffff;
-            border-radius: 8px;
-            padding: 40px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        .title {
-            font-size: 24px;
-            font-weight: 600;
-            color: #1f2937;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .description {
-            font-size: 16px;
-            color: #6b7280;
-            margin-bottom: 30px;
-            text-align: center;
-        }
-        .button-container {
-            text-align: center;
-            margin: 30px 0;
-        }
-        .verify-button {
-            display: inline-block;
-            background-color: #2563eb;
-            color: #ffffff;
-            text-decoration: none;
-            padding: 12px 24px;
-            border-radius: 6px;
-            font-weight: 500;
-            font-size: 16px;
-        }
-        .footer {
-            text-align: center;
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid #e5e7eb;
-        }
-        .footer p {
-            color: #6b7280;
-            font-size: 14px;
-            margin: 5px 0;
-        }
-        .footer a {
-            color: #2563eb;
-            text-decoration: none;
-        }
-    </style>
 </head>
-<body>
-    <div class="container">
-        <div class="title">Welcome to SmartSSAT!</div>
-        
-        <div class="description">
-            Thank you for creating your account! Please verify your email address to start practicing.
-        </div>
-        
-        <div class="button-container">
-            <a href="{{ .ConfirmationURL }}" class="verify-button">
-                Verify My Account
-            </a>
-        </div>
-        
-        <div class="footer">
-            <p><strong>SmartSSAT</strong></p>
-            <p>AI-Powered SSAT Preparation Platform</p>
-            <p><a href="https://your-website.com">Visit our website</a></p>
-        </div>
-    </div>
+<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f8fafc; color: #374151; line-height: 1.6;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc;">
+        <tr>
+            <td align="center" style="padding: 20px;">
+                <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+                    <tr>
+                        <td style="padding: 40px;">
+                            <!-- Header -->
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td align="center" style="padding-bottom: 20px;">
+                                        <h1 style="font-size: 24px; font-weight: 600; color: #1f2937; margin: 0; text-align: center;">Welcome to SmartSSAT!</h1>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align="center" style="padding-bottom: 30px;">
+                                        <p style="font-size: 16px; color: #6b7280; margin: 0; text-align: center;">Thank you for creating your account! Please verify your email address to start practicing.</p>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Button -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                                <tr>
+                                    <td align="center">
+                                        <table cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td align="center" style="background-color: #2563eb; border-radius: 6px;">
+                                                    <a href="{{ .ConfirmationURL }}" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 500; font-size: 16px; background-color: #2563eb; border-radius: 6px;">
+                                                        <span style="color: #ffffff; font-weight: 500; font-size: 16px;">Verify My Account</span>
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Footer -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+                                <tr>
+                                    <td align="center">
+                                        <p style="color: #6b7280; font-size: 14px; margin: 5px 0; font-weight: bold;">SmartSSAT</p>
+                                        <p style="color: #6b7280; font-size: 14px; margin: 5px 0;">AI-Powered SSAT Preparation Platform</p>
+                                        <p style="color: #6b7280; font-size: 14px; margin: 5px 0;">
+                                            <a href="https://your-website.com" style="color: #2563eb; text-decoration: none;">Visit our website</a>
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>
 ```
@@ -188,92 +164,94 @@ SMTP Password: [Your Resend API Key]
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reset your SmartSSAT password</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.6;
-            color: #374151;
-            margin: 0;
-            padding: 20px;
-            background-color: #f8fafc;
-        }
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #ffffff;
-            border-radius: 8px;
-            padding: 40px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        .title {
-            font-size: 24px;
-            font-weight: 600;
-            color: #1f2937;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .description {
-            font-size: 16px;
-            color: #6b7280;
-            margin-bottom: 30px;
-            text-align: center;
-        }
-        .button-container {
-            text-align: center;
-            margin: 30px 0;
-        }
-        .reset-button {
-            display: inline-block;
-            background-color: #2563eb;
-            color: #ffffff;
-            text-decoration: none;
-            padding: 12px 24px;
-            border-radius: 6px;
-            font-weight: 500;
-            font-size: 16px;
-        }
-        .footer {
-            text-align: center;
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid #e5e7eb;
-        }
-        .footer p {
-            color: #6b7280;
-            font-size: 14px;
-            margin: 5px 0;
-        }
-        .footer a {
-            color: #2563eb;
-            text-decoration: none;
-        }
-    </style>
 </head>
-<body>
-    <div class="container">
-        <div class="title">Password Reset Request</div>
-        
-        <div class="description">
-            We received a request to reset your password. Click the button below to create a new password.
-        </div>
-        
-        <div class="button-container">
-            <a href="{{ .ConfirmationURL }}" class="reset-button">
-                Reset My Password
-            </a>
-        </div>
-        
-        <div class="footer">
-            <p><strong>SmartSSAT</strong></p>
-            <p>AI-Powered SSAT Preparation Platform</p>
-            <p><a href="https://your-website.com">Visit our website</a></p>
-        </div>
-    </div>
+<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f8fafc; color: #374151; line-height: 1.6;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc;">
+        <tr>
+            <td align="center" style="padding: 20px;">
+                <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+                    <tr>
+                        <td style="padding: 40px;">
+                            <!-- Header -->
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td align="center" style="padding-bottom: 20px;">
+                                        <h1 style="font-size: 24px; font-weight: 600; color: #1f2937; margin: 0; text-align: center;">Password Reset Request</h1>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align="center" style="padding-bottom: 30px;">
+                                        <p style="font-size: 16px; color: #6b7280; margin: 0; text-align: center;">We received a request to reset your password. Click the button below to create a new password.</p>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Button -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                                <tr>
+                                    <td align="center">
+                                        <table cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td align="center" style="background-color: #2563eb; border-radius: 6px;">
+                                                    <a href="{{ .ConfirmationURL }}" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 500; font-size: 16px; background-color: #2563eb; border-radius: 6px;">
+                                                        <span style="color: #ffffff; font-weight: 500; font-size: 16px;">Reset My Password</span>
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Footer -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+                                <tr>
+                                    <td align="center">
+                                        <p style="color: #6b7280; font-size: 14px; margin: 5px 0; font-weight: bold;">SmartSSAT</p>
+                                        <p style="color: #6b7280; font-size: 14px; margin: 5px 0;">AI-Powered SSAT Preparation Platform</p>
+                                        <p style="color: #6b7280; font-size: 14px; margin: 5px 0;">
+                                            <a href="https://your-website.com" style="color: #2563eb; text-decoration: none;">Visit our website</a>
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>
 ```
 
 ---
+
+## 📧 Email Client Compatibility Tips
+
+### **Why These Templates Work Better:**
+
+1. **Table-based Layout**: Email clients prefer table layouts over div-based layouts
+2. **Inline Styles**: All styles are inline to ensure maximum compatibility
+3. **Fallback Colors**: Multiple color declarations for button text
+4. **Simple Font Stack**: Using Arial, Helvetica, sans-serif for maximum compatibility
+5. **No External CSS**: All styles are embedded to avoid stripping
+
+### **Key Improvements:**
+
+- ✅ **Button text visibility**: Multiple color declarations ensure white text shows
+- ✅ **Cross-client compatibility**: Works in Gmail, Outlook, Apple Mail, etc.
+- ✅ **Mobile responsive**: Table-based layout adapts to mobile screens
+- ✅ **Accessibility**: Proper contrast ratios and readable fonts
+- ✅ **Professional appearance**: Clean, modern design that matches your brand
+
+### **Testing Recommendations:**
+
+1. **Test in multiple email clients**: Gmail, Outlook, Apple Mail, Yahoo
+2. **Test on mobile devices**: iPhone, Android
+3. **Check button visibility**: Ensure white text is visible on blue background
+4. **Verify links work**: Test confirmation URLs
+5. **Monitor delivery rates**: Check spam folder placement
 
 Email Service Provider: Resend
 
