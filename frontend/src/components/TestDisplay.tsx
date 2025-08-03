@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Button } from './ui/Button'
 import { TestSection, StandaloneSection, ReadingSection, WritingSection } from '@/types/api'
-import { Eye, EyeOff, Download } from 'lucide-react'
+import { Eye, EyeOff, Download, CheckSquare } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 import { QuestionDisplay } from './QuestionDisplay'
 import { generateUnifiedPDF } from '@/utils/pdfGenerator'
 
@@ -14,6 +15,14 @@ interface TestDisplayProps {
 
 export function TestDisplay({ sections, showChinese }: TestDisplayProps) {
   const [showAnswers, setShowAnswers] = useState(false)
+  
+  // Global interactive state for Check All Answers functionality
+  const [globalUserAnswers, setGlobalUserAnswers] = useState<Array<{ questionId: string, selectedAnswer: string }>>([])
+  const [globalShowResults, setGlobalShowResults] = useState(false)
+
+  // Check if user has premium access for interactive features
+  const { user } = useAuth()
+  const hasPremiumAccess = user?.role === 'premium' || user?.role === 'admin'
 
   const handleDownloadCompleteTest = () => {
     generateUnifiedPDF(sections, {
@@ -75,33 +84,182 @@ export function TestDisplay({ sections, showChinese }: TestDisplayProps) {
       </div>
 
       {/* Sections */}
-      <div className="space-y-8 p-6">
+      <div className="space-y-8 p-6 pb-24">
         {sections.map((section, sectionIndex) => (
           <SectionWrapper
             key={sectionIndex}
             section={section}
             sectionIndex={sectionIndex}
             globalShowAnswers={showAnswers}
+            setGlobalShowAnswers={setShowAnswers}
+            globalUserAnswers={globalUserAnswers}
+            setGlobalUserAnswers={setGlobalUserAnswers}
+            globalShowResults={globalShowResults}
+            setGlobalShowResults={setGlobalShowResults}
           />
         ))}
       </div>
+
+      {/* Sticky Bottom Bar for Interactive Controls */}
+      {hasPremiumAccess && (globalUserAnswers.length > 0 || globalShowResults) && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
+          <div className="max-w-7xl mx-auto px-4 py-3">
+            <div className="flex items-center justify-center space-x-4">
+              {/* Mode-based button display */}
+              
+              {/* Answer Mode: Check Answers */}
+              {globalUserAnswers.length > 0 && !globalShowResults && (
+                <Button
+                  onClick={() => setGlobalShowResults(true)}
+                  className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <CheckSquare className="h-4 w-4" />
+                  <span>Check Answers</span>
+                </Button>
+              )}
+
+              {/* Continue Answering Button */}
+              {globalShowResults && (
+                <Button
+                  variant="outline"
+                  onClick={() => setGlobalShowResults(false)}
+                  className="flex items-center space-x-2"
+                >
+                  <span>Continue Answering</span>
+                </Button>
+              )}
+
+              {/* Clear Answers Button */}
+              {globalUserAnswers.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setGlobalUserAnswers([])
+                    setGlobalShowResults(false)
+                  }}
+                  className="flex items-center space-x-2"
+                >
+                  <span>Clear Answers</span>
+                </Button>
+              )}
+
+              {/* Total Score Display */}
+              {globalShowResults && globalUserAnswers.length > 0 && (
+                <div className="flex items-center space-x-2">
+                  <span className="font-medium text-gray-700">Total Score:</span>
+                  <span className="font-bold text-lg text-green-600">
+                    {(() => {
+                      let correct = 0
+                      let total = 0
+                      
+                      sections.forEach(section => {
+                        if (section.section_type === 'reading') {
+                          section.passages.forEach(passage => {
+                            passage.questions.forEach(question => {
+                              total++
+                              const userAnswer = globalUserAnswers.find(a => a.questionId === question.id)
+                              if (userAnswer && userAnswer.selectedAnswer === question.correct_answer) {
+                                correct++
+                              }
+                            })
+                          })
+                        } else if (section.section_type !== 'writing') {
+                          (section as StandaloneSection).questions.forEach(question => {
+                            total++
+                            const userAnswer = globalUserAnswers.find(a => a.questionId === question.id)
+                            if (userAnswer && userAnswer.selectedAnswer === question.correct_answer) {
+                              correct++
+                            }
+                          })
+                        }
+                      })
+                      
+                      return `${correct}/${total}`
+                    })()}
+                  </span>
+                </div>
+              )}
+
+              {/* Answer Count and Progress */}
+              {globalUserAnswers.length > 0 && (
+                <div className="text-sm text-gray-600">
+                  {(() => {
+                    let totalQuestions = 0
+                    sections.forEach(section => {
+                      if (section.section_type === 'reading') {
+                        section.passages.forEach(passage => {
+                          totalQuestions += passage.questions.length
+                        })
+                      } else if (section.section_type !== 'writing') {
+                        totalQuestions += (section as StandaloneSection).questions.length
+                      }
+                    })
+                    
+                    return `${globalUserAnswers.length}/${totalQuestions} answered`
+                  })()}
+                  {globalShowResults && (
+                    <span className="ml-2 text-green-600">
+                      • {(() => {
+                        let correct = 0
+                        sections.forEach(section => {
+                          if (section.section_type === 'reading') {
+                            section.passages.forEach(passage => {
+                              passage.questions.forEach(question => {
+                                const userAnswer = globalUserAnswers.find(a => a.questionId === question.id)
+                                if (userAnswer && userAnswer.selectedAnswer === question.correct_answer) {
+                                  correct++
+                                }
+                              })
+                            })
+                          } else if (section.section_type !== 'writing') {
+                            (section as StandaloneSection).questions.forEach(question => {
+                              const userAnswer = globalUserAnswers.find(a => a.questionId === question.id)
+                              if (userAnswer && userAnswer.selectedAnswer === question.correct_answer) {
+                                correct++
+                              }
+                            })
+                          }
+                        })
+                        return `${correct} correct`
+                      })()}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 function StandaloneSectionDisplay({ section, showAnswers }: { section: StandaloneSection, showAnswers: boolean }) {
+  const context = React.useContext(SectionStateContext)
+  if (!context) throw new Error('StandaloneSectionDisplay must be used within SectionWrapper')
+  
+  const { userAnswers, setUserAnswers, showResults, setShowResults } = context
+  
   return (
     <QuestionDisplay 
       questions={section.questions} 
       showChinese={false}
       showAnswers={showAnswers}
-      showControls={false}
+      showControls={false} // Don't show controls in QuestionDisplay since they're in the header
       showHeader={false}
+      userAnswers={userAnswers}
+      setUserAnswers={setUserAnswers}
+      showResults={showResults}
+      setShowResults={setShowResults}
     />
   )
 }
 
-function ReadingSectionDisplay({ section, showAnswers }: { section: ReadingSection, showAnswers: boolean }) {
+function ReadingSectionDisplay({ section, showAnswers, setShowAnswers }: { section: ReadingSection, showAnswers: boolean, setShowAnswers: (show: boolean) => void }) {
+  const context = React.useContext(SectionStateContext)
+  if (!context) throw new Error('ReadingSectionDisplay must be used within SectionWrapper')
+  
+  const { userAnswers, setUserAnswers, showResults, setShowResults } = context
   return (
     <div className="space-y-8">
       {section.passages.map((passage, passageIndex) => (
@@ -120,6 +278,11 @@ function ReadingSectionDisplay({ section, showAnswers }: { section: ReadingSecti
               questions={passage.questions} 
               showChinese={false}
               showAnswers={showAnswers}
+              setShowAnswers={setShowAnswers}
+              userAnswers={userAnswers}
+              setUserAnswers={setUserAnswers}
+              showResults={showResults}
+              setShowResults={setShowResults}
               showControls={false}
               showHeader={false}
             />
@@ -161,27 +324,103 @@ function WritingSectionDisplay({ section, showAnswers }: { section: WritingSecti
 const SectionStateContext = React.createContext<{
   localOverride: boolean | null
   setLocalOverride: (value: boolean | null) => void
+  userAnswers: Array<{ questionId: string, selectedAnswer: string }>
+  setUserAnswers: (answers: Array<{ questionId: string, selectedAnswer: string }>) => void
+  showResults: boolean
+  setShowResults: (show: boolean) => void
 } | null>(null)
 
-function SectionWrapper({ section, sectionIndex, globalShowAnswers }: {
+function SectionWrapper({ 
+  section, 
+  sectionIndex, 
+  globalShowAnswers,
+  setGlobalShowAnswers,
+  globalUserAnswers,
+  setGlobalUserAnswers,
+  globalShowResults,
+  setGlobalShowResults
+}: {
   section: TestSection,
   sectionIndex: number,
-  globalShowAnswers: boolean
+  globalShowAnswers: boolean,
+  setGlobalShowAnswers: (show: boolean) => void,
+  globalUserAnswers: Array<{ questionId: string, selectedAnswer: string }>,
+  setGlobalUserAnswers: (answers: Array<{ questionId: string, selectedAnswer: string }>) => void,
+  globalShowResults: boolean,
+  setGlobalShowResults: (show: boolean) => void
 }) {
   // Use 3-state: null (follow global), true (force show), false (force hide)
   const [localOverride, setLocalOverride] = useState<boolean | null>(null)
   
+  // Interactive state for Check Answers functionality - sync with global state
+  const [userAnswers, setUserAnswers] = useState<Array<{ questionId: string, selectedAnswer: string }>>([])
+  const [showResults, setShowResults] = useState(false)
+  
+  // Sync local state with global state
+  useEffect(() => {
+    // Filter global answers for this section
+    const sectionAnswers = globalUserAnswers.filter(answer => {
+      // Check if this answer belongs to this section
+      if (section.section_type === 'reading') {
+        return section.passages.some(passage => 
+          passage.questions.some((q: any) => q.id === answer.questionId)
+        )
+      } else if (section.section_type === 'writing') {
+        // Writing sections don't have questions, so no answers
+        return false
+      } else {
+        return (section as StandaloneSection).questions.some((q: any) => q.id === answer.questionId)
+      }
+    })
+    setUserAnswers(sectionAnswers)
+  }, [globalUserAnswers, section])
+  
+  // Sync local results with global results
+  useEffect(() => {
+    setShowResults(globalShowResults)
+  }, [globalShowResults])
+  
+  // Update global state when local state changes
+  const updateGlobalAnswers = (newAnswers: Array<{ questionId: string, selectedAnswer: string }>) => {
+    setUserAnswers(newAnswers)
+    
+    // Remove old answers for this section from global state
+    const otherSectionAnswers = globalUserAnswers.filter(answer => {
+      if (section.section_type === 'reading') {
+        return !section.passages.some(passage => 
+          passage.questions.some((q: any) => q.id === answer.questionId)
+        )
+      } else if (section.section_type === 'writing') {
+        // Writing sections don't have questions, so keep all answers
+        return true
+      } else {
+        return !(section as StandaloneSection).questions.some((q: any) => q.id === answer.questionId)
+      }
+    })
+    
+    // Add new answers for this section
+    setGlobalUserAnswers([...otherSectionAnswers, ...newAnswers])
+  }
+  
   return (
-    <SectionStateContext.Provider value={{ localOverride, setLocalOverride }}>
+    <SectionStateContext.Provider value={{ 
+      localOverride, 
+      setLocalOverride,
+      userAnswers,
+      setUserAnswers: updateGlobalAnswers,
+      showResults,
+      setShowResults
+    }}>
       <div className="border rounded-lg">
         <SectionHeader 
           section={section} 
           sectionIndex={sectionIndex}
           showAnswers={globalShowAnswers}
         />
-        <SectionContent 
-          section={section}
+                <SectionContent 
+          section={section} 
           globalShowAnswers={globalShowAnswers}
+          setGlobalShowAnswers={setGlobalShowAnswers}
           sectionIndex={sectionIndex}
         />
       </div>
@@ -232,6 +471,8 @@ function SectionHeader({ section, sectionIndex, showAnswers: globalShowAnswers }
       testType: 'complete'
     })
   }
+
+
   
   
   return (
@@ -246,6 +487,8 @@ function SectionHeader({ section, sectionIndex, showAnswers: globalShowAnswers }
         
         {/* Section-level controls (secondary) */}
         <div className="flex space-x-2">
+
+
           <Button
             variant="ghost"
             size="xs"
@@ -271,9 +514,10 @@ function SectionHeader({ section, sectionIndex, showAnswers: globalShowAnswers }
   )
 }
 
-function SectionContent({ section, globalShowAnswers, sectionIndex }: {
+function SectionContent({ section, globalShowAnswers, setGlobalShowAnswers, sectionIndex }: {
   section: TestSection,
   globalShowAnswers: boolean,
+  setGlobalShowAnswers: (show: boolean) => void,
   sectionIndex: number
 }) {
   const context = React.useContext(SectionStateContext)
@@ -289,7 +533,7 @@ function SectionContent({ section, globalShowAnswers, sectionIndex }: {
       {section.section_type === 'writing' ? (
         <WritingSectionDisplay section={section as WritingSection} showAnswers={effectiveShowAnswers} />
       ) : section.section_type === 'reading' ? (
-        <ReadingSectionDisplay section={section as ReadingSection} showAnswers={effectiveShowAnswers} />
+        <ReadingSectionDisplay section={section as ReadingSection} showAnswers={effectiveShowAnswers} setShowAnswers={setGlobalShowAnswers} />
       ) : (
         <StandaloneSectionDisplay section={section as StandaloneSection} showAnswers={effectiveShowAnswers} />
       )}

@@ -9,6 +9,10 @@ import { useAuth } from '@/contexts/AuthContext'
 import AuthGuard from '@/components/auth/AuthGuard'
 import { getAuthHeaders } from '@/utils/auth'
 import { invalidateLimitsCache } from '@/components/DailyLimitsDisplay'
+import { Button } from '@/components/ui/Button'
+import { Eye, EyeOff, Download, CheckSquare } from 'lucide-react'
+import { generateUnifiedPDF } from '@/utils/pdfGenerator'
+
 
 export default function CustomSectionPage() {
   const { user } = useAuth()
@@ -18,6 +22,13 @@ export default function CustomSectionPage() {
   const { showChinese } = usePreferences()
   const [limitErrorInfo, setLimitErrorInfo] = useState<any>(null)
   const [showUsageDetails, setShowUsageDetails] = useState(false)
+  
+  // State for sticky footer controls
+  const [showAnswers, setShowAnswers] = useState(false)
+  
+  // State for interactive functionality
+  const [userAnswers, setUserAnswers] = useState<Array<{questionId: string, selectedAnswer: string}>>([])
+  const [showResults, setShowResults] = useState(false)
 
   // UI translations
   const translations = {
@@ -37,7 +48,10 @@ export default function CustomSectionPage() {
     'Reading': '阅读',
     'Writing': '写作',
     'Show usage details': '显示使用详情',
-    'Hide usage details': '隐藏使用详情'
+    'Hide usage details': '隐藏使用详情',
+    'Show Answers': '显示答案',
+    'Hide Answers': '隐藏答案',
+    'Save as PDF': '保存为PDF'
   }
 
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
@@ -134,6 +148,67 @@ export default function CustomSectionPage() {
       }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDownload = () => {
+    if (contentType === 'passages' && passages.length > 0) {
+      // For reading comprehension, flatten passages into questions with metadata
+      const pdfContent = passages.flatMap(passage => {
+        return passage.questions.map(question => ({
+          ...question,
+          metadata: { 
+            ...question.metadata, 
+            isPassageQuestion: true,
+            passageText: passage.text
+          }
+        }))
+      })
+      
+      generateUnifiedPDF(pdfContent, {
+        title: 'SSAT Practice Questions',
+        includeAnswers: showAnswers,
+        showSectionBreaks: false,
+        language: showChinese ? 'zh' : 'en',
+        testType: 'individual'
+      })
+    } else {
+      // For standalone questions, use as-is
+      generateUnifiedPDF(questions, {
+        title: 'SSAT Practice Questions',
+        includeAnswers: showAnswers,
+        showSectionBreaks: false,
+        language: showChinese ? 'zh' : 'en',
+        testType: 'individual'
+      })
+    }
+  }
+
+  // Interactive button handlers
+  const handleCheckAnswers = () => {
+    setShowResults(true)
+  }
+
+  const handleHideResults = () => {
+    setShowResults(false)
+  }
+
+  const handleClearAnswers = () => {
+    setUserAnswers([])
+    setShowResults(false)
+  }
+
+  // Determine mode for button display
+  const getMode = () => {
+    if (showResults && userAnswers.length > 0) {
+      const totalQuestions = contentType === 'passages' 
+        ? passages.reduce((total, passage) => total + passage.questions.length, 0)
+        : questions.length
+      return userAnswers.length === totalQuestions ? 'results' : 'continue'
+    } else if (userAnswers.length > 0) {
+      return 'answer'
+    } else {
+      return 'answer'
     }
   }
 
@@ -273,15 +348,112 @@ export default function CustomSectionPage() {
             {!loading && (
               <>
                 {contentType === 'questions' && questions.length > 0 && (
-                  <QuestionDisplay questions={questions} showChinese={showChinese} />
+                  <div className="pb-24">
+                    <QuestionDisplay 
+                      questions={questions} 
+                      showChinese={showChinese}
+                      showControls={true}
+                      showHeader={true}
+                      showInteractiveControls={false}
+                      showAnswers={showAnswers}
+                      setShowAnswers={setShowAnswers}
+                      userAnswers={userAnswers}
+                      setUserAnswers={setUserAnswers}
+                      showResults={showResults}
+                      setShowResults={setShowResults}
+                    />
+                  </div>
                 )}
                 {contentType === 'passages' && passages.length > 0 && (
-                  <QuestionDisplay passages={passages} showChinese={showChinese} />
+                  <div className="pb-24">
+                    <QuestionDisplay 
+                      passages={passages} 
+                      showChinese={showChinese}
+                      showControls={true}
+                      showHeader={true}
+                      showInteractiveControls={false}
+                      showAnswers={showAnswers}
+                      setShowAnswers={setShowAnswers}
+                      userAnswers={userAnswers}
+                      setUserAnswers={setUserAnswers}
+                      showResults={showResults}
+                      setShowResults={setShowResults}
+                    />
+                  </div>
                 )}
                 {contentType === 'prompts' && questions.length > 0 && (
-                  <QuestionDisplay questions={questions} showChinese={showChinese} />
+                  <div className="pb-24">
+                    <QuestionDisplay 
+                      questions={questions} 
+                      showChinese={showChinese}
+                      showControls={true}
+                      showHeader={true}
+                      showInteractiveControls={false}
+                      showAnswers={showAnswers}
+                      setShowAnswers={setShowAnswers}
+                      userAnswers={userAnswers}
+                      setUserAnswers={setUserAnswers}
+                      showResults={showResults}
+                      setShowResults={setShowResults}
+                    />
+                  </div>
                 )}
               </>
+            )}
+
+            {/* Sticky Footer - Only show when there are questions */}
+            {!loading && (
+              (contentType === 'questions' && questions.length > 0) ||
+              (contentType === 'passages' && passages.length > 0) ||
+              (contentType === 'prompts' && questions.length > 0)
+            ) && (
+              <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg">
+                <div className="container mx-auto px-4 py-4">
+                  <div className="flex justify-center space-x-4">
+                    {/* Interactive Controls */}
+                    {(() => {
+                      const mode = getMode()
+                      
+                      return (
+                        <>
+                          {/* Check Answers Button */}
+                          {mode === 'answer' && userAnswers.length > 0 && (
+                            <Button
+                              onClick={handleCheckAnswers}
+                              className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              <CheckSquare className="h-4 w-4" />
+                              <span>Check Answers</span>
+                            </Button>
+                          )}
+
+                          {/* Continue Answering Button */}
+                          {(mode === 'continue' || mode === 'results') && (
+                            <Button
+                              variant="outline"
+                              onClick={handleHideResults}
+                              className="flex items-center space-x-2"
+                            >
+                              <span>Continue Answering</span>
+                            </Button>
+                          )}
+
+                          {/* Clear Answers Button */}
+                          {userAnswers.length > 0 && (
+                            <Button
+                              variant="outline"
+                              onClick={handleClearAnswers}
+                              className="flex items-center space-x-2"
+                            >
+                              <span>Clear Answers</span>
+                            </Button>
+                          )}
+                        </>
+                      )
+                    })()}
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>

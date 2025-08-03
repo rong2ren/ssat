@@ -49,6 +49,7 @@ export default function PricingPage() {
         'Unlimited reading passages',
         'Unlimited writing prompts',
         'Custom question generation',
+        'Interactive answer checking',
         'PDF export'
       ],
 
@@ -161,6 +162,29 @@ export default function PricingPage() {
                       <span className="text-gray-700">{feature}</span>
                     </div>
                   ))}
+                  
+                  {/* Premium features not included in free plan */}
+                  {plan.name === 'Free' && (
+                    <div className="mt-6 pt-4 border-t border-gray-200">
+                      <h5 className="font-medium text-gray-900 mb-3">
+                        Premium features (not included):
+                      </h5>
+                      <div className="space-y-2">
+                        <div className="flex items-start">
+                          <X className="h-5 w-5 text-gray-400 mt-0.5 mr-3 flex-shrink-0" />
+                          <span className="text-gray-500">Interactive answer checking</span>
+                        </div>
+                        <div className="flex items-start">
+                          <X className="h-5 w-5 text-gray-400 mt-0.5 mr-3 flex-shrink-0" />
+                          <span className="text-gray-500">Unlimited practice</span>
+                        </div>
+                        <div className="flex items-start">
+                          <X className="h-5 w-5 text-gray-400 mt-0.5 mr-3 flex-shrink-0" />
+                          <span className="text-gray-500">Custom question generation</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* CTA Button */}
