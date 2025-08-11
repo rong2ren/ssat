@@ -49,15 +49,15 @@ export default function FullTestPage() {
   }) => {
     let newTestRequest
     if (customConfig) {
-      // Use custom configuration - send individual sections to backend for better training
+      // Use custom configuration - gets questions from existing pool
       newTestRequest = {
         difficulty: customConfig.difficulty,
         include_sections: customConfig.sections, // Send original sections directly
         custom_counts: customConfig.counts,
         originalSelection: customConfig.sections,
-        is_official_format: false // Custom format
+        is_official_format: false // Custom format from pool
       }
-      console.log('🔧 DEBUG: Using CUSTOM format:', newTestRequest)
+      console.log('🔧 DEBUG: Using CUSTOM format from pool:', newTestRequest)
     } else {
       // Use official SSAT Elementary format - separate verbal into analogy and synonyms
       newTestRequest = {

@@ -38,6 +38,19 @@ class QuestionGenerationRequest(BaseModel):
         default=False,
         description="Whether this is for official SSAT format (allows up to 30 questions)"
     )
+    use_custom_examples: bool = Field(
+        default=False,
+        description="Use custom training examples instead of database examples"
+    )
+    custom_examples: Optional[str] = Field(
+        default=None,
+        description="Custom training examples in text format (used when use_custom_examples=True)",
+        max_length=10000
+    )
+    input_format: str = Field(
+        default="full",
+        description="Input format: full or simple (for synonyms only)"
+    )
     
     @field_validator('topic')
     @classmethod
@@ -47,6 +60,15 @@ class QuestionGenerationRequest(BaseModel):
             v = v.strip()
             if len(v) == 0:
                 return None
+        return v
+    
+    @field_validator('custom_examples')
+    @classmethod
+    def validate_custom_examples(cls, v, info):
+        """Validate custom examples if provided."""
+        if hasattr(info.data, 'use_custom_examples') and info.data['use_custom_examples']:
+            if not v or not v.strip():
+                raise ValueError("Custom examples are required when use_custom_examples is True")
         return v
     
     @model_validator(mode='after')
@@ -119,6 +141,28 @@ class CompleteTestRequest(BaseModel):
                     # For official format, allow up to 30 questions per section
                     if is_official and count > 30:
                         raise ValueError(f"Invalid count for {section}: must be 1-30 for official format")
+        return v
+
+class TrainingExamplesRequest(BaseModel):
+    """Request model for saving training examples."""
+    section_type: str = Field(..., description="Section type: quantitative, analogy, synonym, reading, writing")
+    examples_text: str = Field(..., description="Raw text of training examples", max_length=10000)
+    input_format: str = Field(default="full", description="Input format: full or simple (for synonyms only)")
+    
+    @field_validator('section_type')
+    @classmethod
+    def validate_section_type(cls, v):
+        valid_types = ["quantitative", "analogy", "synonym", "reading", "writing"]
+        if v not in valid_types:
+            raise ValueError(f"Section type must be one of: {valid_types}")
+        return v
+    
+    @field_validator('input_format')
+    @classmethod
+    def validate_input_format(cls, v):
+        valid_formats = ["full", "simple"]
+        if v not in valid_formats:
+            raise ValueError(f"Input format must be one of: {valid_formats}")
         return v
 
 

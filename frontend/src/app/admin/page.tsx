@@ -37,7 +37,7 @@ interface GenerationResponse {
   content: any
 }
 
-type AdminSection = 'generate' | 'complete-test' | 'users'
+type AdminSection = 'generate' | 'complete-test' | 'users' | 'training-examples'
 
 export default function AdminPage() {
   const [activeSection, setActiveSection] = useState<AdminSection>('generate')
@@ -54,7 +54,10 @@ export default function AdminPage() {
     question_type: 'quantitative' as 'quantitative' | 'reading' | 'analogy' | 'synonym' | 'writing',
     difficulty: 'Medium' as 'Easy' | 'Medium' | 'Hard',
     topic: '',
-    count: 1
+    count: 1,
+    use_custom_examples: false,
+    custom_examples: '',
+    input_format: 'full' as 'full' | 'simple'
   })
   const [generating, setGenerating] = useState(false)
   const [generationResult, setGenerationResult] = useState<GenerationResponse | null>(null)
@@ -65,18 +68,27 @@ export default function AdminPage() {
     difficulty: 'Medium' as 'Easy' | 'Medium' | 'Hard',
     include_sections: ['quantitative', 'analogy', 'synonym', 'reading', 'writing'] as string[],
     custom_counts: {
-      quantitative: 1,
-      analogy: 1,
-      synonym: 1,
-      reading: 1,
+      quantitative: 30,
+      analogy: 12,
+      synonym: 18,
+      reading: 7,
       writing: 1
     },
-    is_official_format: false,
+    is_official_format: true,
     provider: 'deepseek' as 'deepseek' | 'gemini' | 'auto'
   })
   const [generatingCompleteTest, setGeneratingCompleteTest] = useState(false)
   const [completeTestResult, setCompleteTestResult] = useState<any>(null)
   const [completeTestError, setCompleteTestError] = useState<string | null>(null)
+  
+  // Training examples state
+  const [trainingExamplesForm, setTrainingExamplesForm] = useState({
+    section_type: 'quantitative' as 'quantitative' | 'analogy' | 'synonym' | 'reading' | 'writing',
+    examples_text: ''
+  })
+  const [savingExamples, setSavingExamples] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -178,7 +190,17 @@ export default function AdminPage() {
           ...headers,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(generationForm)
+        body: JSON.stringify({
+          question_type: generationForm.question_type,
+          difficulty: generationForm.difficulty,
+          topic: generationForm.topic,
+          count: (generationForm.question_type === 'synonym' && generationForm.input_format === 'simple') 
+            ? generationForm.custom_examples.split(',').filter(word => word.trim()).length 
+            : generationForm.count,
+          use_custom_examples: generationForm.use_custom_examples || (generationForm.question_type === 'synonym' && generationForm.input_format === 'simple'),
+          custom_examples: (generationForm.use_custom_examples || (generationForm.question_type === 'synonym' && generationForm.input_format === 'simple')) ? generationForm.custom_examples : undefined,
+          input_format: generationForm.input_format
+        })
       })
 
       const data = await response.json()
@@ -198,43 +220,58 @@ export default function AdminPage() {
 
   const handleCompleteTestSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setGeneratingCompleteTest(true)
+    setCompleteTestError(null)
     
     try {
-      setGeneratingCompleteTest(true)
-      setCompleteTestError(null)
-      setCompleteTestResult(null)
-      
-      // Transform the data to match backend CompleteTestRequest model
-      const requestData = {
-        difficulty: completeTestForm.difficulty,
-        include_sections: completeTestForm.include_sections,
-        custom_counts: completeTestForm.custom_counts,
-        is_official_format: completeTestForm.is_official_format,
-        provider: completeTestForm.provider
-      }
-      
       const headers = await getAuthHeaders()
       const response = await fetch('/api/admin/generate/complete-test', {
         method: 'POST',
-        headers: {
-          ...headers,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData)
+        headers,
+        body: JSON.stringify(completeTestForm)
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || data.detail || 'Complete test generation failed')
+      
+      const result = await response.json()
+      
+      if (response.ok) {
+        setCompleteTestResult(result)
+      } else {
+        setCompleteTestError(result.message || 'Failed to generate complete test')
       }
-
-      setCompleteTestResult(data)
-    } catch (err) {
-      console.error('Error generating complete test:', err)
-      setCompleteTestError(err instanceof Error ? err.message : 'Unknown error')
+    } catch (error) {
+      setCompleteTestError('Network error. Please try again.')
     } finally {
       setGeneratingCompleteTest(false)
+    }
+  }
+
+  const handleSaveTrainingExamples = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSavingExamples(true)
+    setSaveError(null)
+    setSaveSuccess(null)
+    
+    try {
+      const headers = await getAuthHeaders()
+      const response = await fetch('/api/admin/save-training-examples', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(trainingExamplesForm)
+      })
+      
+      const result = await response.json()
+      
+      if (response.ok) {
+        const message = `Successfully saved ${result.saved_count} examples for ${trainingExamplesForm.section_type}`
+        setSaveSuccess(message)
+        setTrainingExamplesForm({...trainingExamplesForm, examples_text: ''})
+      } else {
+        setSaveError(result.message || 'Failed to save training examples')
+      }
+    } catch (error) {
+      setSaveError('Network error. Please try again.')
+    } finally {
+      setSavingExamples(false)
     }
   }
 
@@ -324,6 +361,16 @@ export default function AdminPage() {
             >
               Manage Users
             </button>
+            <button
+              onClick={() => setActiveSection('training-examples')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeSection === 'training-examples'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              AI Training Examples
+            </button>
           </nav>
         </div>
 
@@ -344,7 +391,14 @@ export default function AdminPage() {
                     <label className="block text-sm font-medium text-gray-700">Question Type</label>
                     <select
                       value={generationForm.question_type}
-                      onChange={(e) => setGenerationForm({...generationForm, question_type: e.target.value as any})}
+                      onChange={(e) => setGenerationForm({
+                        ...generationForm, 
+                        question_type: e.target.value as any,
+                        // Reset custom examples and topic when switching sections
+                        use_custom_examples: false,
+                        custom_examples: '',
+                        topic: ''
+                      })}
                       className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="quantitative">Quantitative</option>
@@ -354,6 +408,28 @@ export default function AdminPage() {
                       <option value="writing">Writing</option>
                     </select>
                   </div>
+                  
+                  {generationForm.question_type === 'synonym' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Input Format</label>
+                      <select
+                        value={generationForm.input_format}
+                        onChange={(e) => {
+                          const newFormat = e.target.value as 'full' | 'simple';
+                          setGenerationForm({
+                            ...generationForm, 
+                            input_format: newFormat,
+                            // Auto-enable custom examples for simple word list
+                            use_custom_examples: newFormat === 'simple' ? true : generationForm.use_custom_examples
+                          });
+                        }}
+                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="full">Full Question Format</option>
+                        <option value="simple">Simple Word List</option>
+                      </select>
+                    </div>
+                  )}
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Difficulty</label>
@@ -368,17 +444,29 @@ export default function AdminPage() {
                     </select>
                   </div>
                   
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Count</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="20"
-                      value={generationForm.count}
-                      onChange={(e) => setGenerationForm({...generationForm, count: parseInt(e.target.value)})}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
+                  {generationForm.question_type === 'synonym' && generationForm.input_format === 'simple' ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Word Count</label>
+                      <div className="mt-1 p-2 bg-gray-50 border border-gray-300 rounded-md text-sm text-gray-600">
+                        {generationForm.custom_examples 
+                          ? `${generationForm.custom_examples.split(',').filter(word => word.trim()).length} words detected`
+                          : 'Enter words to see count'
+                        }
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Count</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="20"
+                        value={generationForm.count}
+                        onChange={(e) => setGenerationForm({...generationForm, count: parseInt(e.target.value)})}
+                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                  )}
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Topic (Optional)</label>
@@ -390,6 +478,253 @@ export default function AdminPage() {
                       className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
+                </div>
+                
+                {/* Quantitative Subsections Display */}
+                {generationForm.question_type === 'quantitative' && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                    <h5 className="text-sm font-medium text-blue-900 mb-2">Available Quantitative Subsections</h5>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                      <div className="text-xs font-medium text-blue-800 mb-1 col-span-full">Number Operations (40%):</div>
+                      <div className="text-xs text-blue-700">Number Sense</div>
+                      <div className="text-xs text-blue-700">Arithmetic</div>
+                      <div className="text-xs text-blue-700">Fractions</div>
+                      <div className="text-xs text-blue-700">Decimals</div>
+                      <div className="text-xs text-blue-700">Percentages</div>
+                      
+                      <div className="text-xs font-medium text-blue-800 mb-1 col-span-full">Algebra Functions (20%):</div>
+                      <div className="text-xs text-blue-700">Patterns</div>
+                      <div className="text-xs text-blue-700">Sequences</div>
+                      <div className="text-xs text-blue-700">Algebra</div>
+                      <div className="text-xs text-blue-700">Variables</div>
+                      
+                      <div className="text-xs font-medium text-blue-800 mb-1 col-span-full">Geometry Spatial (25%):</div>
+                      <div className="text-xs text-blue-700">Area</div>
+                      <div className="text-xs text-blue-700">Perimeter</div>
+                      <div className="text-xs text-blue-700">Shapes</div>
+                      <div className="text-xs text-blue-700">Spatial</div>
+                      
+                      <div className="text-xs font-medium text-blue-800 mb-1 col-span-full">Measurement (10%):</div>
+                      <div className="text-xs text-blue-700">Measurement</div>
+                      <div className="text-xs text-blue-700">Time</div>
+                      <div className="text-xs text-blue-700">Money</div>
+                      
+                      <div className="text-xs font-medium text-blue-800 mb-1 col-span-full">Probability Data (5%):</div>
+                      <div className="text-xs text-blue-700">Probability</div>
+                      <div className="text-xs text-blue-700">Data</div>
+                      <div className="text-xs text-blue-700">Graphs</div>
+                    </div>
+                    <p className="text-xs text-blue-600 mt-2">
+                      <strong>Tip:</strong> Use these subsection names as topics for more targeted question generation.
+                    </p>
+                  </div>
+                )}
+                
+                {/* Custom Training Examples Section */}
+                <div className="border-t pt-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-md font-medium text-gray-900">Custom Training Examples</h4>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="use_custom_examples"
+                        checked={generationForm.use_custom_examples}
+                        onChange={(e) => setGenerationForm({...generationForm, use_custom_examples: e.target.checked})}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="use_custom_examples" className="ml-2 text-sm text-gray-700">
+                        Use custom examples instead of database examples
+                      </label>
+                    </div>
+                  </div>
+                  
+                  {(generationForm.use_custom_examples || (generationForm.question_type === 'synonym' && generationForm.input_format === 'simple')) && (
+                    <div className="space-y-4">
+                      {generationForm.question_type === 'synonym' && generationForm.input_format === 'simple' && (
+                        <div className="bg-green-50 border border-green-200 rounded-md p-3">
+                          <p className="text-sm text-green-800">
+                            <strong>Simple Word List Mode:</strong> Enter words separated by commas. The system will automatically generate synonym questions for all words you enter. The word count is calculated automatically.
+                          </p>
+                        </div>
+                      )}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {generationForm.question_type === 'synonym' && generationForm.input_format === 'simple' 
+                            ? 'Word List (Enter words separated by commas)' 
+                            : 'Training Examples (Paste your examples below)'}
+                        </label>
+                        <textarea
+                          value={generationForm.custom_examples}
+                          onChange={(e) => setGenerationForm({...generationForm, custom_examples: e.target.value})}
+                          placeholder={
+                            generationForm.question_type === 'synonym' && generationForm.input_format === 'simple'
+                              ? "Enter words separated by commas (e.g., happy, sad, big, small)..."
+                              : "Paste your training examples here..."
+                          }
+                          rows={8}
+                          className="block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      
+                      <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                        <h5 className="text-sm font-medium text-blue-900 mb-2">Format Instructions</h5>
+                        <div className="text-sm text-blue-800 space-y-2">
+                          {generationForm.question_type === 'quantitative' && (
+                            <div>
+                              <p className="font-medium">Quantitative Questions Format:</p>
+                              <pre className="text-xs bg-blue-100 p-2 rounded mt-1">
+{`Question: What is 1/4 + 1/2?
+Choices: A) 1/6; B) 2/6; C) 3/4; D) 3/6
+Correct Answer: C
+Explanation: To add fractions, find a common denominator. 1/4 + 1/2 = 1/4 + 2/4 = 3/4
+Difficulty: Easy
+Subsection: Fractions
+
+Question: If x + 5 = 12, what is the value of x?
+Choices: A) 5; B) 6; C) 7; D) 8
+Correct Answer: C
+Explanation: Subtract 5 from both sides: x = 12 - 5 = 7
+Difficulty: Easy
+Subsection: Algebra
+
+Question: What is the area of a rectangle with length 8 and width 5?
+Choices: A) 13; B) 26; C) 40; D) 45
+Correct Answer: C
+Explanation: Area of rectangle = length × width = 8 × 5 = 40
+Difficulty: Easy
+Subsection: Geometry`}
+                              </pre>
+                            </div>
+                          )}
+                          
+                          {generationForm.question_type === 'analogy' && (
+                            <div>
+                              <p className="font-medium">Analogy Questions Format:</p>
+                              <pre className="text-xs bg-blue-100 p-2 rounded mt-1">
+{`Question: Dog is to puppy as cat is to:
+Choices: A) kitten; B) mouse; C) bird; D) fish
+Correct Answer: A
+Explanation: A puppy is a young dog, just as a kitten is a young cat.
+Difficulty: Easy
+Subsection: Analogies
+
+Question: Author is to book as composer is to:
+Choices: A) painting; B) sculpture; C) symphony; D) poem
+Correct Answer: C
+Explanation: An author creates books, just as a composer creates symphonies (musical compositions).
+Difficulty: Medium
+Subsection: Analogies
+
+Question: Ephemeral is to permanent as turbulent is to:
+Choices: A) chaotic; B) peaceful; C) stormy; D) violent
+Correct Answer: B
+Explanation: Ephemeral (short-lasting) is opposite to permanent, just as turbulent (chaotic) is opposite to peaceful.
+Difficulty: Hard
+Subsection: Analogies`}
+                              </pre>
+                            </div>
+                          )}
+                          
+                          {generationForm.question_type === 'synonym' && generationForm.input_format === 'simple' && (
+                            <div>
+                              <p className="font-medium">Simple Word List Format:</p>
+                              <pre className="text-xs bg-blue-100 p-2 rounded mt-1">
+{`happy, sad, big, small, fast, slow, hot, cold, loud, quiet`}
+                              </pre>
+                                                    <p className="text-xs text-blue-700 mt-2">
+                        <strong>How it works:</strong> Enter words separated by commas. The system will automatically generate synonym questions for all words you enter. The word count is calculated automatically.
+                      </p>
+                            </div>
+                          )}
+                          {generationForm.question_type === 'synonym' && generationForm.input_format === 'full' && (
+                            <div>
+                              <p className="font-medium">Synonym Questions Format:</p>
+                              <pre className="text-xs bg-blue-100 p-2 rounded mt-1">
+{`Question: Choose the word that is most similar in meaning to "happy"
+Choices: A) sad; B) joyful; C) angry; D) tired
+Correct Answer: B
+Explanation: Joyful means feeling great pleasure and happiness, making it the best synonym for happy.
+Difficulty: Easy
+Subsection: Synonyms
+
+Question: Choose the word that is most similar in meaning to "meticulous"
+Choices: A) careless; B) detailed; C) quick; D) loud
+Correct Answer: B
+Explanation: Meticulous means showing great attention to detail; very careful and precise.
+Difficulty: Medium
+Subsection: Synonyms
+
+Question: Choose the word that is most similar in meaning to "ubiquitous"
+Choices: A) rare; B) everywhere; C) hidden; D) expensive
+Correct Answer: B
+Explanation: Ubiquitous means present, appearing, or found everywhere.
+Difficulty: Hard
+Subsection: Synonyms`}
+                              </pre>
+                            </div>
+                          )}
+                          
+                          {generationForm.question_type === 'reading' && (
+                            <div>
+                              <p className="font-medium">Reading Questions Format:</p>
+                              <pre className="text-xs bg-blue-100 p-2 rounded mt-1">
+{`PASSAGE:
+The butterfly is one of nature's most beautiful creatures. With colorful wings 
+that seem to dance in the air, butterflies bring joy to gardens everywhere. 
+They start their lives as caterpillars, eating leaves and growing bigger each 
+day. Then they form a chrysalis and undergo an amazing transformation called 
+metamorphosis.
+
+PASSAGE TYPE: Science Fiction
+DIFFICULTY: Medium
+
+QUESTION: According to the passage, what do caterpillars do before becoming butterflies?
+CHOICES: A) They fly around gardens; B) They form a chrysalis; C) They dance in the air; D) They bring joy to people
+CORRECT ANSWER: B
+EXPLANATION: The passage states that caterpillars "form a chrysalis and undergo an amazing transformation called metamorphosis."
+
+QUESTION: What is the main idea of this passage?
+CHOICES: A) Butterflies are beautiful; B) The life cycle of butterflies; C) Gardens need butterflies; D) Metamorphosis is amazing
+CORRECT ANSWER: B
+EXPLANATION: The passage describes the complete life cycle from caterpillar to butterfly, making this the main idea.
+
+QUESTION: What happens during metamorphosis?
+CHOICES: A) Caterpillars eat more leaves; B) Wings develop inside the chrysalis; C) Butterflies lay eggs; D) Caterpillars grow bigger
+CORRECT ANSWER: B
+EXPLANATION: The passage mentions that caterpillars "undergo an amazing transformation called metamorphosis" inside the chrysalis.
+
+QUESTION: Why are butterflies important to gardens?
+CHOICES: A) They eat harmful insects; B) They bring joy to people; C) They help plants grow; D) They provide food for birds
+CORRECT ANSWER: B
+EXPLANATION: The passage states that butterflies "bring joy to gardens everywhere."`}
+                              </pre>
+                            </div>
+                          )}
+                          
+                          {generationForm.question_type === 'writing' && (
+                            <div>
+                              <p className="font-medium">Writing Prompts Format:</p>
+                              <pre className="text-xs bg-blue-100 p-2 rounded mt-1">
+{`Prompt: Look at this picture of children building a treehouse. Write a story about their adventure.
+Visual Description: Children working together with wood and tools to build a treehouse
+Grade Level: 3-4
+Prompt Type: picture_story
+Subsection: Collaborative Problem-Solving Narratives
+Tags: teamwork-themes, problem-solving-process, character-interaction
+
+Prompt: You find a magic key that can open any door. Write a story about where you go and what you discover.
+Visual Description: An ornate, glowing key lying on a wooden table
+Grade Level: 3-4
+Prompt Type: creative_story
+Subsection: Imaginative Adventure Stories
+Tags: imaginative-thinking, creative-problem-solving, world-building`}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex justify-end">
@@ -452,14 +787,9 @@ export default function AdminPage() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Test Format</label>
-                    <select
-                      value={completeTestForm.is_official_format ? 'true' : 'false'}
-                      onChange={(e) => setCompleteTestForm({...completeTestForm, is_official_format: e.target.value === 'true'})}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="false">Custom</option>
-                      <option value="true">Official SSAT Format</option>
-                    </select>
+                    <div className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 text-gray-600">
+                      Official SSAT Format
+                    </div>
                   </div>
                   
                   <div>
@@ -476,84 +806,42 @@ export default function AdminPage() {
                   </div>
                 </div>
                 
-                {/* Custom Counts - Only show when not official format */}
-                {!completeTestForm.is_official_format && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Custom Counts</label>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500">Quantitative</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="50"
-                          value={completeTestForm.custom_counts.quantitative}
-                          onChange={(e) => {
-                            const value = parseInt(e.target.value) || 1
-                            setCompleteTestForm({...completeTestForm, custom_counts: {...completeTestForm.custom_counts, quantitative: value}})
-                          }}
-                          className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        />
+                {/* Official Counts Display */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Official SSAT Counts</label>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500">Quantitative</label>
+                      <div className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 text-gray-600">
+                        30
                       </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500">Analogy</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="50"
-                          value={completeTestForm.custom_counts.analogy}
-                          onChange={(e) => {
-                            const value = parseInt(e.target.value) || 1
-                            setCompleteTestForm({...completeTestForm, custom_counts: {...completeTestForm.custom_counts, analogy: value}})
-                          }}
-                          className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500">Analogy</label>
+                      <div className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 text-gray-600">
+                        12
                       </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500">Synonyms</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="50"
-                          value={completeTestForm.custom_counts.synonym}
-                          onChange={(e) => {
-                            const value = parseInt(e.target.value) || 1
-                            setCompleteTestForm({...completeTestForm, custom_counts: {...completeTestForm.custom_counts, synonym: value}})
-                          }}
-                          className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500">Synonyms</label>
+                      <div className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 text-gray-600">
+                        18
                       </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500">Reading</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="50"
-                          value={completeTestForm.custom_counts.reading}
-                          onChange={(e) => {
-                            const value = parseInt(e.target.value) || 1
-                            setCompleteTestForm({...completeTestForm, custom_counts: {...completeTestForm.custom_counts, reading: value}})
-                          }}
-                          className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500">Reading</label>
+                      <div className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 text-gray-600">
+                        7
                       </div>
-                      <div>
+                    </div>
+                                          <div>
                         <label className="block text-xs font-medium text-gray-500">Writing</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="50"
-                          value={completeTestForm.custom_counts.writing}
-                          onChange={(e) => {
-                            const value = parseInt(e.target.value) || 1
-                            setCompleteTestForm({...completeTestForm, custom_counts: {...completeTestForm.custom_counts, writing: value}})
-                          }}
-                          className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        />
+                        <div className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 text-gray-600">
+                          1
+                        </div>
                       </div>
                     </div>
                   </div>
-                )}
                 
                 {completeTestForm.is_official_format && officialCounts && (
                   <p className="mt-1 text-xs text-gray-600">
@@ -586,7 +874,7 @@ export default function AdminPage() {
                   <div className="text-sm text-green-700">
                     Session ID: {completeTestResult.session_id}<br/>
                     Sections: {completeTestResult.sections?.join(', ')}<br/>
-                    Custom Counts: {JSON.stringify(completeTestResult.custom_counts)}
+                    <>Official Counts: {JSON.stringify(completeTestResult.custom_counts)}</>
                   </div>
                 </div>
               )}
@@ -705,6 +993,228 @@ export default function AdminPage() {
                   Click "Load Users" to view user management options
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* AI Training Examples Section */}
+        {activeSection === 'training-examples' && (
+          <div className="bg-white shadow sm:rounded-lg">
+            <div className="px-4 py-5 sm:p-6">
+              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                AI Training Examples
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Save training examples to the database for use in LLM generation. Examples will be automatically used by the generator.
+              </p>
+              
+              <form onSubmit={handleSaveTrainingExamples} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Section Type</label>
+                    <select
+                      value={trainingExamplesForm.section_type}
+                      onChange={(e) => setTrainingExamplesForm({...trainingExamplesForm, section_type: e.target.value as any})}
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="quantitative">Quantitative</option>
+                      <option value="analogy">Analogies</option>
+                      <option value="synonym">Synonyms</option>
+                      <option value="reading">Reading</option>
+                      <option value="writing">Writing</option>
+                    </select>
+                  </div>
+
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Training Examples
+                  </label>
+                  <textarea
+                    value={trainingExamplesForm.examples_text}
+                    onChange={(e) => setTrainingExamplesForm({...trainingExamplesForm, examples_text: e.target.value})}
+                    placeholder="Paste your training examples here..."
+                    rows={12}
+                    className="block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  <p className="text-sm text-gray-500 mt-1">
+                    Format: For Quantitative/Analogies/Synonyms, use "Question:", "Choices:", "Correct Answer:", "Explanation:". 
+                    For Reading, use "PASSAGE:", "PASSAGE TYPE:", "DIFFICULTY:", then "QUESTION:", "CHOICES:", "CORRECT ANSWER:", "EXPLANATION:" for each question. For Writing, use "Prompt:" format.
+                    <strong> All questions must have exactly 4 choices (A, B, C, D). Use semicolons (;) to separate choices when they contain commas.</strong>
+                  </p>
+                  <div className="mt-2 text-sm text-gray-600">
+                    <p className="font-medium mb-2">Format Instructions:</p>
+                    {trainingExamplesForm.section_type === 'quantitative' && (
+                      <div className="bg-blue-50 p-3 rounded">
+                        <p className="font-medium text-blue-900 mb-2">Quantitative Format:</p>
+                        <pre className="text-xs text-blue-800 whitespace-pre-wrap">
+{`Question: What is 1/4 + 1/2?
+Choices: A) 1/6, B) 2/6, C) 3/4, D) 3/6
+Correct Answer: C
+Explanation: To add fractions, find a common denominator. 1/4 + 1/2 = 1/4 + 2/4 = 3/4
+Difficulty: Easy
+Subsection: Fraction Operations
+Tags: fraction-concepts, computational-fluency
+
+Question: If 3(x - 2) = 2(x + 1) + 5, what is the value of x?
+Choices: A) 11, B) 12, C) 13, D) 14
+Correct Answer: C
+Explanation: Expand: 3x - 6 = 2x + 2 + 5, so 3x - 6 = 2x + 7. Solving: x = 13
+Difficulty: Hard
+Subsection: Complex Algebraic Equations
+Tags: algebraic-thinking, multi-step-solution`}
+                        </pre>
+                        <p className="text-xs text-blue-700 mt-2">
+                          <strong>Database:</strong> Section="Quantitative", Subsection=your custom subsection, Tags=your custom tags
+                        </p>
+                      </div>
+                    )}
+                    {trainingExamplesForm.section_type === 'analogy' && (
+                      <div className="bg-blue-50 p-3 rounded">
+                        <p className="font-medium text-blue-900 mb-2">Analogies Format:</p>
+                        <pre className="text-xs text-blue-800 whitespace-pre-wrap">
+{`Question: Book is to reading as fork is to:
+Choices: A) eating, B) cooking, C) kitchen, D) food
+Correct Answer: A
+Explanation: A book is used for reading, just as a fork is used for eating.
+Difficulty: Easy
+Tags: function-relationships, tool-purpose
+
+Question: Doctor is to hospital as teacher is to:
+Choices: A) classroom, B) students, C) education, D) school
+Correct Answer: D
+Explanation: A doctor works in a hospital, just as a teacher works in a school.
+Difficulty: Medium
+Tags: professional-settings, workplace-relationships`}
+                        </pre>
+                        <p className="text-xs text-blue-700 mt-2">
+                          <strong>Database:</strong> Section="Verbal", Subsection="Analogies", Tags=your custom tags
+                        </p>
+                      </div>
+                    )}
+                    {trainingExamplesForm.section_type === 'synonym' && (
+                      <div className="bg-blue-50 p-3 rounded">
+                        <p className="font-medium text-blue-900 mb-2">Synonyms Format:</p>
+                        <pre className="text-xs text-blue-800 whitespace-pre-wrap">
+{`Question: Which word means the same as "happy"?
+Choices: A) sad, B) joyful, C) angry, D) tired
+Correct Answer: B
+Explanation: "Joyful" is a synonym for "happy" - both mean feeling pleasure or contentment.
+Difficulty: Easy
+Tags: basic-synonyms, emotion-words
+
+Question: What is a synonym for "enormous"?
+Choices: A) tiny, B) huge, C) small, D) medium
+Correct Answer: B
+Explanation: "Huge" is a synonym for "enormous" - both mean very large in size.
+Difficulty: Medium
+Tags: size-descriptors, vocabulary-building`}
+                        </pre>
+                        <p className="text-xs text-blue-700 mt-2">
+                          <strong>Database:</strong> Section="Verbal", Subsection="Synonyms", Tags=your custom tags
+                        </p>
+                      </div>
+                    )}
+                    {trainingExamplesForm.section_type === 'reading' && (
+                      <div className="bg-blue-50 p-3 rounded">
+                        <p className="font-medium text-blue-900 mb-2">Reading Format (1 passage + 4 questions):</p>
+                        <pre className="text-xs text-blue-800 whitespace-pre-wrap">
+{`PASSAGE:
+The ancient city of Rome was founded in 753 BCE and grew to become one of 
+the most powerful empires in history. The Romans were known for their 
+advanced engineering, including the construction of roads, aqueducts, and 
+impressive buildings like the Colosseum. They also developed a sophisticated 
+legal system that influenced modern law. The Roman Empire reached its peak 
+around 117 CE, covering most of Europe, North Africa, and parts of Asia.
+
+PASSAGE TYPE: History Non-Fiction
+DIFFICULTY: Medium
+
+QUESTION: When was Rome founded?
+CHOICES: A) 753 BCE; B) 753 CE; C) 117 BCE; D) 117 CE
+CORRECT ANSWER: A
+EXPLANATION: The passage states that Rome was founded in 753 BCE.
+
+QUESTION: What was one of the Romans' most notable achievements?
+CHOICES: A) Writing poetry; B) Advanced engineering; C) Painting; D) Music
+CORRECT ANSWER: B
+EXPLANATION: The passage mentions that Romans were known for their advanced engineering.
+
+QUESTION: What type of building is mentioned in the passage?
+CHOICES: A) Library; B) Temple; C) Colosseum; D) Bridge
+CORRECT ANSWER: C
+EXPLANATION: The passage specifically mentions the Colosseum as an example of Roman engineering.
+
+QUESTION: Around what year did the Roman Empire reach its peak?
+CHOICES: A) 753 BCE; B) 753 CE; C) 117 BCE; D) 117 CE
+CORRECT ANSWER: D
+EXPLANATION: The passage states the empire reached its peak around 117 CE.
+
+QUESTION: What was the purpose of the Roman legal system?
+CHOICES: A) To collect taxes; B) To influence modern law; C) To build roads; D) To train soldiers
+CORRECT ANSWER: B
+EXPLANATION: The passage mentions that Romans "developed a sophisticated legal system that influenced modern law."`}
+                        </pre>
+                        <p className="text-xs text-blue-700 mt-2">
+                          <strong>Database:</strong> Saved to reading_passages + reading_questions tables, all questions inherit passage difficulty
+                        </p>
+                      </div>
+                    )}
+                    {trainingExamplesForm.section_type === 'writing' && (
+                      <div className="bg-blue-50 p-3 rounded">
+                        <p className="font-medium text-blue-900 mb-2">Writing Format (Picture-Based Prompts):</p>
+                        <pre className="text-xs text-blue-800 whitespace-pre-wrap">
+{`Prompt: Look at this picture of children building a treehouse. Write a story about their adventure.
+Visual Description: Children working together with wood and tools to build a treehouse in a backyard
+Tags: character-development, visual-inspiration, adventure-elements
+
+Prompt: You find a magic key that can open any door. Write a story about where you go and what you discover.
+Visual Description: An ornate, glowing key lying on a wooden table with mysterious symbols
+Tags: imaginative-thinking, creative-problem-solving, discovery-learning
+
+Prompt: A friendly robot appears in your backyard. Write a story about what happens next.
+Visual Description: Small, colorful robot with friendly LED eyes standing in a garden
+Tags: character-development, visual-inspiration, friendship-themes`}
+                        </pre>
+                        <p className="text-xs text-blue-700 mt-2">
+                          <strong>Visual Description Guidelines:</strong>
+                          • Describe the picture that would accompany the prompt
+                          • Include key visual elements: people, objects, setting, colors, actions
+                          • Be specific but concise (1-2 sentences)
+                          • Focus on elements that inspire storytelling
+                          • Use age-appropriate language for grades 3-4
+                        </p>
+                        <p className="text-xs text-blue-700 mt-2">
+                          <strong>Database:</strong> Saved to writing_prompts table with visual_description field
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {saveSuccess && (
+                  <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-md">
+                    <div className="text-green-800">{saveSuccess}</div>
+                  </div>
+                )}
+
+                {saveError && (
+                  <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+                    <div className="text-red-800">{saveError}</div>
+                  </div>
+                )}
+
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={savingExamples || !trainingExamplesForm.examples_text.trim()}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {savingExamples ? 'Saving...' : 'Save Training Examples'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

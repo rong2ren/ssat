@@ -16,7 +16,8 @@ from app.settings import settings
 
 from app.models.requests import (
     QuestionGenerationRequest, 
-    CompleteTestRequest
+    CompleteTestRequest,
+    TrainingExamplesRequest
 )
 from app.models.responses import (
     QuestionGenerationResponse,
@@ -37,9 +38,23 @@ from app.services.daily_limit_service import DailyLimitService
 from app.services.database import get_database_connection
 from app.services.embedding_service import get_embedding_service
 from supabase import create_client
+from app.services.training_examples_service import TrainingExamplesService
+from typing import Dict
 
 # Initialize Supabase client
 supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+
+# Initialize services
+question_service = QuestionService()  # Keep for complete test generation
+content_service = UnifiedContentService()  # New unified service for individual content
+llm_service = LLMService()
+ai_content_service = AIContentService()  # Service for saving AI-generated content
+
+# Initialize embedding service
+embedding_service = get_embedding_service()
+
+# Initialize training examples service
+training_examples_service = TrainingExamplesService(supabase, embedding_service)
 
 class RoleUpdateRequest(BaseModel):
     role: str
@@ -66,12 +81,6 @@ app.add_middleware(
 
 # Include auth router
 app.include_router(auth_router)
-
-# Initialize services
-question_service = QuestionService()  # Keep for complete test generation
-content_service = UnifiedContentService()  # New unified service for individual content
-llm_service = LLMService()
-ai_content_service = AIContentService()  # Service for saving AI-generated content
 
 @app.get("/", response_model=HealthResponse)
 async def root():
@@ -1376,7 +1385,7 @@ async def generate_single_section_background(job_id: str, section_type, request:
             elif section_type.value == "reading":
                 logger.debug(f"📖 DEBUG: Using reading section generation")
                 section = await question_service._generate_reading_section(
-                    request.difficulty, section_count, request.provider, use_async=True
+                    request.difficulty, section_count, request.provider, use_async=True, topic=None
                 )
             elif section_type.value == "quantitative" and request.is_official_format:
                 # Use official topic breakdown for quantitative questions
@@ -1859,12 +1868,20 @@ async def admin_generate_complete_test(request: CompleteTestRequest, current_use
         # Start background generation using existing function but bypass daily limits
         asyncio.create_task(generate_test_sections_background_admin(session_id, request))
         
+        # Determine which counts are being used
+        from app.specifications import get_official_question_counts
+        official_counts = get_official_question_counts()
+        
+        # Use official counts if is_official_format is True, otherwise use custom counts
+        actual_counts = official_counts if request.is_official_format else request.custom_counts
+        
         return {
             "success": True,
             "message": f"Complete test generation started with {len(request.include_sections)} sections",
             "session_id": session_id,
             "sections": [s.value for s in request.include_sections],
-            "custom_counts": request.custom_counts
+            "custom_counts": actual_counts,
+            "is_official_format": request.is_official_format
         }
         
     except Exception as e:
@@ -1932,11 +1949,20 @@ async def generate_single_section_background_admin(session_id: str, section_type
     try:
         logger.info(f"🔍 ADMIN COMPLETE TEST: Starting generation for section {section_type.value} in session {session_id}")
         
-        # Get custom count for this section
-        custom_counts = request.custom_counts or {}
-        section_count = custom_counts.get(section_type.value, {
-            "quantitative": 25, "analogy": 15, "synonyms": 15, "reading": 7, "writing": 1
-        }.get(section_type.value, 5))
+        # Use official test counts if is_official_format is True, otherwise use custom counts
+        if request.is_official_format:
+            # Use centralized official counts from specifications
+            from app.specifications import get_official_question_counts
+            official_counts = get_official_question_counts()
+            section_count = official_counts.get(section_type.value, 5)
+            logger.info(f"🔍 ADMIN COMPLETE TEST: Using OFFICIAL count: {section_count} for section {section_type.value}")
+        else:
+            # Use custom counts if provided, otherwise use defaults
+            custom_counts = request.custom_counts or {}
+            section_count = custom_counts.get(section_type.value, {
+                "quantitative": 25, "analogy": 15, "synonyms": 15, "reading": 7, "writing": 1
+            }.get(section_type.value, 5))
+            logger.info(f"🔍 ADMIN COMPLETE TEST: Using CUSTOM count: {section_count} for section {section_type.value}")
         
         logger.info(f"🔍 ADMIN COMPLETE TEST: Generating {section_count} items for section {section_type.value}")
         
@@ -1947,7 +1973,7 @@ async def generate_single_section_background_admin(session_id: str, section_type
         elif section_type.value == "reading":
             logger.debug(f"📖 ADMIN COMPLETE TEST: Using reading section generation")
             section = await question_service._generate_reading_section(
-                request.difficulty, section_count, request.provider, use_async=True
+                request.difficulty, section_count, request.provider, use_async=True, is_official_format=request.is_official_format, topic=None
             )
         elif section_type.value == "quantitative" and request.is_official_format:
             # Use official topic breakdown for quantitative questions
@@ -2055,24 +2081,38 @@ async def general_exception_handler(request, exc):
 @app.get("/specifications/official-format")
 async def get_official_format_specs():
     """Get official SSAT Elementary format specifications."""
-    from app.specifications import OFFICIAL_ELEMENTARY_SPECS
+    from app.specifications import OFFICIAL_ELEMENTARY_SPECS, get_official_question_counts
     
-    # Extract the counts from the official specs
+    # Use centralized official counts
+    official_counts = get_official_question_counts()
     specs = OFFICIAL_ELEMENTARY_SPECS
     
-    # Calculate the counts based on the official distribution
-    verbal_distribution = specs["verbal_distribution"]
-    reading_structure = specs["reading_structure"]
-    
     return {
-        "quantitative": specs["sections"][0].question_count,  # 30
-        "analogy": int(specs["sections"][1].question_count * verbal_distribution["analogies"]),  # 12 (40% of 30)
-        "synonym": int(specs["sections"][1].question_count * verbal_distribution["synonyms"]),   # 18 (60% of 30)
-        "reading": reading_structure["passages"],  # 7 passages
-        "writing": specs["sections"][3].question_count,  # 1
+        "quantitative": official_counts["quantitative"],  # 30
+        "analogy": official_counts["analogy"],  # 12 (40% of 30)
+        "synonym": official_counts["synonym"],   # 18 (60% of 30)
+        "reading": official_counts["reading"],  # 28 questions (7 passages)
+        "writing": official_counts["writing"],  # 1
         "total_questions": specs["total_scored_questions"],  # 88
         "total_time": specs["total_time"]  # 110 minutes
     }
+
+@app.post("/admin/save-training-examples")
+async def save_training_examples(
+    request: TrainingExamplesRequest,
+    current_user: UserProfile = Depends(get_current_user)
+):
+    """Save training examples to database (admin only)."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    try:
+        result = await training_examples_service.save_training_examples(request, current_user.id)
+        logger.info(f"✅ Admin saved {result['saved_count']} training examples for {request.section_type}")
+        return result
+    except Exception as e:
+        logger.error(f"❌ Failed to save training examples: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn

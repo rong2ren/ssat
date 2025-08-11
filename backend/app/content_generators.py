@@ -17,7 +17,7 @@ from loguru import logger
 
 from app.models import QuestionRequest, Question, Option
 from app.models.enums import QuestionType, DifficultyLevel
-from app.generator import SSATGenerator, generate_questions, generate_reading_passage
+from app.generator import SSATGenerator, generate_questions, generate_reading_passages
 from app.llm import llm_client, LLMProvider
 from app.util import extract_json_from_text
 from app.specifications import OFFICIAL_ELEMENTARY_SPECS
@@ -112,38 +112,45 @@ class WritingPrompt:
 
 
 # Type-specific generation functions
-def generate_standalone_questions_with_metadata(request: QuestionRequest, llm: Optional[str] = None) -> GenerationResult:
-    """Generate standalone questions with training example metadata.
+def generate_standalone_questions_with_metadata(request: QuestionRequest, llm: Optional[str] = None, custom_examples: Optional[str] = None) -> GenerationResult:
+    """Generate standalone questions using AI with real SSAT training examples.
     
     Returns GenerationResult with content, training_example_ids, and provider_used.
     """
-    logger.info(f"Generating {request.count} standalone {request.question_type.value} questions with metadata")
+    logger.info(f"Generating {request.count} standalone {request.question_type.value} questions with AI")
     
     if request.question_type.value == "reading":
-        raise ValueError("Reading questions should use generate_reading_passages()")
+        raise ValueError("Reading questions should use generate_reading_passages_with_metadata()")
     if request.question_type.value == "writing":
-        raise ValueError("Writing prompts should use generate_writing_prompts()")
+        raise ValueError("Writing prompts should use generate_writing_prompts_with_metadata()")
     
-    # Get training examples and their IDs
-    from app.generator import SSATGenerator
+    # Initialize generator
     generator = SSATGenerator()
-    training_examples = generator.get_training_examples(request)
-    training_example_ids = [ex.get('id', '') for ex in training_examples if ex.get('id')]
     
-    # Use existing question generation logic
-    questions = generate_questions(request, llm=llm)
-    
-    # Get provider used from the first question's metadata
-    provider_used = "deepseek"  # Default
-    if questions and hasattr(questions[0], 'metadata') and questions[0].metadata:
-        provider_used = questions[0].metadata.get('provider_used', 'deepseek')
-    
-    logger.info(f"Generated {len(questions)} standalone questions with {len(training_example_ids)} training examples")
-    return GenerationResult(
-        content=questions,
-        training_example_ids=training_example_ids,
-        provider_used=provider_used
-    )
+    try:
+        # Get training examples from database or custom examples
+        if custom_examples:
+            training_examples = generator.parse_custom_examples(custom_examples, request.question_type.value)
+            training_example_ids = []
+            logger.info(f"Using {len(training_examples)} custom training examples")
+        else:
+            training_examples = generator.get_training_examples(request, custom_examples)
+            training_example_ids = [ex.get('id', '') for ex in training_examples if ex.get('id')]
+            logger.info(f"Using {len(training_examples)} database training examples")
+        
+        # Generate questions using pre-fetched training examples to avoid duplicate calls
+        questions = generate_questions(request, llm=llm, custom_examples=custom_examples, training_examples=training_examples)
+        
+        logger.info(f"Generated {len(questions)} standalone questions")
+        return GenerationResult(
+            content=questions,
+            training_example_ids=training_example_ids,
+            provider_used="deepseek"  # Default provider
+        )
+        
+    except Exception as e:
+        logger.error(f"Standalone question generation failed: {e}")
+        raise e
 
 
 def generate_standalone_questions(request: QuestionRequest, llm: Optional[str] = None) -> List[Question]:
@@ -161,7 +168,7 @@ def generate_standalone_questions(request: QuestionRequest, llm: Optional[str] =
     return questions
 
 
-def generate_reading_passages_with_metadata(request: QuestionRequest, llm: Optional[str] = None) -> GenerationResult:
+def generate_reading_passages_with_metadata(request: QuestionRequest, llm: Optional[str] = None, custom_examples: Optional[str] = None) -> GenerationResult:
     """Generate reading passages with training examples metadata.
     
     Returns GenerationResult with content, training_example_ids, and provider_used.
@@ -171,43 +178,43 @@ def generate_reading_passages_with_metadata(request: QuestionRequest, llm: Optio
     if request.question_type.value != "reading":
         raise ValueError("This function only generates reading passages")
     
+    # Get training examples once to capture IDs
+    from app.generator import SSATGenerator, generate_reading_passages
+    generator = SSATGenerator()
+    
+    if custom_examples:
+        training_examples = generator.parse_custom_examples(custom_examples, "reading")
+        training_example_ids = []
+        logger.info(f"Using {len(training_examples)} custom reading training examples")
+    else:
+        training_examples = generator.get_reading_training_examples(topic=request.topic)
+        training_example_ids = [ex.get('question_id', '') for ex in training_examples if ex.get('question_id')]
+        logger.info(f"Using {len(training_examples)} database reading training examples")
+    
+    # Use single call for admin generation (efficiency for small batches)
+    use_single_call = True
+    # Pass pre-fetched training examples to avoid double fetching
+    results = generate_reading_passages(request, llm=llm, custom_examples=custom_examples, use_single_call=use_single_call, training_examples=training_examples)
+    
+    # Convert results to ReadingPassage objects
     passages = []
-    all_training_example_ids = []
     provider_used = "auto-selected"
     
-    # Get training examples once to capture IDs
-    from app.generator import SSATGenerator
-    generator = SSATGenerator()
-    training_examples = generator.get_reading_training_examples()
-    training_example_ids = [ex.get('question_id', '') for ex in training_examples if ex.get('question_id')]
-    
-    # Official SSAT: 7 passages × 4 questions = 28 questions
-    # For individual requests, generate requested number of passages
-    for i in range(request.count):
-        # Create request for 4 questions per passage (SSAT standard)
-        passage_request = QuestionRequest(
-            question_type=request.question_type,
-            difficulty=request.difficulty,
-            topic=request.topic,
-            count=4  # Always 4 questions per passage
-        )
-        
-        # Generate passage with questions using dedicated function
-        result = generate_reading_passage(passage_request, llm=llm)
+    for i, result in enumerate(results):
         passage_data = result["passage"]
         questions = result["questions"]
         
-        # Capture provider used (from the result if available)
-        if "provider_used" in result:
-            provider_used = result["provider_used"]
-        elif llm:
-            provider_used = llm
-        
         # Create ReadingPassage object
-        passage = ReadingPassage(passage_data, questions)
+        passage_dict = {
+            "text": passage_data,
+            "passage_type": result.get("passage_type", "General"),
+            "title": f"Passage {i+1}",
+            "topic": "Elementary Reading"
+        }
+        passage = ReadingPassage(passage_dict, questions)
         passages.append(passage)
         
-        logger.info(f"Generated reading passage {i+1}/{request.count} with {len(questions)} questions")
+        logger.info(f"Generated reading passage {i+1}/{len(results)} with {len(questions)} questions")
     
     logger.info(f"Generated {len(passages)} reading passages total with {len(training_example_ids)} training examples")
     return GenerationResult(
@@ -216,7 +223,7 @@ def generate_reading_passages_with_metadata(request: QuestionRequest, llm: Optio
         provider_used=provider_used
     )
 
-def generate_writing_prompts_with_metadata(request: QuestionRequest, llm: Optional[str] = None) -> GenerationResult:
+def generate_writing_prompts_with_metadata(request: QuestionRequest, llm: Optional[str] = None, custom_examples: Optional[str] = None) -> GenerationResult:
     """Generate writing prompts using AI with real SSAT training examples.
     
     Returns GenerationResult with content, training_example_ids, and provider_used.
@@ -230,17 +237,23 @@ def generate_writing_prompts_with_metadata(request: QuestionRequest, llm: Option
     generator = SSATGenerator()
     
     try:
-        # Get writing training examples from database
-        training_examples = generator.get_writing_training_examples(request.topic)
-        system_message = generator.build_writing_few_shot_prompt(request, training_examples)
+        # Get writing training examples from database or custom examples
+        if custom_examples:
+            training_examples = generator.parse_custom_examples(custom_examples, "writing")
+            training_example_ids = []
+            logger.info(f"Using {len(training_examples)} custom writing training examples")
+        else:
+            training_examples = generator.get_writing_training_examples(request.topic)
+            training_example_ids = [ex.get('id', '') for ex in training_examples if ex.get('id')]
+            logger.info(f"Using {len(training_examples)} database writing training examples")
         
-        # Extract training example IDs
-        training_example_ids = [ex.get('id', '') for ex in training_examples if ex.get('id')]
+        system_message = generator.build_writing_few_shot_prompt(request, training_examples)
         
         # Log training info
         if training_examples:
-            logger.info(f"Using {len(training_examples)} real SSAT writing examples for training")
-            logger.info(f"Training example IDs: {training_example_ids}")
+            logger.info(f"Using {len(training_examples)} writing examples for training")
+            if not custom_examples:
+                logger.info(f"Training example IDs: {training_example_ids}")
         else:
             logger.info("No writing training examples found, using generic AI prompt")
         
@@ -264,29 +277,29 @@ def generate_writing_prompts_with_metadata(request: QuestionRequest, llm: Option
         
         # Parse generated prompts
         prompts = []
-        for prompt_data in data["prompts"]:
-            # Remove redundant instructions - section instructions will be used instead
-            prompt_data["instructions"] = ""
-            prompt = WritingPrompt(prompt_data)
-            prompts.append(prompt)
+        if "prompts" in data:
+            for prompt_data in data["prompts"]:
+                prompt = WritingPrompt(prompt_data)
+                prompts.append(prompt)
+        else:
+            raise ValueError("Invalid response format: missing 'prompts' key")
         
-        logger.info(f"Successfully generated {len(prompts)} writing prompts using {'real SSAT examples' if training_examples else 'generic AI prompt'}")
+        logger.info(f"Generated {len(prompts)} writing prompts")
         return GenerationResult(
-            content=prompts, 
+            content=prompts,
             training_example_ids=training_example_ids,
             provider_used=provider.value
         )
         
     except Exception as e:
-        logger.error(f"Error in AI writing prompt generation: {e}")
-        # No fallback - let the error propagate
-        raise ValueError(f"Failed to generate writing prompts: {e}")
+        logger.error(f"Writing prompt generation failed: {e}")
+        raise e
 
 
 
 
 # Async versions for parallel generation
-async def generate_standalone_questions_async(request: QuestionRequest, llm: Optional[str] = None) -> List[Question]:
+async def generate_standalone_questions_async(request: QuestionRequest, llm: Optional[str] = None, custom_examples: Optional[str] = None) -> List[Question]:
     """Async version of generate_standalone_questions."""
     logger.info(f"Generating {request.count} standalone {request.question_type.value} questions async")
     
@@ -295,41 +308,70 @@ async def generate_standalone_questions_async(request: QuestionRequest, llm: Opt
     if request.question_type.value == "writing":
         raise ValueError("Writing prompts should use generate_writing_prompts_async()")
     
-    from app.generator import generate_questions_async
-    questions = await generate_questions_async(request, llm=llm)
-    logger.info(f"Generated {len(questions)} standalone questions async")
-    return questions
+    # Initialize generator and get training examples once to avoid duplicate calls
+    generator = SSATGenerator()
+    
+    try:
+        # Get training examples from database or custom examples
+        if custom_examples:
+            training_examples = generator.parse_custom_examples(custom_examples, request.question_type.value)
+            logger.info(f"Using {len(training_examples)} custom training examples")
+        else:
+            training_examples = generator.get_training_examples(request, custom_examples)
+            logger.info(f"Using {len(training_examples)} database training examples")
+        
+        # Generate questions using pre-fetched training examples to avoid duplicate calls
+        from app.generator import generate_questions_async
+        questions = await generate_questions_async(request, llm=llm, custom_examples=custom_examples, training_examples=training_examples)
+        logger.info(f"Generated {len(questions)} standalone questions async")
+        return questions
+        
+    except Exception as e:
+        logger.error(f"Async standalone question generation failed: {e}")
+        raise e
 
 
-async def generate_reading_passages_async(request: QuestionRequest, llm: Optional[str] = None) -> List[ReadingPassage]:
+async def generate_reading_passages_async(request: QuestionRequest, llm: Optional[str] = None, custom_examples: Optional[str] = None) -> List[ReadingPassage]:
     """Async version of generate_reading_passages."""
     logger.info(f"Generating {request.count} reading passages async")
     
     if request.question_type.value != "reading":
         raise ValueError("This function only generates reading passages")
     
+    # Get training examples once to avoid double fetching
+    from app.generator import SSATGenerator, generate_reading_passages_async as generate_reading_async
+    generator = SSATGenerator()
+    
+    if custom_examples:
+        training_examples = generator.parse_custom_examples(custom_examples, "reading")
+        logger.info(f"Using {len(training_examples)} custom reading training examples")
+    else:
+        training_examples = generator.get_reading_training_examples(topic=request.topic)
+        logger.info(f"Using {len(training_examples)} database reading training examples")
+    
+    # Use single call for admin generation (efficiency for small batches)
+    use_single_call = True
+    # Pass pre-fetched training examples to avoid double fetching
+    results = await generate_reading_async(request, llm=llm, custom_examples=custom_examples, use_single_call=use_single_call, training_examples=training_examples)
+    
+    # Convert results to ReadingPassage objects
     passages = []
     
-    for i in range(request.count):
-        # Create request for 4 questions per passage (SSAT standard)
-        passage_request = QuestionRequest(
-            question_type=request.question_type,
-            difficulty=request.difficulty,
-            topic=request.topic,
-            count=4  # Always 4 questions per passage
-        )
-        
-        # Generate passage with questions using dedicated async function
-        from app.generator import generate_reading_passage_async
-        result = await generate_reading_passage_async(passage_request, llm=llm)
+    for i, result in enumerate(results):
         passage_data = result["passage"]
         questions = result["questions"]
         
         # Create ReadingPassage object
-        passage = ReadingPassage(passage_data, questions)
+        passage_dict = {
+            "text": passage_data,
+            "passage_type": result.get("passage_type", "General"),
+            "title": f"Passage {i+1}",
+            "topic": "Elementary Reading"
+        }
+        passage = ReadingPassage(passage_dict, questions)
         passages.append(passage)
         
-        logger.info(f"Generated reading passage {i+1}/{request.count} with {len(questions)} questions async")
+        logger.info(f"Generated reading passage {i+1}/{len(results)} with {len(questions)} questions async")
     
     logger.info(f"Generated {len(passages)} reading passages total async")
     return passages
@@ -392,7 +434,7 @@ async def generate_writing_prompts_async(request: QuestionRequest, llm: Optional
         raise ValueError(f"Failed to generate writing prompts: {e}")
 
 
-async def generate_content_async(request: QuestionRequest, llm: Optional[str] = None) -> Union[List[Question], List[ReadingPassage], List[WritingPrompt]]:
+async def generate_content_async(request: QuestionRequest, llm: Optional[str] = None, custom_examples: Optional[str] = None) -> Union[List[Question], List[ReadingPassage], List[WritingPrompt]]:
     """
     Async version of generate_content.
     
@@ -404,9 +446,9 @@ async def generate_content_async(request: QuestionRequest, llm: Optional[str] = 
     logger.info(f"Generating content for {request.question_type.value} async")
     
     if request.question_type.value in ["quantitative", "verbal", "analogy", "synonym"]:
-        return await generate_standalone_questions_async(request, llm)
+        return await generate_standalone_questions_async(request, llm, custom_examples)
     elif request.question_type.value == "reading":
-        return await generate_reading_passages_async(request, llm)
+        return await generate_reading_passages_async(request, llm, custom_examples)
     elif request.question_type.value == "writing":
         return await generate_writing_prompts_async(request, llm)
     else:

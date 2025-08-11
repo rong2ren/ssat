@@ -1,7 +1,33 @@
 """Official SSAT Elementary Level test specifications and business rules"""
 
-from typing import Dict, List
+from typing import Dict, List, Literal
 from dataclasses import dataclass
+
+# ========================================
+# STANDARDIZED QUANTITATIVE SUBSECTIONS
+# Single source of truth for all quantitative question categorization
+# ========================================
+
+QUANTITATIVE_SUBSECTIONS = [
+    # Number Operations (40% of questions)
+    "Number Sense", "Arithmetic", "Fractions", "Decimals", "Percentages",
+    # Algebra Functions (20% of questions)  
+    "Patterns", "Sequences", "Algebra", "Variables",
+    # Geometry Spatial (25% of questions)
+    "Area", "Perimeter", "Shapes", "Spatial",
+    # Measurement (10% of questions)
+    "Measurement", "Time", "Money",
+    # Probability Data (5% of questions)
+    "Probability", "Data", "Graphs"
+]
+
+def validate_quantitative_subsection(subsection: str) -> bool:
+    """Validate that a subsection is one of the standardized options."""
+    return subsection in QUANTITATIVE_SUBSECTIONS
+
+# ========================================
+# EXISTING SPECIFICATIONS
+# ========================================
 
 @dataclass
 class SectionSpec:
@@ -80,7 +106,7 @@ OFFICIAL_ELEMENTARY_SPECS = {
         "questions_per_passage": 4,
         "total_questions": 28,  # 7 × 4 = 28
         "passage_types": ["fiction", "non_fiction", "poetry"],  # Mix of types
-        "passage_length": "short",  # Elementary-appropriate length
+        "passage_length": 450,  # Target word count for reading passages
         "comprehension_skills": [
             "main_idea",
             "supporting_details", 
@@ -225,6 +251,33 @@ def get_question_distribution(section_name: str) -> Dict[str, float]:
         return OFFICIAL_ELEMENTARY_SPECS["verbal_distribution"]
     else:
         return {}
+
+def get_official_question_counts() -> Dict[str, int]:
+    """Get the official SSAT Elementary Level question counts for each section type.
+    
+    Returns:
+        Dict mapping section type to official question count
+    """
+    return {
+        "quantitative": 30,
+        "analogy": 12,  # Part of Verbal section (40% of 30)
+        "synonym": 18,  # Part of Verbal section (60% of 30)
+        "reading": 28,  # 7 passages × 4 questions each
+        "writing": 1
+    }
+
+def get_official_question_counts_by_section() -> Dict[str, int]:
+    """Get the official SSAT Elementary Level question counts by section name.
+    
+    Returns:
+        Dict mapping section name to official question count
+    """
+    return {
+        "Quantitative": 30,
+        "Verbal": 30,  # Total verbal (synonyms + analogies)
+        "Reading": 28,  # 7 passages × 4 questions each
+        "Writing": 1
+    }
 
 # Test configuration integrity
 def validate_config():

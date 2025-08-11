@@ -57,7 +57,8 @@ class UnifiedContentService:
             difficulty=difficulty_mapping[request.difficulty],
             topic=request.topic,
             count=request.count,
-            level=request.level
+            level=request.level,
+            input_format=request.input_format
         )
     
     def _convert_questions_to_api_format(self, questions: List) -> List[Dict[str, Any]]:
@@ -136,10 +137,13 @@ class UnifiedContentService:
             ssat_request = self._convert_to_ssat_request(request)
             provider = request.provider.value if request.provider else None
             
+            # Extract custom examples if provided
+            custom_examples = request.custom_examples if request.use_custom_examples else None
+            
             # Handle each question type completely in its own branch to avoid union types
             if request.question_type == QuestionType.WRITING:
                 # Generate writing prompts with metadata
-                generation_result = generate_writing_prompts_with_metadata(ssat_request, llm=provider)
+                generation_result = generate_writing_prompts_with_metadata(ssat_request, llm=provider, custom_examples=custom_examples)
                 writing_content = cast(List[GeneratorWritingPrompt], generation_result.content)
                 training_example_ids = generation_result.training_example_ids
                 actual_provider = generation_result.provider_used
@@ -165,7 +169,7 @@ class UnifiedContentService:
                 
             elif request.question_type == QuestionType.READING:
                 # Generate reading passages with metadata
-                generation_result = generate_reading_passages_with_metadata(ssat_request, llm=provider)
+                generation_result = generate_reading_passages_with_metadata(ssat_request, llm=provider, custom_examples=custom_examples)
                 reading_content = cast(List[GeneratorReadingPassage], generation_result.content)
                 training_example_ids = generation_result.training_example_ids
                 actual_provider = generation_result.provider_used
@@ -194,7 +198,7 @@ class UnifiedContentService:
             else:
                 # For math/verbal questions, generate using functions that return training example IDs
                 from app.content_generators import generate_standalone_questions_with_metadata
-                generation_result = generate_standalone_questions_with_metadata(ssat_request, llm=provider)
+                generation_result = generate_standalone_questions_with_metadata(ssat_request, llm=provider, custom_examples=custom_examples)
                 question_content = generation_result.content
                 training_example_ids = generation_result.training_example_ids
                 actual_provider = generation_result.provider_used
@@ -234,8 +238,11 @@ class UnifiedContentService:
             ssat_request = self._convert_to_ssat_request(request)
             provider = request.provider.value if request.provider else None
             
-            # Generate content using unified async generator
-            content = await generate_content_async(ssat_request, llm=provider)
+            # Extract custom examples if provided
+            custom_examples = request.custom_examples if request.use_custom_examples else None
+            
+            # Generate content using unified async generator with custom examples
+            content = await generate_content_async(ssat_request, llm=provider, custom_examples=custom_examples)
             
             generation_time = time.time() - start_time
             
@@ -273,7 +280,7 @@ class UnifiedContentService:
             
             elif request.question_type == QuestionType.WRITING:
                 # Writing prompts
-                api_prompts = [self._convert_writing_prompt_to_api_format(prompt) for prompt in content]  # type: ignore[arg-type]
+                api_prompts = [self._convert_writing_prompt_to_api_format(prompt) for passage in content]  # type: ignore[arg-type]
                 return WritingGenerationResponse(
                     prompts=api_prompts,  # type: ignore[arg-type]
                     metadata=metadata,

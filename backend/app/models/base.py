@@ -49,3 +49,4 @@ class QuestionRequest(BaseModel):
     topic: Optional[str] = None
     count: int = 1
     level: str = "elementary" # elementary, middle, or high school
+    input_format: str = "full"  # full or simple (for synonyms only)

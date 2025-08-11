@@ -33,7 +33,6 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
   const translations = {
     'Overall Difficulty': '整体难度',
     'Generate Complete Test': '生成完整测试',
-    'Configure Test': '配置测试',
     'Generating...': '生成中...',
     'Test Format': '测试格式',
     'Use Official SSAT Format': '使用官方SSAT格式',
@@ -41,7 +40,7 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
     'Select Test Sections': '选择题型',
     'Questions per Section': '每部分题目数',
     'Official test format with standard question counts (89 total)': '官方测试格式，标准题目数量（共89题）',
-    'Pick sections and question counts': '自由选择题型和数量',
+    'Pick sections and question counts from existing pool': '从现有题库中选择题型和数量',
     'Applied to all sections in the test': '应用于测试的所有部分',
     'Recommended': '推荐',
     'Questions:': '题目数：',
@@ -66,19 +65,19 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
     'Reading passages must be between 1-3, other sections must be between 1-15 questions': '阅读段落数量必须在1到3之间，其他部分题目数量必须在1到15之间',
     'Math Breakdown': '数学细分',
     'Number Operations': '数字运算',
+    'Number Sense, Arithmetic, Fractions, Decimals, Percentages': '数字感知、算术、分数、小数、百分比',
     'Algebra Functions': '代数函数',
+    'Patterns, Sequences, Algebra, Variables': '模式、序列、代数、变量',
     'Geometry Spatial': '几何空间',
+    'Area, Perimeter, Shapes, Spatial': '面积、周长、形状、空间',
     'Measurement': '测量',
+    'Measurement, Time, Money': '测量、时间、金钱',
     'Probability Data': '概率数据',
-    'addition, subtraction, fractions': '加法、减法、分数',
-    'patterns, sequences, equations': '模式、序列、方程',
-    'shapes, area, spatial reasoning': '形状、面积、空间推理',
-    'length, time, units': '长度、时间、单位',
-    'graphs, data analysis': '图表、数据分析',
+    'Probability, Data, Graphs': '概率、数据、图表',
     'Verbal Breakdown': '语言细分',
     'word meaning, definitions': '词义、定义',
     'word relationships, patterns': '词汇关系、模式',
-    'Note: Custom tests do not include topic breakdowns for quantitative': '注意：自定义测试不包含数学部分的主题细分',
+    'Note: Custom tests use existing high-quality questions from the pool': '注意：自定义测试使用现有题库中的高质量题目',
     'Show Math & Verbal Breakdown ▼': '显示数学和语言细分 ▼',
     'Hide Math & Verbal Breakdown ▼': '隐藏数学和语言细分 ▼'
   }
@@ -213,11 +212,11 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
                 <div className="text-xs text-gray-600 space-y-1 mt-2">
                   <div className="font-medium">{t('Math Breakdown')}:</div>
                   <div className="ml-2">
-                    • {t('Number Operations')} (12) - {t('addition, subtraction, fractions')}<br/>
-                    • {t('Algebra Functions')} (6) - {t('patterns, sequences, equations')}<br/>
-                    • {t('Geometry Spatial')} (8) - {t('shapes, area, spatial reasoning')}<br/>
-                    • {t('Measurement')} (3) - {t('length, time, units')}<br/>
-                    • {t('Probability Data')} (1) - {t('graphs, data analysis')}
+                    • {t('Number Operations')} (12) - {t('Number Sense, Arithmetic, Fractions, Decimals, Percentages')}<br/>
+                    • {t('Algebra Functions')} (6) - {t('Patterns, Sequences, Algebra, Variables')}<br/>
+                    • {t('Geometry Spatial')} (8) - {t('Area, Perimeter, Shapes, Spatial')}<br/>
+                    • {t('Measurement')} (3) - {t('Measurement, Time, Money')}<br/>
+                    • {t('Probability Data')} (1) - {t('Probability, Data, Graphs')}
                   </div>
                   <div className="font-medium mt-2">{t('Verbal Breakdown')}:</div>
                   <div className="ml-2">
@@ -241,11 +240,11 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
               </Label>
               
               <p className="text-sm text-gray-600 mb-2">
-                ⚙️ {t('Pick sections and question counts')}
+                ⚙️ {t('Pick sections and question counts from existing pool')}
               </p>
               
-              <p className="text-xs text-gray-500">
-                {t('Note: Custom tests do not include topic breakdowns for quantitative')}
+              <p className="text-xs text-blue-600 font-medium">
+                {t('Note: Custom tests use existing high-quality questions from the pool')}
               </p>
             </div>
           </div>
@@ -310,8 +309,8 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
 
         {/* Submit Button */}
         <div className="flex justify-center pt-4">
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             disabled={loading}
             className="w-full md:w-auto min-w-48"
             size="lg"

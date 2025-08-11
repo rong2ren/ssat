@@ -91,49 +91,7 @@ CREATE INDEX idx_writing_embedding ON writing_prompts USING ivfflat (embedding v
 -- AI TRAINING FUNCTIONS
 -- ========================================
 
--- Key function: Get training examples using embedding similarity
-CREATE OR REPLACE FUNCTION get_training_examples_by_embedding(
-    query_embedding VECTOR(384),
-    section_filter TEXT,
-    subsection_filter TEXT DEFAULT NULL,
-    difficulty_filter TEXT DEFAULT NULL,
-    limit_count INT DEFAULT 5
-)
-RETURNS TABLE (
-    id TEXT,
-    question TEXT,
-    choices TEXT[],
-    answer INTEGER,
-    explanation TEXT,
-    difficulty TEXT,
-    subsection TEXT,
-    visual_description TEXT,
-    similarity REAL
-)
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    RETURN QUERY
-    SELECT 
-        q.id,
-        q.question,
-        q.choices,
-        q.answer,
-        q.explanation,
-        q.difficulty,
-        q.subsection,
-        q.visual_description,
-        (1 - (q.embedding <=> query_embedding))::REAL as similarity
-    FROM ssat_questions q
-    WHERE 
-        q.embedding IS NOT NULL
-        AND (section_filter IS NULL OR q.section = section_filter)
-        AND (subsection_filter IS NULL OR q.subsection = subsection_filter)
-        AND (difficulty_filter IS NULL OR q.difficulty = difficulty_filter)
-    ORDER BY q.embedding <=> query_embedding
-    LIMIT limit_count;
-END;
-$$;
+
 
 -- Fallback function: Get training examples by section only (when no topic specified)
 CREATE OR REPLACE FUNCTION get_training_examples_by_section(
@@ -177,6 +135,8 @@ BEGIN
 END;
 $$;
 
+
+
 -- Function to get reading examples for a passage type
 CREATE OR REPLACE FUNCTION get_reading_training_examples(
     passage_type_filter TEXT DEFAULT NULL,
@@ -218,36 +178,11 @@ BEGIN
 END;
 $$;
 
--- Simple function to get questions for a passage
-CREATE OR REPLACE FUNCTION get_reading_questions_for_passage(
-    passage_id_param TEXT
-)
-RETURNS TABLE (
-    id TEXT,
-    question TEXT,
-    choices TEXT[],
-    answer INTEGER,
-    explanation TEXT,
-    difficulty TEXT,
-    visual_description TEXT
-)
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    RETURN QUERY
-    SELECT 
-        rq.id,
-        rq.question,
-        rq.choices,
-        rq.answer,
-        rq.explanation,
-        rq.difficulty,
-        rq.visual_description
-    FROM reading_questions rq
-    WHERE rq.passage_id = passage_id_param
-    ORDER BY rq.created_at ASC;
-END;
-$$;
+
+
+
+
+
 
 -- Function to get writing training examples
 CREATE OR REPLACE FUNCTION get_writing_training_examples(
@@ -277,40 +212,308 @@ BEGIN
 END;
 $$;
 
+
+
 -- ========================================
--- AI TRAINING VIEW
+-- UNIFIED HYBRID FUNCTIONS (NEW)
 -- ========================================
 
--- Simplified view for AI training context
-CREATE VIEW ai_training_examples AS
-SELECT 
-    'math_verbal' as type,
-    id,
-    section,
-    subsection,
-    question,
-    choices,
-    answer,
-    explanation,
-    difficulty,
-    tags,
-    source_file
-FROM ssat_questions
-UNION ALL
-SELECT 
-    'reading' as type,
-    rq.id,
-    'Reading' as section,
-    rp.passage_type as subsection,
-    rq.question,
-    rq.choices,
-    rq.answer,
-    rq.explanation,
-    rq.difficulty,
-    rq.tags,
-    rp.source_file
-FROM reading_questions rq
-JOIN reading_passages rp ON rq.passage_id = rp.id;
+-- Unified function: Get training examples with hybrid approach (embedding + text + random)
+CREATE OR REPLACE FUNCTION get_training_examples_hybrid(
+    topic_filter TEXT DEFAULT NULL,
+    section_filter TEXT DEFAULT NULL,
+    subsection_filter TEXT DEFAULT NULL,
+    difficulty_filter TEXT DEFAULT NULL,
+    query_embedding VECTOR(384) DEFAULT NULL,
+    limit_count INT DEFAULT 5
+)
+RETURNS TABLE (
+    id TEXT,
+    question TEXT,
+    choices TEXT[],
+    answer INTEGER,
+    explanation TEXT,
+    difficulty TEXT,
+    subsection TEXT,
+    visual_description TEXT,
+    similarity REAL,
+    search_method TEXT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- If topic and embedding provided, try embedding search first
+    IF topic_filter IS NOT NULL AND query_embedding IS NOT NULL THEN
+        RETURN QUERY
+        SELECT 
+            q.id,
+            q.question,
+            q.choices,
+            q.answer,
+            q.explanation,
+            q.difficulty,
+            q.subsection,
+            q.visual_description,
+            (1 - (q.embedding <=> query_embedding))::REAL as similarity,
+            'embedding'::TEXT as search_method
+        FROM ssat_questions q
+        WHERE 
+            q.embedding IS NOT NULL
+            AND (section_filter IS NULL OR q.section = section_filter)
+            AND (subsection_filter IS NULL OR q.subsection = subsection_filter)
+            AND (difficulty_filter IS NULL OR q.difficulty = difficulty_filter)
+        ORDER BY q.embedding <=> query_embedding
+        LIMIT limit_count;
+        
+        -- If we got results, return them
+        IF FOUND THEN
+            RETURN;
+        END IF;
+    END IF;
+    
+    -- Fallback: try text-based topic filtering
+    IF topic_filter IS NOT NULL THEN
+        RETURN QUERY
+        SELECT 
+            q.id,
+            q.question,
+            q.choices,
+            q.answer,
+            q.explanation,
+            q.difficulty,
+            q.subsection,
+            q.visual_description,
+            0.6::REAL as similarity,  -- Slightly higher than random for text-based search
+            'text'::TEXT as search_method
+        FROM ssat_questions q
+        WHERE 
+            (section_filter IS NULL OR q.section = section_filter)
+            AND (subsection_filter IS NULL OR q.subsection = subsection_filter)
+            AND (difficulty_filter IS NULL OR q.difficulty = difficulty_filter)
+            AND (
+                q.question ILIKE '%' || topic_filter || '%'
+                OR q.subsection ILIKE '%' || topic_filter || '%'
+                OR q.tags::TEXT ILIKE '%' || topic_filter || '%'
+            )
+        ORDER BY RANDOM()
+        LIMIT limit_count;
+        
+        -- If we got results, return them
+        IF FOUND THEN
+            RETURN;
+        END IF;
+    END IF;
+    
+    -- Final fallback: get random examples by section
+    RETURN QUERY
+    SELECT 
+        q.id,
+        q.question,
+        q.choices,
+        q.answer,
+        q.explanation,
+        q.difficulty,
+        q.subsection,
+        q.visual_description,
+        0.5::REAL as similarity,  -- Default similarity for random selection
+        'random'::TEXT as search_method
+    FROM ssat_questions q
+    WHERE 
+        (section_filter IS NULL OR q.section = section_filter)
+        AND (subsection_filter IS NULL OR q.subsection = subsection_filter)
+        AND (difficulty_filter IS NULL OR q.difficulty = difficulty_filter)
+    ORDER BY RANDOM()
+    LIMIT limit_count;
+END;
+$$;
+
+-- Unified function: Get reading training examples with hybrid approach
+CREATE OR REPLACE FUNCTION get_reading_training_examples_hybrid(
+    topic_filter TEXT DEFAULT NULL,
+    passage_type_filter TEXT DEFAULT NULL,
+    query_embedding VECTOR(384) DEFAULT NULL,
+    limit_count INT DEFAULT 3
+)
+RETURNS TABLE (
+    passage_id TEXT,
+    passage TEXT,
+    passage_type TEXT,
+    question_id TEXT,
+    question TEXT,
+    choices TEXT[],
+    answer INTEGER,
+    explanation TEXT,
+    difficulty TEXT,
+    visual_description TEXT,
+    similarity REAL,
+    search_method TEXT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- If topic and embedding provided, try embedding search first
+    IF topic_filter IS NOT NULL AND query_embedding IS NOT NULL THEN
+        RETURN QUERY
+        SELECT 
+            rp.id,
+            rp.passage,
+            rp.passage_type,
+            rq.id,
+            rq.question,
+            rq.choices,
+            rq.answer,
+            rq.explanation,
+            rq.difficulty,
+            rq.visual_description,
+            (1 - (rp.embedding <=> query_embedding))::REAL as similarity,
+            'embedding'::TEXT as search_method
+        FROM reading_passages rp
+        JOIN reading_questions rq ON rp.id = rq.passage_id
+        WHERE 
+            rp.embedding IS NOT NULL
+            AND (passage_type_filter IS NULL OR rp.passage_type = passage_type_filter)
+        ORDER BY rp.embedding <=> query_embedding
+        LIMIT limit_count;
+        
+        -- If we got results, return them
+        IF FOUND THEN
+            RETURN;
+        END IF;
+    END IF;
+    
+    -- Fallback: try text-based topic filtering
+    IF topic_filter IS NOT NULL THEN
+        RETURN QUERY
+        SELECT 
+            rp.id,
+            rp.passage,
+            rp.passage_type,
+            rq.id,
+            rq.question,
+            rq.choices,
+            rq.answer,
+            rq.explanation,
+            rq.difficulty,
+            rq.visual_description,
+            0.6::REAL as similarity,
+            'text'::TEXT as search_method
+        FROM reading_passages rp
+        JOIN reading_questions rq ON rp.id = rq.passage_id
+        WHERE 
+            (passage_type_filter IS NULL OR rp.passage_type = passage_type_filter)
+            AND (
+                rp.passage ILIKE '%' || topic_filter || '%'
+                OR rp.tags::TEXT ILIKE '%' || topic_filter || '%'
+                OR rq.question ILIKE '%' || topic_filter || '%'
+            )
+        ORDER BY RANDOM()
+        LIMIT limit_count;
+        
+        -- If we got results, return them
+        IF FOUND THEN
+            RETURN;
+        END IF;
+    END IF;
+    
+    -- Final fallback: get random examples
+    RETURN QUERY
+    SELECT 
+        rp.id,
+        rp.passage,
+        rp.passage_type,
+        rq.id,
+        rq.question,
+        rq.choices,
+        rq.answer,
+        rq.explanation,
+        rq.difficulty,
+        rq.visual_description,
+        0.5::REAL as similarity,
+        'random'::TEXT as search_method
+    FROM reading_passages rp
+    JOIN reading_questions rq ON rp.id = rq.passage_id
+    WHERE 
+        (passage_type_filter IS NULL OR rp.passage_type = passage_type_filter)
+    ORDER BY RANDOM()
+    LIMIT limit_count;
+END;
+$$;
+
+-- Unified function: Get writing training examples with hybrid approach
+CREATE OR REPLACE FUNCTION get_writing_training_examples_hybrid(
+    topic_filter TEXT DEFAULT NULL,
+    query_embedding VECTOR(384) DEFAULT NULL,
+    limit_count INT DEFAULT 3
+)
+RETURNS TABLE (
+    id TEXT,
+    prompt TEXT,
+    visual_description TEXT,
+    tags TEXT[],
+    similarity REAL,
+    search_method TEXT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- If topic and embedding provided, try embedding search first
+    IF topic_filter IS NOT NULL AND query_embedding IS NOT NULL THEN
+        RETURN QUERY
+        SELECT 
+            wp.id,
+            wp.prompt,
+            wp.visual_description,
+            wp.tags,
+            (1 - (wp.embedding <=> query_embedding))::REAL as similarity,
+            'embedding'::TEXT as search_method
+        FROM writing_prompts wp
+        WHERE 
+            wp.embedding IS NOT NULL
+        ORDER BY wp.embedding <=> query_embedding
+        LIMIT limit_count;
+        
+        -- If we got results, return them
+        IF FOUND THEN
+            RETURN;
+        END IF;
+    END IF;
+    
+    -- Fallback: try text-based topic filtering
+    IF topic_filter IS NOT NULL THEN
+        RETURN QUERY
+        SELECT 
+            wp.id,
+            wp.prompt,
+            wp.visual_description,
+            wp.tags,
+            0.6::REAL as similarity,
+            'text'::TEXT as search_method
+        FROM writing_prompts wp
+        WHERE 
+            wp.prompt ILIKE '%' || topic_filter || '%'
+        ORDER BY RANDOM()
+        LIMIT limit_count;
+        
+        -- If we got results, return them
+        IF FOUND THEN
+            RETURN;
+        END IF;
+    END IF;
+    
+    -- Final fallback: get random examples
+    RETURN QUERY
+    SELECT 
+        wp.id,
+        wp.prompt,
+        wp.visual_description,
+        wp.tags,
+        0.5::REAL as similarity,
+        'random'::TEXT as search_method
+    FROM writing_prompts wp
+    ORDER BY RANDOM()
+    LIMIT limit_count;
+END;
+$$;
 
 -- ========================================
 -- COMMENTS
@@ -321,10 +524,9 @@ COMMENT ON TABLE reading_passages IS 'Reading comprehension passages for AI trai
 COMMENT ON TABLE reading_questions IS 'Reading comprehension questions linked to passages';
 COMMENT ON TABLE writing_prompts IS 'Writing prompts for AI training';
 
-COMMENT ON FUNCTION get_training_examples_by_embedding IS 'Get semantically similar SSAT questions using embedding similarity for AI training';
 COMMENT ON FUNCTION get_training_examples_by_section IS 'Get SSAT questions by section/difficulty when no topic specified';
 COMMENT ON FUNCTION get_reading_training_examples IS 'Get reading comprehension examples for AI training';
-COMMENT ON FUNCTION get_reading_questions_for_passage IS 'Get all questions for a specific reading passage';
 COMMENT ON FUNCTION get_writing_training_examples IS 'Get writing prompt examples for AI training';
-
-COMMENT ON VIEW ai_training_examples IS 'Unified view of all questions for AI training context';
+COMMENT ON FUNCTION get_training_examples_hybrid IS 'Unified hybrid function: Get training examples with embedding + text + random fallback';
+COMMENT ON FUNCTION get_reading_training_examples_hybrid IS 'Unified hybrid function: Get reading examples with embedding + text + random fallback';
+COMMENT ON FUNCTION get_writing_training_examples_hybrid IS 'Unified hybrid function: Get writing examples with embedding + text + random fallback';

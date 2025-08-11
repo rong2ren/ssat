@@ -218,117 +218,142 @@ class QuestionService:
             raise ValueError(f"Failed to generate writing prompt: {e}")
     
     async def _generate_quantitative_section_official(self, difficulty: DifficultyLevel, total_count: int, provider: Optional[Any], use_async: bool = False) -> QuantitativeSection:
-        """Generate quantitative section with official SSAT topic distribution."""
+        """Generate quantitative section with simplified subsection-based distribution."""
         import random
-        from app.specifications import OFFICIAL_ELEMENTARY_SPECS
+        from app.specifications import QUANTITATIVE_SUBSECTIONS
         
         logger.info(f"🎯 DEBUG: Starting OFFICIAL quantitative generation for {total_count} questions")
         
-        # Official distribution for quantitative questions
-        distribution = OFFICIAL_ELEMENTARY_SPECS["quantitative_distribution"]
-        logger.info(f"📊 DEBUG: Official distribution: {distribution}")
+        # Simplified subsection distribution based on official SSAT breakdown
+        # Number Operations (40%): Fractions, Arithmetic, Number Sense, Decimals, Percentages
+        # Algebra Functions (20%): Algebra, Variables, Patterns, Sequences  
+        # Geometry Spatial (25%): Area, Perimeter, Shapes, Spatial
+        # Measurement (10%): Measurement, Time, Money
+        # Probability Data (5%): Probability, Data, Graphs
         
-        # Calculate question counts based on official distribution
-        topics_counts = [
-            ("number operations", int(total_count * distribution["number_operations"])),      # ~40%
-            ("algebra functions", int(total_count * distribution["algebra_functions"])),      # ~20%
-            ("geometry spatial", int(total_count * distribution["geometry_spatial"])),        # ~25%
-            ("measurement", int(total_count * distribution["measurement"])),                  # ~10%
-            ("probability data", int(total_count * distribution["probability_data"]))         # ~5%
+        # Calculate percentages and use better rounding
+        percentages = [
+            ("Fractions", 0.15),      # 15% - most common
+            ("Arithmetic", 0.12),     # 12%
+            ("Number Sense", 0.08),   # 8%
+            ("Decimals", 0.03),       # 3%
+            ("Percentages", 0.02),    # 2%
+            ("Algebra", 0.08),        # 8%
+            ("Variables", 0.05),      # 5%
+            ("Patterns", 0.04),       # 4%
+            ("Sequences", 0.03),      # 3%
+            ("Area", 0.08),           # 8%
+            ("Perimeter", 0.06),      # 6%
+            ("Shapes", 0.06),         # 6%
+            ("Spatial", 0.05),        # 5%
+            ("Measurement", 0.04),    # 4%
+            ("Time", 0.03),           # 3%
+            ("Money", 0.03),          # 3%
+            ("Probability", 0.02),    # 2%
+            ("Data", 0.02),           # 2%
+            ("Graphs", 0.01)          # 1%
         ]
         
-        logger.info(f"📋 DEBUG: Initial topic counts: {topics_counts}")
+        # Use better rounding to minimize shortfall
+        subsections_distribution = []
+        total_allocated = 0
         
-        # Ensure we have the right number of questions
-        total_allocated = sum(count for _, count in topics_counts)
-        logger.info(f"📊 DEBUG: Total allocated: {total_allocated}, target: {total_count}")
+        for i, (subsection, percentage) in enumerate(percentages):
+            if i == len(percentages) - 1:
+                # For the last item, use remaining count to ensure exact total
+                count = max(0, total_count - total_allocated)  # Ensure non-negative
+            else:
+                # Use round() instead of int() for better distribution
+                count = round(total_count * percentage)
+                total_allocated += count
+            
+            subsections_distribution.append((subsection, count))
         
-        if total_allocated < total_count:
-            # Add remaining questions to geometry (largest flexible category)
-            topics_counts[2] = (topics_counts[2][0], topics_counts[2][1] + (total_count - total_allocated))
-            logger.info(f"➕ DEBUG: Added {total_count - total_allocated} questions to geometry")
-        elif total_allocated > total_count:
-            # Remove from geometry if we have too many
-            excess = total_allocated - total_count
-            topics_counts[2] = (topics_counts[2][0], max(1, topics_counts[2][1] - excess))
-            logger.info(f"➖ DEBUG: Removed {excess} questions from geometry")
+        # Ensure we have exactly the target count
+        actual_total = sum(count for _, count in subsections_distribution)
+        if actual_total != total_count:
+            # Adjust the first non-zero count to match target
+            for i, (subsection, count) in enumerate(subsections_distribution):
+                if count > 0:
+                    subsections_distribution[i] = (subsection, count + (total_count - actual_total))
+                    break
         
-        logger.info(f"📋 DEBUG: Final topic counts: {topics_counts}")
+        logger.info(f"📋 DEBUG: Subsection distribution: {subsections_distribution}")
+        logger.info(f"📊 DEBUG: Total allocated: {sum(count for _, count in subsections_distribution)}, target: {total_count}")
         
-        # Generate questions by topic
-        all_questions = []
-        for topic, count in topics_counts:
-            if count > 0:
-                logger.info(f"🔧 DEBUG: Generating {count} questions for topic: {topic}")
+        # Generate all questions in a single LLM call for efficiency
+        logger.info(f"🔧 DEBUG: Generating {total_count} questions in single LLM call")
+        
+        # Create a single request for all questions
+        all_questions_request = QuestionGenerationRequest(
+            question_type=QuestionType.QUANTITATIVE,
+            difficulty=difficulty,
+            count=total_count,  # Generate all questions at once
+            provider=provider,
+            is_official_format=True,
+            topic=""  # Empty topic means generate across all subsections
+        )
+        
+        logger.info(f"✅ DEBUG: Created single request with count={total_count}, is_official_format=True")
+        
+        if use_async:
+            # Single async LLM call for all questions
+            logger.info(f"⚡ DEBUG: Using single async generation for all {total_count} questions")
+            ssat_request = self._convert_to_ssat_request(all_questions_request)
+            provider_name = provider.value if provider else None
+            all_questions = await generate_questions_async(ssat_request, llm=provider_name)
+        else:
+            # Single sync LLM call for all questions
+            logger.info(f"🔄 DEBUG: Using single sync generation for all {total_count} questions")
+            all_questions_result = await self.generate_questions(all_questions_request)
+            all_questions = all_questions_result["questions"]
+        
+        # Convert questions to API format
+        api_questions = []
+        for question in all_questions:
+            if isinstance(question, dict):
+                # Already in API format
+                api_question = question
+            else:
+                # Convert from internal format
+                api_question = {
+                    "id": question.id,
+                    "question_type": question.question_type.value,
+                    "difficulty": question.difficulty.value,
+                    "text": question.text,
+                    "options": [
+                        {"letter": opt.letter, "text": opt.text} 
+                        for opt in question.options
+                    ],
+                    "correct_answer": question.correct_answer,
+                    "explanation": question.explanation,
+                    "cognitive_level": question.cognitive_level,
+                    "tags": question.tags,
+                    "metadata": question.metadata
+                }
                 
-                topic_request = QuestionGenerationRequest(
-                    question_type=QuestionType.QUANTITATIVE,
-                    difficulty=difficulty,
-                    topic=topic,
-                    count=count,
-                    provider=provider,
-                    is_official_format=True  # This is the official method, so always True
-                )
-                
-                logger.info(f"✅ DEBUG: Created topic request with count={count}, is_official_format=True")
-                
-                if use_async:
-                    # For progressive generation - use async LLM calls
-                    logger.info(f"⚡ DEBUG: Using async generation for {topic}")
-                    ssat_request = self._convert_to_ssat_request(topic_request)
-                    provider_name = provider.value if provider else None
-                    topic_questions = await generate_questions_async(ssat_request, llm=provider_name)
-                else:
-                    # For synchronous generation
-                    logger.info(f"🔄 DEBUG: Using sync generation for {topic}")
-                    topic_result = await self.generate_questions(topic_request)
-                    topic_questions = topic_result["questions"]
-                
-                # Convert questions to API format
-                for question in topic_questions:
-                    if isinstance(question, dict):
-                        # Already in API format
-                        api_question = question
-                    else:
-                        # Convert from internal format
-                        api_question = {
-                            "id": question.id,
-                            "question_type": question.question_type.value,
-                            "difficulty": question.difficulty.value,
-                            "text": question.text,
-                            "options": [
-                                {"letter": opt.letter, "text": opt.text} 
-                                for opt in question.options
-                            ],
-                            "correct_answer": question.correct_answer,
-                            "explanation": question.explanation,
-                            "cognitive_level": question.cognitive_level,
-                            "tags": question.tags,
-                            "metadata": question.metadata
-                        }
-                        
-                        # Only include visual_description if it has meaningful content
-                        if question.visual_description and question.visual_description.strip() and \
-                           question.visual_description.lower() not in ["none", "no visual elements", "no visual elements required"]:
-                            api_question["visual_description"] = question.visual_description
-                    
-                    all_questions.append(api_question)
+                # Only include visual_description if it has meaningful content
+                if question.visual_description and question.visual_description.strip() and \
+                   question.visual_description.lower() not in ["none", "no visual elements", "no visual elements required"]:
+                    api_question["visual_description"] = question.visual_description
+            
+            api_questions.append(api_question)
         
-        logger.info(f"📦 DEBUG: Generated {len(all_questions)} total questions")
+        logger.info(f"📦 DEBUG: Generated {len(api_questions)} total questions")
         
         # Shuffle to mix topic types (like real SSAT)
-        random.shuffle(all_questions)
-        all_questions = all_questions[:total_count]  # Ensure exactly right count
+        random.shuffle(api_questions)
+        api_questions = api_questions[:total_count]  # Ensure exactly right count
         
-        logger.info(f"🎲 DEBUG: Shuffled and trimmed to {len(all_questions)} questions")
+        logger.info(f"🎲 DEBUG: Shuffled and trimmed to {len(api_questions)} questions")
         
         # Get section instructions
         instructions = self._get_section_instructions(QuestionType.QUANTITATIVE)
         
-        logger.info(f"✅ DEBUG: OFFICIAL quantitative section complete with {len(all_questions)} questions")
+        logger.info(f"✅ DEBUG: OFFICIAL quantitative section complete with {len(api_questions)} questions")
         
         return QuantitativeSection(
-            questions=all_questions,
+            questions=api_questions,
             instructions=instructions
         )
     
@@ -400,23 +425,93 @@ class QuestionService:
         else:
             raise ValueError(f"Unsupported section type for standalone generation: {section_type}")
     
-    async def _generate_reading_section(self, difficulty: DifficultyLevel, num_passages: int, provider: Optional[Any], use_async: bool = False) -> ReadingSection:
+    async def _generate_reading_section(self, difficulty: DifficultyLevel, num_passages: int, provider: Optional[Any], use_async: bool = False, is_official_format: bool = False, topic: Optional[str] = None) -> ReadingSection:
         """Generate a reading section with passages and questions."""
         # num_passages is now the direct input (no calculation needed)
         
         # Get training examples metadata first
         from app.generator import SSATGenerator
         generator = SSATGenerator()
-        training_examples = generator.get_reading_training_examples()
+        training_examples = generator.get_reading_training_examples(topic=topic)
         training_example_ids = [ex.get('question_id', '') for ex in training_examples if ex.get('question_id')]
         
         logger.info(f"📚 DEBUG: Reading section will use {len(training_example_ids)} training examples: {training_example_ids}")
         
+        # Create request for all passages at once
+        section_request = QuestionGenerationRequest(
+            question_type=QuestionType.READING,
+            difficulty=difficulty,
+            count=num_passages,  # Generate all passages in one call
+            provider=provider,
+            is_official_format=is_official_format,
+            topic=topic
+        )
+        
+        # Convert to SSAT request format
+        ssat_request = self._convert_to_ssat_request(section_request)
+        provider_name = provider.value if provider else None
+        
+        # Generate all passages using unified function
+        from app.generator import generate_reading_passages_async
+        # Use multiple calls for full test generation (quality over efficiency)
+        use_single_call = False
+        # Pass pre-fetched training examples to avoid double fetching
+        results = await generate_reading_passages_async(ssat_request, llm=provider_name, use_single_call=use_single_call, training_examples=training_examples)
+        
+        # Convert results to ReadingPassage objects
         passages = []
-        for i in range(num_passages):
-            passage = await self._generate_reading_passage(difficulty, provider, i + 1, use_async)
-            # Add training examples metadata to the passage
-            passage.metadata["training_examples_used"] = training_example_ids
+        for i, result in enumerate(results):
+            passage_data = result["passage"]
+            questions = result["questions"]
+            
+            # Convert questions to API format
+            api_questions = []
+            for question in questions:
+                api_question = {
+                    "id": question.id,
+                    "question_type": question.question_type.value,
+                    "difficulty": question.difficulty.value,
+                    "text": question.text,
+                    "options": [
+                        {"letter": opt.letter, "text": opt.text} 
+                        for opt in question.options
+                    ],
+                    "correct_answer": question.correct_answer,
+                    "explanation": question.explanation,
+                    "cognitive_level": question.cognitive_level,
+                    "tags": question.tags,
+                    "metadata": question.metadata
+                }
+                
+                if question.visual_description and question.visual_description.strip() and \
+                   question.visual_description.lower() not in ["none", "no visual elements", "no visual elements required"]:
+                    api_question["visual_description"] = question.visual_description
+                api_questions.append(api_question)
+            
+            # Create ReadingPassage object
+            import uuid
+            from app.specifications import OFFICIAL_ELEMENTARY_SPECS
+            import random
+            
+            # Select passage type and topic
+            passage_types = OFFICIAL_ELEMENTARY_SPECS["reading_structure"]["passage_types"]
+            passage_type = random.choice(passage_types)
+            
+            passage_id = str(uuid.uuid4())
+            passage = ReadingPassage(
+                id=passage_id,
+                title=f"Passage {i+1}",
+                text=passage_data,
+                passage_type=result.get("passage_type", passage_type),
+                grade_level="3-4",
+                topic=f"Elementary Reading - {passage_type}",
+                questions=api_questions,
+                metadata={
+                    "passage_number": i+1, 
+                    "difficulty": difficulty.value,
+                    "training_examples_used": training_example_ids
+                }
+            )
             passages.append(passage)
         
         instructions = self._get_section_instructions(QuestionType.READING)
@@ -451,80 +546,4 @@ class QuestionService:
             section_type=QuestionType.WRITING,
             prompt=writing_prompt,
             instructions=instructions
-        )
-    
-    async def _generate_reading_passage(self, difficulty: DifficultyLevel, provider: Optional[Any], passage_number: int, use_async: bool = False) -> ReadingPassage:
-        """Generate a single reading passage with 4 questions."""
-        import uuid
-        from app.specifications import OFFICIAL_ELEMENTARY_SPECS
-        import random
-        
-        # Select passage type and topic
-        passage_types = OFFICIAL_ELEMENTARY_SPECS["reading_structure"]["passage_types"]
-        passage_type = random.choice(passage_types)
-        
-        # Generate passage and questions
-        section_request = QuestionGenerationRequest(
-            question_type=QuestionType.READING,
-            difficulty=difficulty,
-            count=4,  # Always 4 questions per passage
-            provider=provider
-        )
-        
-        # Generate reading passage using dedicated function
-        ssat_request = self._convert_to_ssat_request(section_request)
-        provider_name = provider.value if provider else None
-        
-        if use_async:
-            # For progressive generation - use async LLM calls
-            from app.generator import generate_reading_passage_async
-            passage_result = await generate_reading_passage_async(ssat_request, llm=provider_name)
-        else:
-            # For synchronous generation
-            from app.generator import generate_reading_passage
-            passage_result = generate_reading_passage(ssat_request, llm=provider_name)
-        
-        # Extract passage data and questions from result
-        passage_data = passage_result["passage"]
-        questions = passage_result["questions"]
-        
-        # Convert questions to API format
-        api_questions = []
-        for question in questions:
-            api_question = {
-                "id": question.id,
-                "question_type": question.question_type.value,
-                "difficulty": question.difficulty.value,
-                "text": question.text,
-                "options": [
-                    {"letter": opt.letter, "text": opt.text} 
-                    for opt in question.options
-                ],
-                "correct_answer": question.correct_answer,
-                "explanation": question.explanation,
-                "cognitive_level": question.cognitive_level,
-                "tags": question.tags,
-                "metadata": question.metadata
-            }
-            
-            if question.visual_description and question.visual_description.strip() and \
-               question.visual_description.lower() not in ["none", "no visual elements", "no visual elements required"]:
-                api_question["visual_description"] = question.visual_description
-            api_questions.append(api_question)
-        
-        # Use passage text from the dedicated passage data
-        passage_text = passage_data.get("text", "Sample passage text")
-        
-        # Create passage ID and metadata
-        passage_id = str(uuid.uuid4())
-        
-        return ReadingPassage(
-            id=passage_id,
-            title=passage_data.get("title") or f"Passage {passage_number}",
-            text=passage_text,
-            passage_type=passage_data.get("passage_type", passage_type),
-            grade_level=passage_data.get("grade_level", "3-4"),
-            topic=passage_data.get("topic", f"Elementary Reading - {passage_type}"),
-            questions=api_questions,
-            metadata={"passage_number": passage_number, "difficulty": difficulty.value}
         )
