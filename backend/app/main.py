@@ -2114,6 +2114,148 @@ async def save_training_examples(
         logger.error(f"❌ Failed to save training examples: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/admin/migrate-training-to-pool")
+async def admin_migrate_training_to_pool(current_user: UserProfile = Depends(get_current_user)):
+    """Admin endpoint to migrate all training examples to user-facing pool."""
+    try:
+        # Check if user is admin
+        if current_user.role != 'admin':
+            raise HTTPException(
+                status_code=403,
+                detail="Admin access required"
+            )
+        
+        logger.info(f"🔍 ADMIN MIGRATION: Starting migration of training examples to user pool")
+        
+        # Get migration statistics before migration
+        stats_response = supabase.rpc('get_migration_statistics').execute()
+        before_stats = stats_response.data[0] if stats_response.data else {}
+        
+        # Run the migration
+        migration_response = supabase.rpc('migrate_all_training_to_pool').execute()
+        migration_result = migration_response.data[0] if migration_response.data else {}
+        
+        # Get migration statistics after migration
+        stats_response_after = supabase.rpc('get_migration_statistics').execute()
+        after_stats = stats_response_after.data[0] if stats_response_after.data else {}
+        
+        return {
+            "success": True,
+            "message": "Training examples successfully migrated to user pool",
+            "migration_results": {
+                "questions_migrated": migration_result.get('migrated_questions', 0),
+                "passages_migrated": migration_result.get('migrated_passages', 0),
+                "reading_questions_migrated": migration_result.get('migrated_reading_questions', 0),
+                "writing_prompts_migrated": migration_result.get('migrated_writing_prompts', 0),
+                "total_skipped": migration_result.get('total_skipped', 0),
+                "total_errors": migration_result.get('total_errors', 0)
+            },
+            "before_migration": {
+                "training_questions": before_stats.get('training_questions_count', 0),
+                "training_passages": before_stats.get('training_passages_count', 0),
+                "training_reading_questions": before_stats.get('training_reading_questions_count', 0),
+                "training_writing_prompts": before_stats.get('training_writing_prompts_count', 0),
+                "pool_questions": before_stats.get('pool_questions_count', 0),
+                "pool_passages": before_stats.get('pool_passages_count', 0),
+                "pool_reading_questions": before_stats.get('pool_reading_questions_count', 0),
+                "pool_writing_prompts": before_stats.get('pool_writing_prompts_count', 0)
+            },
+            "after_migration": {
+                "pool_questions": after_stats.get('pool_questions_count', 0),
+                "pool_passages": after_stats.get('pool_passages_count', 0),
+                "pool_reading_questions": after_stats.get('pool_reading_questions_count', 0),
+                "pool_writing_prompts": after_stats.get('pool_writing_prompts_count', 0)
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"🔍 ADMIN MIGRATION: Error in migration: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Migration failed: {str(e)}"
+        )
+
+@app.get("/admin/migration-statistics")
+async def admin_get_migration_statistics(current_user: UserProfile = Depends(get_current_user)):
+    """Admin endpoint to get migration statistics."""
+    try:
+        # Check if user is admin
+        if current_user.role != 'admin':
+            raise HTTPException(
+                status_code=403,
+                detail="Admin access required"
+            )
+        
+        # Get migration statistics
+        stats_response = supabase.rpc('get_migration_statistics').execute()
+        stats = stats_response.data[0] if stats_response.data else {}
+        
+        return {
+            "success": True,
+            "statistics": {
+                "training_content": {
+                    "questions": stats.get('training_questions_count', 0),
+                    "passages": stats.get('training_passages_count', 0),
+                    "reading_questions": stats.get('training_reading_questions_count', 0),
+                    "writing_prompts": stats.get('training_writing_prompts_count', 0)
+                },
+                "pool_content": {
+                    "questions": stats.get('pool_questions_count', 0),
+                    "passages": stats.get('pool_passages_count', 0),
+                    "reading_questions": stats.get('pool_reading_questions_count', 0),
+                    "writing_prompts": stats.get('pool_writing_prompts_count', 0)
+                },
+                "migrated_content": {
+                    "questions": stats.get('migrated_questions_count', 0),
+                    "passages": stats.get('migrated_passages_count', 0),
+                    "reading_questions": stats.get('migrated_reading_questions_count', 0),
+                    "writing_prompts": stats.get('migrated_writing_prompts_count', 0)
+                }
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"🔍 ADMIN MIGRATION: Error getting statistics: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get migration statistics: {str(e)}"
+        )
+
+@app.post("/admin/cleanup-migrated-content")
+async def admin_cleanup_migrated_content(current_user: UserProfile = Depends(get_current_user)):
+    """Admin endpoint to cleanup migrated content (if needed)."""
+    try:
+        # Check if user is admin
+        if current_user.role != 'admin':
+            raise HTTPException(
+                status_code=403,
+                detail="Admin access required"
+            )
+        
+        logger.info(f"🔍 ADMIN MIGRATION: Starting cleanup of migrated content")
+        
+        # Run the cleanup
+        cleanup_response = supabase.rpc('cleanup_migrated_content').execute()
+        cleanup_result = cleanup_response.data[0] if cleanup_response.data else {}
+        
+        return {
+            "success": True,
+            "message": "Migrated content successfully cleaned up",
+            "cleanup_results": {
+                "questions_removed": cleanup_result.get('removed_questions', 0),
+                "passages_removed": cleanup_result.get('removed_passages', 0),
+                "reading_questions_removed": cleanup_result.get('removed_reading_questions', 0),
+                "writing_prompts_removed": cleanup_result.get('removed_writing_prompts', 0)
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"🔍 ADMIN MIGRATION: Error in cleanup: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Cleanup failed: {str(e)}"
+        )
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)

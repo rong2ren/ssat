@@ -37,7 +37,7 @@ interface GenerationResponse {
   content: any
 }
 
-type AdminSection = 'generate' | 'complete-test' | 'users' | 'training-examples'
+type AdminSection = 'generate' | 'complete-test' | 'users' | 'training-examples' | 'migration'
 
 export default function AdminPage() {
   const [activeSection, setActiveSection] = useState<AdminSection>('generate')
@@ -89,6 +89,15 @@ export default function AdminPage() {
   const [savingExamples, setSavingExamples] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  
+  // Migration state
+  const [migrationStats, setMigrationStats] = useState<any>(null)
+  const [migrating, setMigrating] = useState(false)
+  const [migrationResult, setMigrationResult] = useState<any>(null)
+  const [migrationError, setMigrationError] = useState<string | null>(null)
+  const [cleaningUp, setCleaningUp] = useState(false)
+  const [cleanupResult, setCleanupResult] = useState<any>(null)
+  const [cleanupError, setCleanupError] = useState<string | null>(null)
   
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -275,6 +284,86 @@ export default function AdminPage() {
     }
   }
 
+  // Migration functions
+  const loadMigrationStats = async () => {
+    try {
+      const headers = await getAuthHeaders()
+      const response = await fetch('/api/admin/migration-statistics', { headers })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setMigrationStats(data.statistics)
+      } else {
+        console.error('Failed to load migration statistics')
+      }
+    } catch (error) {
+      console.error('Error loading migration statistics:', error)
+    }
+  }
+
+  const handleMigration = async () => {
+    setMigrating(true)
+    setMigrationError(null)
+    setMigrationResult(null)
+    
+    try {
+      const headers = await getAuthHeaders()
+      const response = await fetch('/api/admin/migrate-training-to-pool', {
+        method: 'POST',
+        headers
+      })
+      
+      const result = await response.json()
+      
+      if (response.ok) {
+        setMigrationResult(result)
+        // Reload stats after migration
+        await loadMigrationStats()
+      } else {
+        setMigrationError(result.error || 'Migration failed')
+      }
+    } catch (error) {
+      setMigrationError('Network error. Please try again.')
+    } finally {
+      setMigrating(false)
+    }
+  }
+
+  const handleCleanup = async () => {
+    setCleaningUp(true)
+    setCleanupError(null)
+    setCleanupResult(null)
+    
+    try {
+      const headers = await getAuthHeaders()
+      const response = await fetch('/api/admin/cleanup-migrated-content', {
+        method: 'POST',
+        headers
+      })
+      
+      const result = await response.json()
+      
+      if (response.ok) {
+        setCleanupResult(result)
+        // Reload stats after cleanup
+        await loadMigrationStats()
+      } else {
+        setCleanupError(result.error || 'Cleanup failed')
+      }
+    } catch (error) {
+      setCleanupError('Network error. Please try again.')
+    } finally {
+      setCleaningUp(false)
+    }
+  }
+
+  // Load migration stats when migration section is active
+  React.useEffect(() => {
+    if (activeSection === 'migration') {
+      loadMigrationStats()
+    }
+  }, [activeSection])
+
   const formatLimit = (limit: number) => {
     return limit === -1 ? 'Unlimited' : limit.toString()
   }
@@ -369,7 +458,17 @@ export default function AdminPage() {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              AI Training Examples
+              Save AI Training Examples
+            </button>
+            <button
+              onClick={() => setActiveSection('migration')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeSection === 'migration'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Migrate Training Examples to Pool
             </button>
           </nav>
         </div>
@@ -1215,6 +1314,140 @@ Tags: character-development, visual-inspiration, friendship-themes`}
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Migration Section */}
+        {activeSection === 'migration' && (
+          <div className="bg-white shadow sm:rounded-lg">
+            <div className="px-4 py-5 sm:p-6">
+              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                Training Examples Migration
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Smart migration that migrates only new training examples to the user-facing pool (skips already migrated items).
+              </p>
+              
+              {/* Migration Statistics */}
+              {migrationStats && (
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                  <h4 className="font-medium text-gray-900 mb-3">Current Statistics</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <h5 className="text-sm font-medium text-gray-700 mb-2">Training Content</h5>
+                      <div className="space-y-1 text-sm text-gray-600">
+                        <div>Questions: {migrationStats.training_content?.questions || 0}</div>
+                        <div>Passages: {migrationStats.training_content?.passages || 0}</div>
+                        <div>Reading Questions: {migrationStats.training_content?.reading_questions || 0}</div>
+                        <div>Writing Prompts: {migrationStats.training_content?.writing_prompts || 0}</div>
+                      </div>
+                    </div>
+                    <div>
+                      <h5 className="text-sm font-medium text-gray-700 mb-2">User Pool Content</h5>
+                      <div className="space-y-1 text-sm text-gray-600">
+                        <div>Questions: {migrationStats.pool_content?.questions || 0}</div>
+                        <div>Passages: {migrationStats.pool_content?.passages || 0}</div>
+                        <div>Reading Questions: {migrationStats.pool_content?.reading_questions || 0}</div>
+                        <div>Writing Prompts: {migrationStats.pool_content?.writing_prompts || 0}</div>
+                      </div>
+                    </div>
+                    <div>
+                      <h5 className="text-sm font-medium text-gray-700 mb-2">Migration Status</h5>
+                      <div className="space-y-1 text-sm text-gray-600">
+                        <div>Questions Migrated: {migrationStats.migrated_content?.questions || 0}</div>
+                        <div>Passages Migrated: {migrationStats.migrated_content?.passages || 0}</div>
+                        <div>Reading Questions Migrated: {migrationStats.migrated_content?.reading_questions || 0}</div>
+                        <div>Writing Prompts Migrated: {migrationStats.migrated_content?.writing_prompts || 0}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <div className="text-sm text-gray-600">
+                      <strong>Smart Migration:</strong> Only migrates new content (skips already migrated items)
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Migration Actions */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+                  <div>
+                    <h4 className="font-medium text-blue-900">Smart Migration</h4>
+                    <p className="text-sm text-blue-700 mt-1">
+                      Migrate only new or changed training examples to the user pool
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleMigration}
+                    disabled={migrating}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {migrating ? 'Migrating...' : 'Start Migration'}
+                  </button>
+                </div>
+                
+                <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg">
+                  <div>
+                    <h4 className="font-medium text-red-900">Cleanup Migrated Content</h4>
+                    <p className="text-sm text-red-700 mt-1">
+                      Remove migrated content from the user pool (if needed)
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleCleanup}
+                    disabled={cleaningUp}
+                    className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {cleaningUp ? 'Cleaning...' : 'Cleanup'}
+                  </button>
+                </div>
+              </div>
+              
+              {/* Migration Results */}
+              {migrationResult && (
+                <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-md">
+                  <div className="text-green-800 font-medium mb-2">
+                    ✅ {migrationResult.message}
+                  </div>
+                  <div className="text-sm text-green-700">
+                    <div>Questions Migrated: {migrationResult.migration_results?.questions_migrated || 0}</div>
+                    <div>Passages Migrated: {migrationResult.migration_results?.passages_migrated || 0}</div>
+                    <div>Reading Questions Migrated: {migrationResult.migration_results?.reading_questions_migrated || 0}</div>
+                    <div>Writing Prompts Migrated: {migrationResult.migration_results?.writing_prompts_migrated || 0}</div>
+                    <div>Total Skipped: {migrationResult.migration_results?.total_skipped || 0}</div>
+                    <div>Total Errors: {migrationResult.migration_results?.total_errors || 0}</div>
+                  </div>
+                </div>
+              )}
+              
+              {migrationError && (
+                <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-md">
+                  <div className="text-red-800">Error: {migrationError}</div>
+                </div>
+              )}
+              
+              {/* Cleanup Results */}
+              {cleanupResult && (
+                <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <div className="text-yellow-800 font-medium mb-2">
+                    ✅ {cleanupResult.message}
+                  </div>
+                  <div className="text-sm text-yellow-700">
+                    <div>Questions Removed: {cleanupResult.cleanup_results?.questions_removed || 0}</div>
+                    <div>Passages Removed: {cleanupResult.cleanup_results?.passages_removed || 0}</div>
+                    <div>Reading Questions Removed: {cleanupResult.cleanup_results?.reading_questions_removed || 0}</div>
+                    <div>Writing Prompts Removed: {cleanupResult.cleanup_results?.writing_prompts_removed || 0}</div>
+                  </div>
+                </div>
+              )}
+              
+              {cleanupError && (
+                <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-md">
+                  <div className="text-red-800">Error: {cleanupError}</div>
+                </div>
+              )}
             </div>
           </div>
         )}
