@@ -52,13 +52,24 @@ class UnifiedContentService:
             DifficultyLevel.HARD: DifficultyLevel.HARD,
         }
         
+        # Determine if we should use explicit topics for diverse reading generation
+        # Only for reading passages, multiple count, no custom examples, no specific topic
+        use_explicit_topics = (
+            request.question_type == QuestionType.READING and
+            request.count > 1 and
+            not request.use_custom_examples and
+            not request.topic
+        )
+        
         return QuestionRequest(
             question_type=question_type_mapping[request.question_type],
             difficulty=difficulty_mapping[request.difficulty],
             topic=request.topic,
             count=request.count,
             level=request.level,
-            input_format=request.input_format
+            input_format=request.input_format,
+            is_official_format=getattr(request, 'is_official_format', False),
+            use_explicit_topics=use_explicit_topics
         )
     
     def _convert_questions_to_api_format(self, questions: List) -> List[Dict[str, Any]]:

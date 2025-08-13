@@ -1982,7 +1982,12 @@ def generate_reading_passages(request: QuestionRequest, llm: Optional[str] = "de
     """
     logger.info(f"Generating {request.count} reading passages for request: {request} (single_call={use_single_call})")
     
-    if use_single_call:
+    # Check if we should use explicit topics for diverse generation
+    if hasattr(request, 'use_explicit_topics') and request.use_explicit_topics:
+        logger.info(f"🎯 ADMIN DIVERSE: Using explicit topics for {request.count} diverse reading passages")
+        # Use multiple calls with diverse examples for admin multi-passage generation
+        return _generate_reading_passages_multiple_calls(request, llm, custom_examples, training_examples=None)
+    elif use_single_call:
         return _generate_reading_passages_single_call(request, llm, custom_examples, training_examples)
     else:
         return _generate_reading_passages_multiple_calls(request, llm, custom_examples, training_examples)

@@ -51,3 +51,4 @@ class QuestionRequest(BaseModel):
     level: str = "elementary" # elementary, middle, or high school
     input_format: str = "full"  # full or simple (for synonyms only)
     is_official_format: bool = False  # True for admin complete tests
+    use_explicit_topics: bool = False  # True for diverse topic generation (admin multi-passage)
