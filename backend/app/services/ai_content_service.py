@@ -495,6 +495,7 @@ class AIContentService:
             elif section.section_type == "quantitative":
                 # Quantitative section has questions attribute
                 questions = section.questions
+                # Let each question use its AI-generated subsection (don't override with None)
                 saved_ids["question_ids"] = await self.save_generated_questions(
                     session_id, questions, "Quantitative", None, training_examples_used
                 )

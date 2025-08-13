@@ -56,6 +56,106 @@ class PoolSelectionService:
             logger.error(f"🔍 POOL SERVICE: ❌ Error getting unused questions for user {user_id}: {e}")
             return []
     
+    async def get_quantitative_questions_with_subsection_breakdown(
+        self, 
+        user_id: str, 
+        total_count: int = 30, 
+        difficulty: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Get quantitative questions with proper subsection breakdown for complete tests ONLY."""
+        
+        try:
+            logger.info(f"🎯 COMPLETE TEST POOL: Getting {total_count} quantitative questions with subsection breakdown for user {user_id}")
+            
+            # Use EXACT same domain groups as admin 5-call strategy (ACTUAL database subsections)
+            domain_groups = [
+                {
+                    "group_name": "Number Operations",
+                    "subsections": {
+                        "Number Properties": 3,    # 32 available - number relationships, place value
+                        "Fractions": 3,           # 21 available - fraction operations  
+                        "Arithmetic": 3,          # 18 available - basic operations
+                        "Word Problems": 2,       # 16 available - problem solving contexts
+                        "Decimals": 1             # 2 available - decimal operations
+                    }
+                },
+                {
+                    "group_name": "Algebra & Functions", 
+                    "subsections": {
+                        "Algebra": 4,             # 16 available - equations, expressions
+                        "Number Sequences": 2     # 2 available - patterns and sequences
+                    }
+                },
+                {
+                    "group_name": "Geometry & Spatial",
+                    "subsections": {
+                        "Geometry": 7             # 25 available - shapes, area, perimeter, angles, spatial reasoning
+                    }
+                },
+                {
+                    "group_name": "Measurement", 
+                    "subsections": {
+                        "Measurement": 2,         # 10 available - units, conversions
+                        "Money": 1                # 4 available - money calculations
+                    }
+                },
+                {
+                    "group_name": "Data & Probability",
+                    "subsections": {
+                        "Data Interpretation": 1,  # 9 available - reading graphs, tables
+                        "Probability": 1          # 1 available - basic probability
+                    }
+                }
+            ]
+            
+            # Verify total count matches
+            expected_total = sum(
+                sum(group["subsections"].values()) 
+                for group in domain_groups
+            )
+            if expected_total != total_count:
+                logger.warning(f"🎯 COMPLETE TEST POOL: Domain breakdown total {expected_total} != requested {total_count}")
+            
+            # Collect questions by subsection
+            all_pool_questions = []
+            subsection_stats = {}
+            
+            for group in domain_groups:
+                group_name = group["group_name"]
+                logger.info(f"🎯 COMPLETE TEST POOL: Collecting {group_name} questions")
+                
+                for subsection, needed_count in group["subsections"].items():
+                    logger.info(f"🎯 COMPLETE TEST POOL: Requesting {needed_count} {subsection} questions")
+                    
+                    subsection_questions = await self.get_unused_questions_for_user(
+                        user_id=user_id,
+                        section="Quantitative",
+                        subsection=subsection,  # Specific subsection filtering
+                        count=needed_count,
+                        difficulty=difficulty
+                    )
+                    
+                    found_count = len(subsection_questions)
+                    subsection_stats[subsection] = {"needed": needed_count, "found": found_count}
+                    
+                    if found_count > 0:
+                        all_pool_questions.extend(subsection_questions[:needed_count])
+                        logger.info(f"🎯 COMPLETE TEST POOL: ✅ Found {found_count}/{needed_count} {subsection} questions")
+                    else:
+                        logger.info(f"🎯 COMPLETE TEST POOL: ❌ No {subsection} questions available")
+            
+            # Log summary statistics
+            total_found = len(all_pool_questions)
+            logger.info(f"🎯 COMPLETE TEST POOL: Summary - Found {total_found}/{total_count} questions")
+            logger.info(f"🎯 COMPLETE TEST POOL: Subsection breakdown: {subsection_stats}")
+            
+            # Return questions (may be less than requested if pool insufficient)
+            return all_pool_questions
+            
+        except Exception as e:
+            logger.error(f"🎯 COMPLETE TEST POOL: ❌ Error getting subsection breakdown for user {user_id}: {e}")
+            return []
+    
     async def get_unused_reading_content_for_user(
         self, 
         user_id: str, 

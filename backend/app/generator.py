@@ -377,15 +377,19 @@ class SSATGenerator:
                 (request.question_type.value.title(), None)
             )
             
-            # Determine example count based on question type
+            # Determine example count based on question type and format
             if request.question_type.value == "quantitative" and count is not None:
                 # For quantitative: use dynamic count (1-10)
                 target_count = min(max(count, 1), 10)  # Cap at 10
                 logger.info(f"📚 Using dynamic count for quantitative: {target_count} examples")
+            elif request.question_type.value in ["analogy", "synonym"] and hasattr(request, 'is_official_format') and request.is_official_format:
+                # For official format complete tests: use enhanced count for verbal questions
+                target_count = 10
+                logger.info(f"📚 Using enhanced count for official format {request.question_type.value}: {target_count} examples")
             else:
-                # For analogy/synonym: keep current fixed count (5)
+                # For regular generation: keep current fixed count (5)
                 target_count = 5
-                logger.info(f"📚 Using fixed count for {request.question_type.value}: {target_count} examples")
+                logger.info(f"📚 Using standard count for {request.question_type.value}: {target_count} examples")
             
             # Generate embedding if topic is provided
             query_embedding = None
@@ -453,6 +457,93 @@ class SSATGenerator:
             logger.warning(f"Failed to get training examples: {e}")
             # Return empty list to fall back to generic prompts
             return []
+    
+    def get_diverse_reading_training_examples(self, passage_index: int, total_passages: int, topic: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get diverse reading training examples for a specific passage to ensure variety across passages."""
+        try:
+            # Define different passage types and topics to ensure diversity
+            passage_types = ["Fiction", "Non-fiction", "Biography", "Science", "History", "Adventure", "Informational"]
+            reading_topics = ["animals", "science", "history", "adventure", "friendship", "nature", "technology", "sports", "art", "culture"]
+            
+            # Select different passage type and topic based on passage index
+            selected_passage_type = passage_types[passage_index % len(passage_types)]
+            selected_topic = reading_topics[passage_index % len(reading_topics)] if not topic else topic
+            
+            logger.info(f"🎯 DIVERSE EXAMPLES: Passage {passage_index + 1}/{total_passages} - Type: {selected_passage_type}, Topic: {selected_topic}")
+            
+            # Generate embedding for diverse topic
+            query_embedding = None
+            if selected_topic:
+                topic_query = f"{selected_topic} {selected_passage_type} reading comprehension"
+                query_embedding = self.generate_embedding(topic_query)
+                if query_embedding:
+                    logger.info(f"Generated embedding for diverse reading query: '{topic_query}'")
+                else:
+                    logger.warning(f"Failed to generate embedding for diverse reading query: '{topic_query}'")
+            
+            # Try to get examples for specific passage type first
+            response = self.supabase.rpc('get_reading_training_examples_hybrid', {
+                'topic_filter': selected_topic,
+                'passage_type_filter': selected_passage_type,
+                'query_embedding': query_embedding,
+                'limit_count': 3
+            }).execute()
+            
+            if response.data and len(response.data) >= 2:
+                training_examples = response.data
+                logger.info(f"🎯 DIVERSE EXAMPLES: Found {len(training_examples)} specific examples for {selected_passage_type}/{selected_topic}")
+            else:
+                # Enhanced fallback: try topic-only first, then fully generic
+                logger.info(f"🎯 DIVERSE EXAMPLES: No specific examples for {selected_passage_type}/{selected_topic}, trying topic-only")
+                
+                # Try topic-only search
+                response = self.supabase.rpc('get_reading_training_examples_hybrid', {
+                    'topic_filter': selected_topic,
+                    'passage_type_filter': None,
+                    'query_embedding': query_embedding,
+                    'limit_count': 5
+                }).execute()
+                
+                if response.data and len(response.data) >= 2:
+                    training_examples = response.data[:3]  # Take first 3
+                    logger.info(f"🎯 DIVERSE EXAMPLES: Found {len(training_examples)} topic-specific examples for {selected_topic}")
+                else:
+                    # Final fallback to generic examples with enhanced randomization
+                    logger.info(f"🎯 DIVERSE EXAMPLES: No topic-specific examples, using enhanced generic fallback")
+                    response = self.supabase.rpc('get_reading_training_examples_hybrid', {
+                        'topic_filter': None,
+                        'passage_type_filter': None,
+                        'query_embedding': None,
+                        'limit_count': 15  # Get more examples to choose from
+                    }).execute()
+                    
+                    if response.data:
+                        import random
+                        all_examples = response.data
+                        # Use passage index and selected topic for more diverse seeding
+                        seed_value = hash(f"{passage_index}_{selected_topic}_{selected_passage_type}") % 10000
+                        random.seed(seed_value)
+                        if len(all_examples) >= 3:
+                            training_examples = random.sample(all_examples, 3)
+                        else:
+                            training_examples = all_examples
+                        # Reset random seed
+                        random.seed()
+                        logger.info(f"🎯 DIVERSE EXAMPLES: Using enhanced randomized fallback (seed: {seed_value}) for passage {passage_index + 1}")
+                    else:
+                        logger.warning(f"🎯 DIVERSE EXAMPLES: No examples found even with enhanced fallback for passage {passage_index + 1}")
+                        return []
+            
+            # Remove search_method field for compatibility
+            for example in training_examples:
+                example.pop('search_method', None)
+            
+            return training_examples
+            
+        except Exception as e:
+            logger.warning(f"🎯 DIVERSE EXAMPLES: Failed to get diverse examples for passage {passage_index + 1}: {e}")
+            # Fallback to regular examples
+            return self.get_reading_training_examples(topic=topic)
     
     def get_reading_training_examples(self, passage_type: Optional[str] = None, topic: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get reading comprehension training examples using unified hybrid approach."""
@@ -1937,12 +2028,24 @@ def _generate_single_reading_passage(request: QuestionRequest, llm: str, custom_
         logger.warning(f"Failed to extract JSON from LLM response for single passage.")
         return None
     
-    if "passage" not in data or "questions" not in data:
-        logger.warning(f"LLM response missing passage or questions for single passage.")
+    # Handle both response formats: direct passage or passages array (sync version)
+    if "passages" in data and len(data["passages"]) > 0:
+        # LLM returned passages array format
+        passage_data = data["passages"][0]  # Take first passage
+        if "passage" not in passage_data or "questions" not in passage_data:
+            logger.warning(f"LLM response passages array missing passage or questions for single passage.")
+            return None
+        passage_text = passage_data["passage"]
+        questions_data = passage_data["questions"]
+        passage_type = passage_data.get("passage_type", "General")
+    elif "passage" in data and "questions" in data:
+        # LLM returned direct passage format
+        passage_text = data["passage"]
+        questions_data = data["questions"]
+        passage_type = data.get("passage_type", "General")
+    else:
+        logger.warning(f"LLM response missing passage or questions for single passage. Keys found: {list(data.keys())}")
         return None
-    
-    passage_text = data["passage"]
-    questions_data = data["questions"]
     
     questions = []
     for q_data in questions_data:
@@ -1964,7 +2067,7 @@ def _generate_single_reading_passage(request: QuestionRequest, llm: str, custom_
     return {
         "passage": passage_text,
         "questions": questions,
-        "passage_type": data.get("passage_type", "General")
+        "passage_type": passage_type
     }
 
 async def generate_reading_passages_async(request: QuestionRequest, llm: Optional[str] = "deepseek", custom_examples: Optional[str] = None, use_single_call: bool = False, training_examples: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
@@ -2014,7 +2117,7 @@ async def _generate_reading_passages_single_call_async(request: QuestionRequest,
         system_message=system_message,
         prompt="Generate the reading passages and questions as specified.",
         max_tokens=max_tokens,
-        temperature=0.8
+        temperature=0.9  # Higher creativity for more engaging and diverse reading passages
     )
 
     if content is None:
@@ -2074,10 +2177,18 @@ async def _generate_reading_passages_multiple_calls_async(request: QuestionReque
     generator = SSATGenerator()
     results = []
     
-    # Create tasks for parallel execution
+    # Create tasks for parallel execution with diverse examples
     tasks = []
     for i in range(request.count):
-        task = _generate_single_reading_passage_async(request, llm, custom_examples, training_examples)
+        # If no pre-fetched training examples provided, each passage will fetch diverse examples
+        if training_examples is None:
+            # Use diverse examples for each passage (admin complete tests)
+            logger.info(f"🎯 DIVERSE PASSAGES: Will fetch diverse examples dynamically for passage {i + 1}/{request.count}")
+            task = asyncio.create_task(_generate_single_reading_passage_async(request, llm, custom_examples, training_examples=None, passage_index=i))
+        else:
+            # Use provided pre-fetched examples (regular generation)
+            logger.info(f"🎯 CONSISTENT PASSAGES: Using {len(training_examples)} pre-fetched examples for passage {i + 1}/{request.count}")
+            task = asyncio.create_task(_generate_single_reading_passage_async(request, llm, custom_examples, training_examples=training_examples, passage_index=i))
         tasks.append(task)
     
     # Execute all tasks concurrently
@@ -2096,19 +2207,24 @@ async def _generate_reading_passages_multiple_calls_async(request: QuestionReque
     logger.info(f"Successfully generated {len(results)} reading passages async with {'real SSAT examples' if custom_examples else 'generic prompt'}")
     return results
 
-async def _generate_single_reading_passage_async(request: QuestionRequest, llm: str, custom_examples: Optional[str], training_examples: Optional[List[Dict[str, Any]]] = None) -> Optional[Dict[str, Any]]:
+async def _generate_single_reading_passage_async(request: QuestionRequest, llm: str, custom_examples: Optional[str], training_examples: Optional[List[Dict[str, Any]]] = None, passage_index: Optional[int] = None) -> Optional[Dict[str, Any]]:
     """Generate a single reading passage and its questions asynchronously."""
     generator = SSATGenerator()
-    # Use pre-fetched training examples if provided, otherwise fetch them
+    # Determine which training examples to use (priority: custom > pre-fetched > diverse > database)
     if training_examples is not None:
-        # Use pre-fetched training examples
-        logger.info(f"Using {len(training_examples)} pre-fetched training examples")
+        # Use pre-fetched training examples (for regular generation)
+        logger.info(f"Using {len(training_examples)} pre-fetched training examples for passage {(passage_index or 0) + 1}")
     elif custom_examples:
         training_examples = generator.parse_custom_examples(custom_examples, "reading")
         logger.info(f"Using {len(training_examples)} custom training examples")
     else:
-        training_examples = generator.get_reading_training_examples(topic=request.topic)
-        logger.info(f"Using {len(training_examples)} database training examples")
+        # Fetch diverse examples if passage_index is available
+        if passage_index is not None:
+            training_examples = generator.get_diverse_reading_training_examples(passage_index, request.count, request.topic)
+            logger.info(f"Using {len(training_examples)} diverse database training examples for passage {passage_index + 1}")
+        else:
+            training_examples = generator.get_reading_training_examples(topic=request.topic)
+            logger.info(f"Using {len(training_examples)} database training examples")
     
     system_message = generator.build_reading_few_shot_prompt(request, training_examples)
     
@@ -2125,7 +2241,7 @@ async def _generate_single_reading_passage_async(request: QuestionRequest, llm: 
         system_message=system_message,
         prompt="Generate the reading passage and its 4 comprehension questions as specified.",
         max_tokens=max_tokens,
-        temperature=0.8
+        temperature=0.9  # Higher creativity for more engaging and diverse reading passages
     )
 
     if content is None:
@@ -2138,12 +2254,26 @@ async def _generate_single_reading_passage_async(request: QuestionRequest, llm: 
         logger.warning(f"Failed to extract JSON from async LLM response for single passage.")
         return None
     
-    if "passage" not in data or "questions" not in data:
-        logger.warning(f"Async LLM response missing passage or questions for single passage.")
+    # Handle both response formats: direct passage or passages array
+    if "passages" in data and len(data["passages"]) > 0:
+        # LLM returned passages array format
+        passage_data = data["passages"][0]  # Take first passage
+        if "passage" not in passage_data or "questions" not in passage_data:
+            logger.warning(f"Async LLM response passages array missing passage or questions for single passage.")
+            return None
+        passage_text = passage_data["passage"]
+        questions_data = passage_data["questions"]
+        passage_type = passage_data.get("passage_type", "General")
+        visual_description = passage_data.get("visual_description")
+    elif "passage" in data and "questions" in data:
+        # LLM returned direct passage format
+        passage_text = data["passage"]
+        questions_data = data["questions"]
+        passage_type = data.get("passage_type", "General")
+        visual_description = data.get("visual_description")
+    else:
+        logger.warning(f"Async LLM response missing passage or questions for single passage. Keys found: {list(data.keys())}")
         return None
-    
-    passage_text = data["passage"]
-    questions_data = data["questions"]
     
     questions = []
     for q_data in questions_data:
@@ -2165,5 +2295,5 @@ async def _generate_single_reading_passage_async(request: QuestionRequest, llm: 
     return {
         "passage": passage_text,
         "questions": questions,
-        "passage_type": data.get("passage_type", "General")
+        "passage_type": passage_type
     }

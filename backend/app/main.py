@@ -1141,13 +1141,25 @@ async def generate_single_section_background(job_id: str, section_type, request:
             logger.info(f"🔍 POOL DEBUG: Attempting pool retrieval for {section_type.value} questions")
             logger.info(f"🔍 POOL DEBUG: Section={section_name}, Subsection={subsection_name}, Difficulty={difficulty}, Count={section_count}")
             
-            pool_questions = await pool_service.get_unused_questions_for_user(
-                user_id=job.user_id,  # Use job.user_id since we don't have current_user here
-                section=section_name,
-                subsection=subsection_name,
-                count=section_count,
-                difficulty=difficulty
-            )
+            # Special handling for quantitative complete tests with 30 questions
+            if (section_type.value == "quantitative" and 
+                section_count == 30 and 
+                request.is_official_format):
+                logger.info(f"🎯 COMPLETE TEST: Using subsection-aware pool selection for 30 quantitative questions")
+                pool_questions = await pool_service.get_quantitative_questions_with_subsection_breakdown(
+                    user_id=job.user_id,
+                    total_count=section_count,
+                    difficulty=difficulty
+                )
+            else:
+                # Regular pool selection for all other cases
+                pool_questions = await pool_service.get_unused_questions_for_user(
+                    user_id=job.user_id,  # Use job.user_id since we don't have current_user here
+                    section=section_name,
+                    subsection=subsection_name,
+                    count=section_count,
+                    difficulty=difficulty
+                )
             
             logger.info(f"🔍 POOL DEBUG: Retrieved {len(pool_questions)} questions from pool, need {section_count}")
             
@@ -1388,11 +1400,18 @@ async def generate_single_section_background(job_id: str, section_type, request:
                     request.difficulty, section_count, request.provider, use_async=True, topic=None
                 )
             elif section_type.value == "quantitative" and request.is_official_format:
-                # Use official topic breakdown for quantitative questions
-                logger.debug(f"🎯 DEBUG: Using OFFICIAL quantitative generation with topic breakdown for {section_count} questions")
-                section = await question_service._generate_quantitative_section_official(
-                    request.difficulty, section_count, request.provider, use_async=True
-                )
+                # Special handling for 30-question complete tests: use 5-call strategy
+                if section_count == 30:
+                    logger.debug(f"🎯 COMPLETE TEST: Using 5-call quantitative generation for {section_count} questions")
+                    section = await question_service._generate_quantitative_section_official_5_calls(
+                        request.difficulty, section_count, request.provider, use_async=True
+                    )
+                else:
+                    # Use original single-call strategy for other counts
+                    logger.debug(f"🎯 DEBUG: Using OFFICIAL quantitative generation with topic breakdown for {section_count} questions")
+                    section = await question_service._generate_quantitative_section_official(
+                        request.difficulty, section_count, request.provider, use_async=True
+                    )
             else:
                 logger.debug(f"⚙️ DEBUG: Using regular standalone generation for {section_type.value}")
                 section = await question_service._generate_standalone_section(
@@ -1976,9 +1995,9 @@ async def generate_single_section_background_admin(session_id: str, section_type
                 request.difficulty, section_count, request.provider, use_async=True, is_official_format=request.is_official_format, topic=None
             )
         elif section_type.value == "quantitative" and request.is_official_format:
-            # Use official topic breakdown for quantitative questions
-            logger.debug(f"🎯 ADMIN COMPLETE TEST: Using OFFICIAL quantitative generation with topic breakdown for {section_count} questions")
-            section = await question_service._generate_quantitative_section_official(
+            # Use 5-call strategy for admin complete test quantitative generation (token efficiency)
+            logger.debug(f"🎯 ADMIN COMPLETE TEST: Using NEW 5-call quantitative generation for {section_count} questions")
+            section = await question_service._generate_quantitative_section_official_5_calls(
                 request.difficulty, section_count, request.provider, use_async=True
             )
         else:

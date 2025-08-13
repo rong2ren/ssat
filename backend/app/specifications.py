@@ -257,12 +257,13 @@ def get_official_question_counts() -> Dict[str, int]:
     
     Returns:
         Dict mapping section type to official question count
+        Note: For reading, this returns the number of PASSAGES (7), not questions (28)
     """
     return {
         "quantitative": 30,
         "analogy": 12,  # Part of Verbal section (40% of 30)
         "synonym": 18,  # Part of Verbal section (60% of 30)
-        "reading": 28,  # 7 passages × 4 questions each
+        "reading": 7,   # 7 passages (each with 4 questions = 28 total questions)
         "writing": 1
     }
 
