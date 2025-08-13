@@ -1397,7 +1397,8 @@ async def generate_single_section_background(job_id: str, section_type, request:
             elif section_type.value == "reading":
                 logger.debug(f"📖 DEBUG: Using reading section generation")
                 section = await question_service._generate_reading_section(
-                    request.difficulty, section_count, request.provider, use_async=True, topic=None
+                    request.difficulty, section_count, request.provider, use_async=True, 
+                    is_official_format=request.is_official_format, topic=None
                 )
             elif section_type.value == "quantitative" and request.is_official_format:
                 # Special handling for 30-question complete tests: use 5-call strategy

@@ -486,12 +486,12 @@ class SSATGenerator:
                 'topic_filter': selected_topic,
                 'passage_type_filter': selected_passage_type,
                 'query_embedding': query_embedding,
-                'limit_count': 3
+                'limit_count': 1  # Use only 1 example for explicit topic generation
             }).execute()
             
-            if response.data and len(response.data) >= 2:
-                training_examples = response.data
-                logger.info(f"🎯 DIVERSE EXAMPLES: Found {len(training_examples)} specific examples for {selected_passage_type}/{selected_topic}")
+            if response.data and len(response.data) >= 1:
+                training_examples = response.data[:1]  # Use only 1 example
+                logger.info(f"🎯 DIVERSE EXAMPLES: Found {len(training_examples)} specific example for {selected_passage_type}/{selected_topic}")
             else:
                 # Enhanced fallback: try topic-only first, then fully generic
                 logger.info(f"🎯 DIVERSE EXAMPLES: No specific examples for {selected_passage_type}/{selected_topic}, trying topic-only")
@@ -501,12 +501,12 @@ class SSATGenerator:
                     'topic_filter': selected_topic,
                     'passage_type_filter': None,
                     'query_embedding': query_embedding,
-                    'limit_count': 5
+                    'limit_count': 1  # Use only 1 example for explicit topic generation
                 }).execute()
                 
-                if response.data and len(response.data) >= 2:
-                    training_examples = response.data[:3]  # Take first 3
-                    logger.info(f"🎯 DIVERSE EXAMPLES: Found {len(training_examples)} topic-specific examples for {selected_topic}")
+                if response.data and len(response.data) >= 1:
+                    training_examples = response.data[:1]  # Take only 1
+                    logger.info(f"🎯 DIVERSE EXAMPLES: Found {len(training_examples)} topic-specific example for {selected_topic}")
                 else:
                     # Final fallback to generic examples with enhanced randomization
                     logger.info(f"🎯 DIVERSE EXAMPLES: No topic-specific examples, using enhanced generic fallback")
@@ -523,13 +523,11 @@ class SSATGenerator:
                         # Use passage index and selected topic for more diverse seeding
                         seed_value = hash(f"{passage_index}_{selected_topic}_{selected_passage_type}") % 10000
                         random.seed(seed_value)
-                        if len(all_examples) >= 3:
-                            training_examples = random.sample(all_examples, 3)
-                        else:
-                            training_examples = all_examples
+                        # Select only 1 example for explicit topic generation
+                        training_examples = [random.choice(all_examples)]
                         # Reset random seed
                         random.seed()
-                        logger.info(f"🎯 DIVERSE EXAMPLES: Using enhanced randomized fallback (seed: {seed_value}) for passage {passage_index + 1}")
+                        logger.info(f"🎯 DIVERSE EXAMPLES: Using 1 randomized example (seed: {seed_value}) for passage {passage_index + 1}")
                     else:
                         logger.warning(f"🎯 DIVERSE EXAMPLES: No examples found even with enhanced fallback for passage {passage_index + 1}")
                         return []
@@ -977,7 +975,7 @@ OUTPUT FORMAT - Return ONLY a JSON object:
         
         return complete_prompt
     
-    def build_reading_few_shot_prompt(self, request: QuestionRequest, training_examples: List[Dict[str, Any]]) -> str:
+    def build_reading_few_shot_prompt(self, request: QuestionRequest, training_examples: List[Dict[str, Any]], passage_index: Optional[int] = None) -> str:
         """Build few-shot prompt by extending base reading prompt with examples."""
         
         if not training_examples:
@@ -1050,8 +1048,112 @@ PASSAGE TYPE: {example.get('passage_type', 'N/A')}
         
         logger.info(f"📚 READING TRAINING SUMMARY: Using {valid_examples} real SSAT reading examples for {request.question_type.value} questions")
         
-        # SIMPLIFIED READING PROMPT: Examples first, minimal instructions
-        complete_prompt = f"""You are an expert SSAT reading comprehension question generator.
+        # Determine if we should use explicit topic instructions (for official format complete tests)
+        use_explicit_topic = (hasattr(request, 'is_official_format') and request.is_official_format and 
+                             passage_index is not None and request.count > 1)
+        
+        if use_explicit_topic:
+            # Simple diversity approach: separate genres and topics
+            genres = ["Fiction", "Non-fiction", "Poetry", "Biography", "Science", "History", "Informational"]
+            
+            topics = [
+                "animals", "friendship", "adventure", "science", "nature", "technology",
+                "family", "sports", "art", "music", "travel", "space", "ocean", "forest",
+                "invention", "discovery", "courage", "kindness", "mystery", "magic",
+                "environment", "culture", "tradition", "celebration", "seasons",
+                "emotions", "dreams", "growing up", "problem-solving", "creativity"
+            ]
+            
+            # Select genre by rotation and topic by hash-based randomization
+            selected_genre = genres[passage_index % len(genres)]
+            
+            # Use hash-based seed for consistent but diverse topic selection
+            import random
+            topic_seed = hash(f"passage_{passage_index}_topic") % 10000
+            random.seed(topic_seed)
+            selected_topic = random.choice(topics)
+            
+            logger.info(f"🎯 EXPLICIT TOPIC: Passage {passage_index + 1} - Genre: {selected_genre}, Topic: {selected_topic}")
+            
+            # EXPLICIT TOPIC PROMPT: Complete prompt with all standard requirements
+            complete_prompt = f"""You are an expert SSAT reading comprehension question generator.
+
+🎯 YOUR ASSIGNMENT: Create a {selected_genre} passage about {selected_topic}
+
+📋 FORMAT REFERENCE (IGNORE THE TOPIC/CONTENT):
+The following example is ONLY for format reference. DO NOT use its topic, theme, or content ideas.
+
+{examples_text}
+
+🚨 CRITICAL OVERRIDE INSTRUCTIONS:
+- COMPLETELY IGNORE the topic/theme/content of the example above
+- DO NOT create anything similar to the example's subject matter
+- Your passage must be 100% different content about {selected_topic}
+
+✅ MANDATORY REQUIREMENTS FOR YOUR PASSAGE:
+
+**REQUIRED GENRE:** {selected_genre}
+**REQUIRED TOPIC:** {selected_topic}
+**PASSAGE TYPE:** {selected_genre} about {selected_topic}
+
+⚠️ FINAL WARNING: Your passage must be about {selected_topic}, NOT about anything from the example above. Each passage in this test must have a DIFFERENT topic.
+
+{self._get_difficulty_specific_instructions(request.difficulty.value)}
+
+CRITICAL REQUIREMENTS:
+- Create a reading passage first with SPECIFIC LENGTH REQUIREMENT:
+  * At least 500 words
+  * Must be substantial enough for 4 comprehension questions
+- Match the difficulty level: {request.difficulty.value}
+- Use the same answer choice format (A, B, C, D) for all questions
+- Questions must test reading comprehension skills
+- Suitable for grades 5-7 students
+- Each question should have exactly 4 options
+- **IMPORTANT: Generate CHALLENGING questions that require critical thinking, not just basic recall**
+
+COMPLEXITY GUIDELINES:
+{self._get_complexity_guidelines(request.difficulty.value, request.question_type.value)}
+
+QUESTION DIFFICULTY GUIDELINES:
+- **Easy**: Supporting details, simple inference, context clues, moderate vocabulary
+- **Medium**: Complex inference, author's purpose, character motivation, cause-effect relationships, advanced vocabulary, multiple-step reasoning, evaluation and synthesis
+- **Hard**: Multiple-step reasoning, evaluation, synthesis, complex vocabulary, sophisticated analysis
+
+CRITICAL CATEGORIZATION REQUIREMENTS:
+
+1. PASSAGE TYPE: Create a SPECIFIC, descriptive passage type that captures both content and genre. Be specific, not generic (avoid "Fiction", "Non-fiction" alone).
+
+2. READING TAGS: Create 2-4 specific tags that capture the reading comprehension skills being tested:
+- Comprehension Skills: ["main-idea-identification", "supporting-details", "inference-making", "conclusion-drawing", "author-purpose"]
+- Text Analysis: ["character-analysis", "plot-development", "cause-and-effect", "compare-contrast", "sequence-understanding"]  
+- Vocabulary Skills: ["context-clues", "word-meaning", "vocabulary-development", "technical-terms", "figurative-language"]
+- Critical Thinking: ["evidence-evaluation", "perspective-analysis", "prediction-making", "connection-building", "interpretation-skills"]
+
+3. COGNITIVE LEVEL: **MANDATORY** - For {request.difficulty.value} questions, you MUST use "{self._get_cognitive_level_by_difficulty(request.difficulty.value)}" as the cognitive_level. Do NOT use any other cognitive level. AVOID "REMEMBER" level questions as they are too basic. Focus on higher-order thinking skills.
+
+OUTPUT FORMAT - Return ONLY a JSON object:
+{{
+  "passages": [
+    {{
+      "passage": "Complete reading passage text",
+      "questions": [
+        {{
+          "text": "question text",
+          "options": [{{"letter": "A", "text": "option"}}, {{"letter": "B", "text": "option"}}, {{"letter": "C", "text": "option"}}, {{"letter": "D", "text": "option"}}],
+          "correct_answer": "A",
+          "explanation": "detailed explanation",
+          "cognitive_level": "{self._get_cognitive_level_by_difficulty(request.difficulty.value)}",
+          "tags": ["tag1", "tag2", "tag3"]
+        }}
+      ],
+      "passage_type": "Specific passage type",
+      "visual_description": "Description of any visual elements (if applicable)"
+    }}
+  ]
+}}"""
+        else:
+                         # STANDARD PROMPT: Use examples to guide topic (for regular generation)
+             complete_prompt = f"""You are an expert SSAT reading comprehension question generator.
 
 STUDY THESE REAL SSAT READING EXAMPLES FROM OFFICIAL TESTS:
 
@@ -1064,7 +1166,7 @@ GENERATE {request.count} NEW READING PASSAGES with 4 COMPREHENSION QUESTIONS eac
 CRITICAL REQUIREMENTS:
 - Generate {request.count} passages and {request.count * 4} questions about the SAME TOPIC/THEME as the examples (e.g., if example is about animals, generate more animal-related passages and questions)
 - Create a reading passage first with SPECIFIC LENGTH REQUIREMENT for each passage:
-  * Target: 450 words
+  * At least 450 words (minimum requirement)
   * Must be substantial enough for 4 comprehension questions
 - Match the difficulty level: {request.difficulty.value}
 - Use the same answer choice format (A, B, C, D) for all questions
@@ -1078,10 +1180,9 @@ COMPLEXITY GUIDELINES:
 {self._get_complexity_guidelines(request.difficulty.value, request.question_type.value)}
 
 QUESTION DIFFICULTY GUIDELINES:
-- **Easy**: Basic facts, main idea, simple vocabulary, direct questions
-- **Medium**: Supporting details, simple inference, context clues, moderate vocabulary
-- **Hard**: Complex inference, author's purpose, character motivation, cause-effect relationships, advanced vocabulary, multiple-step reasoning, evaluation and synthesis
-- **Very Hard**: Multiple-step reasoning, evaluation, synthesis, complex vocabulary, sophisticated analysis
+- **Easy**: Supporting details, simple inference, context clues, moderate vocabulary
+- **Medium**: Complex inference, author's purpose, character motivation, cause-effect relationships, advanced vocabulary, multiple-step reasoning, evaluation and synthesis
+- **Hard**: Multiple-step reasoning, evaluation, synthesis, complex vocabulary, sophisticated analysis
 
 CRITICAL CATEGORIZATION REQUIREMENTS:
 
@@ -1337,7 +1438,7 @@ Generate 1 NEW reading passage with 4 comprehension questions that match SSAT El
 
 REQUIREMENTS:
 - Create a reading passage first with SPECIFIC LENGTH REQUIREMENT:
-  * Target: 450 words
+  * At least 450 words (minimum requirement)
   * Must be substantial enough for 4 comprehension questions
 - Match difficulty level: {request.difficulty.value}
 - Use answer choice format (A, B, C, D)
@@ -2000,7 +2101,7 @@ def _generate_single_reading_passage(request: QuestionRequest, llm: str, custom_
         training_examples = generator.get_reading_training_examples(topic=request.topic)
         logger.info(f"Using {len(training_examples)} database training examples")
     
-    system_message = generator.build_reading_few_shot_prompt(request, training_examples)
+    system_message = generator.build_reading_few_shot_prompt(request, training_examples, passage_index=None)
     
     provider = _select_llm_provider(llm)
     

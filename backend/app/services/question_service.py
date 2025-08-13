@@ -73,7 +73,8 @@ class QuestionService:
             difficulty=difficulty_mapping[request.difficulty],
             topic=request.topic,
             count=request.count,
-            level=request.level
+            level=request.level,
+            is_official_format=getattr(request, 'is_official_format', False)
         )
     
     async def generate_questions(self, request: QuestionGenerationRequest) -> Dict[str, Any]:
