@@ -37,7 +37,19 @@ interface GenerationResponse {
   content: any
 }
 
-type AdminSection = 'generate' | 'complete-test' | 'users' | 'training-examples' | 'migration'
+interface StatisticsLoading {
+  overview: boolean
+  content: boolean
+  pool: boolean
+}
+
+interface StatisticsError {
+  overview: string | null
+  content: string | null
+  pool: string | null
+}
+
+type AdminSection = 'generate' | 'complete-test' | 'users' | 'training-examples' | 'migration' | 'statistics'
 
 export default function AdminPage() {
   const [activeSection, setActiveSection] = useState<AdminSection>('generate')
@@ -98,6 +110,21 @@ export default function AdminPage() {
   const [cleaningUp, setCleaningUp] = useState(false)
   const [cleanupResult, setCleanupResult] = useState<any>(null)
   const [cleanupError, setCleanupError] = useState<string | null>(null)
+  
+  // Statistics state
+  const [overviewStats, setOverviewStats] = useState<any>(null)
+  const [contentStats, setContentStats] = useState<any>(null)
+  const [poolStats, setPoolStats] = useState<any>(null)
+  const [statisticsLoading, setStatisticsLoading] = useState<StatisticsLoading>({
+    overview: false,
+    content: false,
+    pool: false
+  })
+  const [statisticsError, setStatisticsError] = useState<StatisticsError>({
+    overview: null,
+    content: null,
+    pool: null
+  })
   
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -357,6 +384,73 @@ export default function AdminPage() {
     }
   }
 
+  // Statistics functions
+  const loadOverviewStats = async () => {
+    setStatisticsLoading(prev => ({ ...prev, overview: true }))
+    setStatisticsError(prev => ({ ...prev, overview: null }))
+    
+    try {
+      const headers = await getAuthHeaders()
+      const response = await fetch('/api/admin/statistics/overview', { headers })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setOverviewStats(data.statistics)
+      } else {
+        const errorData = await response.json()
+        setStatisticsError(prev => ({ ...prev, overview: errorData.error || 'Failed to load overview statistics' }))
+      }
+    } catch (error) {
+      setStatisticsError(prev => ({ ...prev, overview: 'Network error. Please try again.' }))
+    } finally {
+      setStatisticsLoading(prev => ({ ...prev, overview: false }))
+    }
+  }
+
+  const loadContentStats = async () => {
+    setStatisticsLoading(prev => ({ ...prev, content: true }))
+    setStatisticsError(prev => ({ ...prev, content: null }))
+    
+    try {
+      const headers = await getAuthHeaders()
+      const response = await fetch('/api/admin/statistics/content', { headers })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setContentStats(data.statistics)
+      } else {
+        const errorData = await response.json()
+        setStatisticsError(prev => ({ ...prev, content: errorData.error || 'Failed to load content statistics' }))
+      }
+    } catch (error) {
+      setStatisticsError(prev => ({ ...prev, content: 'Network error. Please try again.' }))
+    } finally {
+      setStatisticsLoading(prev => ({ ...prev, content: false }))
+    }
+  }
+
+  const loadPoolStats = async () => {
+    setStatisticsLoading(prev => ({ ...prev, pool: true }))
+    setStatisticsError(prev => ({ ...prev, pool: null }))
+    
+    try {
+      const headers = await getAuthHeaders()
+      const response = await fetch('/api/admin/statistics/pool', { headers })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setPoolStats(data.statistics)
+      } else {
+        const errorData = await response.json()
+        setStatisticsError(prev => ({ ...prev, pool: errorData.error || 'Failed to load pool statistics' }))
+      }
+    } catch (error) {
+      setStatisticsError(prev => ({ ...prev, pool: 'Network error. Please try again.' }))
+    } finally {
+      setStatisticsLoading(prev => ({ ...prev, pool: false }))
+    }
+  }
+
   // Load migration stats when migration section is active
   React.useEffect(() => {
     if (activeSection === 'migration') {
@@ -469,6 +563,16 @@ export default function AdminPage() {
               }`}
             >
               Migrate Training Examples to Pool
+            </button>
+            <button
+              onClick={() => setActiveSection('statistics')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeSection === 'statistics'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              📊 Statistics
             </button>
           </nav>
         </div>
@@ -1448,6 +1552,192 @@ Tags: character-development, visual-inspiration, friendship-themes`}
                   <div className="text-red-800">Error: {cleanupError}</div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Statistics Section */}
+        {activeSection === 'statistics' && (
+          <div className="space-y-6">
+            {/* Platform Overview Statistics */}
+            <div className="bg-white shadow sm:rounded-lg">
+              <div className="px-4 py-5 sm:p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h3 className="text-lg leading-6 font-medium text-gray-900">
+                      🏢 Platform Overview
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-600">
+                      High-level metrics showing total users, content volume, and generation performance
+                    </p>
+                  </div>
+                  <button
+                    onClick={loadOverviewStats}
+                    disabled={statisticsLoading.overview}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400"
+                  >
+                    {statisticsLoading.overview ? 'Loading...' : 'Load Overview Stats'}
+                  </button>
+                </div>
+                
+                {statisticsError.overview && (
+                  <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-4">
+                    <div className="text-red-800">Error: {statisticsError.overview}</div>
+                  </div>
+                )}
+                
+                {overviewStats && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <h4 className="font-medium text-blue-900 mb-2">Users</h4>
+                      <div className="text-sm space-y-1">
+                        <div className="text-2xl font-bold text-blue-600">{overviewStats.users.total_users}</div>
+                      </div>
+                    </div>
+                    <div className="bg-green-50 p-4 rounded-lg">
+                      <h4 className="font-medium text-green-900 mb-2">Content</h4>
+                      <div className="text-sm space-y-1">
+                        <div>Training: {overviewStats.content.total_training_content}</div>
+                        <div>AI Generated: {overviewStats.content.total_ai_generated_content}</div>
+                      </div>
+                    </div>
+                    <div className="bg-purple-50 p-4 rounded-lg">
+                      <h4 className="font-medium text-purple-900 mb-2">Generation Health</h4>
+                      <div className="text-sm space-y-1">
+                        <div>Sessions: {overviewStats.generation.total_generation_sessions}</div>
+                        <div>Success (7d): {overviewStats.generation.successful_generations_last_7_days}</div>
+                        <div>Failed (7d): {overviewStats.generation.failed_generations_last_7_days}</div>
+                        <div>Success Rate: {overviewStats.generation.success_rate_percentage}%</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Content Breakdown Statistics */}
+            <div className="bg-white shadow sm:rounded-lg">
+              <div className="px-4 py-5 sm:p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h3 className="text-lg leading-6 font-medium text-gray-900">
+                      📚 Content Analysis
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-600">
+                      Breakdown of training examples vs AI-generated content by question type
+                    </p>
+                  </div>
+                  <button
+                    onClick={loadContentStats}
+                    disabled={statisticsLoading.content}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400"
+                  >
+                    {statisticsLoading.content ? 'Loading...' : 'Load Content Stats'}
+                  </button>
+                </div>
+                
+                {statisticsError.content && (
+                  <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-4">
+                    <div className="text-red-800">Error: {statisticsError.content}</div>
+                  </div>
+                )}
+                
+                {contentStats && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-indigo-50 p-4 rounded-lg">
+                      <h4 className="font-medium text-indigo-900 mb-2">Training Content</h4>
+                      <div className="space-y-1 text-sm">
+                        <div>Quantitative: {contentStats.training_content.quantitative}</div>
+                        <div>Analogies: {contentStats.training_content.analogies}</div>
+                        <div>Synonyms: {contentStats.training_content.synonyms}</div>
+                        <div>Reading Passages: {contentStats.training_content.reading_passages}</div>
+                        <div>Reading Questions: {contentStats.training_content.reading_questions}</div>
+                        <div>Writing Prompts: {contentStats.training_content.writing_prompts}</div>
+                      </div>
+                    </div>
+                    <div className="bg-emerald-50 p-4 rounded-lg">
+                      <h4 className="font-medium text-emerald-900 mb-2">AI Generated Content (Pool)</h4>
+                      <div className="space-y-1 text-sm">
+                        <div>Quantitative: {contentStats.ai_generated_content.quantitative}</div>
+                        <div>Analogies: {contentStats.ai_generated_content.analogies}</div>
+                        <div>Synonyms: {contentStats.ai_generated_content.synonyms}</div>
+                        <div>Reading Passages: {contentStats.ai_generated_content.reading_passages}</div>
+                        <div>Reading Questions: {contentStats.ai_generated_content.reading_questions}</div>
+                        <div>Writing Prompts: {contentStats.ai_generated_content.writing_prompts}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Pool Utilization Statistics */}
+            <div className="bg-white shadow sm:rounded-lg">
+              <div className="px-4 py-5 sm:p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h3 className="text-lg leading-6 font-medium text-gray-900">
+                      🎯 Pool Utilization
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-600">
+                      AI-generated content usage across all sections (Quantitative, Analogies, Synonyms, Reading, Writing) with remaining counts
+                    </p>
+                  </div>
+                  <button
+                    onClick={loadPoolStats}
+                    disabled={statisticsLoading.pool}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400"
+                  >
+                    {statisticsLoading.pool ? 'Loading...' : 'Load Pool Stats'}
+                  </button>
+                </div>
+                
+                {statisticsError.pool && (
+                  <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-4">
+                    <div className="text-red-800">Error: {statisticsError.pool}</div>
+                  </div>
+                )}
+                
+                {poolStats && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="bg-blue-50 p-3 rounded-lg">
+                      <h4 className="font-medium text-blue-900 mb-2">Quantitative</h4>
+                      <div className="text-sm space-y-1">
+                        <div>Used: {poolStats.quantitative.used}</div>
+                        <div>Remaining: {poolStats.quantitative.remaining}</div>
+                      </div>
+                    </div>
+                    <div className="bg-green-50 p-3 rounded-lg">
+                      <h4 className="font-medium text-green-900 mb-2">Analogies</h4>
+                      <div className="text-sm space-y-1">
+                        <div>Used: {poolStats.analogy.used}</div>
+                        <div>Remaining: {poolStats.analogy.remaining}</div>
+                      </div>
+                    </div>
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <h4 className="font-medium text-purple-900 mb-2">Synonyms</h4>
+                      <div className="text-sm space-y-1">
+                        <div>Used: {poolStats.synonym.used}</div>
+                        <div>Remaining: {poolStats.synonym.remaining}</div>
+                      </div>
+                    </div>
+                    <div className="bg-orange-50 p-3 rounded-lg">
+                      <h4 className="font-medium text-orange-900 mb-2">Reading</h4>
+                      <div className="text-sm space-y-1">
+                        <div>Used: {poolStats.reading.used}</div>
+                        <div>Remaining: {poolStats.reading.remaining}</div>
+                      </div>
+                    </div>
+                    <div className="bg-teal-50 p-3 rounded-lg">
+                      <h4 className="font-medium text-teal-900 mb-2">Writing</h4>
+                      <div className="text-sm space-y-1">
+                        <div>Used: {poolStats.writing.used}</div>
+                        <div>Remaining: {poolStats.writing.remaining}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

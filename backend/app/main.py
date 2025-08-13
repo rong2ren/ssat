@@ -2223,7 +2223,7 @@ async def admin_get_migration_statistics(current_user: UserProfile = Depends(get
 
 @app.post("/admin/cleanup-migrated-content")
 async def admin_cleanup_migrated_content(current_user: UserProfile = Depends(get_current_user)):
-    """Admin endpoint to cleanup migrated content (if needed)."""
+    """Admin endpoint to cleanup migrated content."""
     try:
         # Check if user is admin
         if current_user.role != 'admin':
@@ -2232,28 +2232,165 @@ async def admin_cleanup_migrated_content(current_user: UserProfile = Depends(get
                 detail="Admin access required"
             )
         
-        logger.info(f"🔍 ADMIN MIGRATION: Starting cleanup of migrated content")
-        
-        # Run the cleanup
+        # Cleanup migrated content
         cleanup_response = supabase.rpc('cleanup_migrated_content').execute()
         cleanup_result = cleanup_response.data[0] if cleanup_response.data else {}
         
         return {
             "success": True,
-            "message": "Migrated content successfully cleaned up",
-            "cleanup_results": {
-                "questions_removed": cleanup_result.get('removed_questions', 0),
-                "passages_removed": cleanup_result.get('removed_passages', 0),
-                "reading_questions_removed": cleanup_result.get('removed_reading_questions', 0),
-                "writing_prompts_removed": cleanup_result.get('removed_writing_prompts', 0)
+            "message": "Migrated content cleaned up successfully",
+            "removed": {
+                "questions": cleanup_result.get('removed_questions', 0),
+                "passages": cleanup_result.get('removed_passages', 0),
+                "reading_questions": cleanup_result.get('removed_reading_questions', 0),
+                "writing_prompts": cleanup_result.get('removed_writing_prompts', 0)
             }
         }
         
     except Exception as e:
-        logger.error(f"🔍 ADMIN MIGRATION: Error in cleanup: {e}")
+        logger.error(f"🔍 ADMIN CLEANUP: Error cleaning up content: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Cleanup failed: {str(e)}"
+        )
+
+# ========================================
+# ADMIN STATISTICS ENDPOINTS
+# ========================================
+
+@app.get("/admin/statistics/overview")
+async def admin_get_overview_statistics(current_user: UserProfile = Depends(get_current_user)):
+    """Admin endpoint to get platform overview statistics."""
+    try:
+        # Check if user is admin
+        if current_user.role != 'admin':
+            raise HTTPException(
+                status_code=403,
+                detail="Admin access required"
+            )
+        
+        # Get overview statistics
+        stats_response = supabase.rpc('get_platform_overview_statistics').execute()
+        stats = stats_response.data[0] if stats_response.data else {}
+        
+        return {
+            "success": True,
+            "statistics": {
+                "users": {
+                    "total_users": stats.get('total_users', 0)
+                },
+                "content": {
+                    "total_training_content": stats.get('total_training_content', 0),
+                    "total_ai_generated_content": stats.get('total_ai_generated_content', 0)
+                },
+                "generation": {
+                    "total_generation_sessions": stats.get('total_generation_sessions', 0),
+                    "successful_generations_last_7_days": stats.get('successful_generations_last_7_days', 0),
+                    "failed_generations_last_7_days": stats.get('failed_generations_last_7_days', 0),
+                    "success_rate_percentage": float(stats.get('success_rate_percentage', 0))
+                }
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"🔍 ADMIN STATISTICS: Error getting overview statistics: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get overview statistics: {str(e)}"
+        )
+
+@app.get("/admin/statistics/content")
+async def admin_get_content_statistics(current_user: UserProfile = Depends(get_current_user)):
+    """Admin endpoint to get content breakdown statistics."""
+    try:
+        # Check if user is admin
+        if current_user.role != 'admin':
+            raise HTTPException(
+                status_code=403,
+                detail="Admin access required"
+            )
+        
+        # Get content statistics
+        stats_response = supabase.rpc('get_content_breakdown_statistics').execute()
+        stats = stats_response.data[0] if stats_response.data else {}
+        
+        return {
+            "success": True,
+            "statistics": {
+                "training_content": {
+                    "quantitative": stats.get('training_quantitative', 0),
+                    "analogies": stats.get('training_analogies', 0),
+                    "synonyms": stats.get('training_synonyms', 0),
+                    "reading_passages": stats.get('training_reading_passages', 0),
+                    "reading_questions": stats.get('training_reading_questions', 0),
+                    "writing_prompts": stats.get('training_writing_prompts', 0)
+                },
+                "ai_generated_content": {
+                    "quantitative": stats.get('ai_quantitative', 0),
+                    "analogies": stats.get('ai_analogies', 0),
+                    "synonyms": stats.get('ai_synonyms', 0),
+                    "reading_passages": stats.get('ai_reading_passages', 0),
+                    "reading_questions": stats.get('ai_reading_questions', 0),
+                    "writing_prompts": stats.get('ai_writing_prompts', 0)
+                }
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"🔍 ADMIN STATISTICS: Error getting content statistics: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get content statistics: {str(e)}"
+        )
+
+
+
+@app.get("/admin/statistics/pool")
+async def admin_get_pool_statistics(current_user: UserProfile = Depends(get_current_user)):
+    """Admin endpoint to get pool utilization statistics."""
+    try:
+        # Check if user is admin
+        if current_user.role != 'admin':
+            raise HTTPException(
+                status_code=403,
+                detail="Admin access required"
+            )
+        
+        # Get pool statistics
+        stats_response = supabase.rpc('get_pool_utilization_statistics').execute()
+        stats = stats_response.data[0] if stats_response.data else {}
+        
+        return {
+            "success": True,
+            "statistics": {
+                "quantitative": {
+                    "used": stats.get('quantitative_used', 0),
+                    "remaining": stats.get('quantitative_remaining', 0)
+                },
+                "analogy": {
+                    "used": stats.get('analogy_used', 0),
+                    "remaining": stats.get('analogy_remaining', 0)
+                },
+                "synonym": {
+                    "used": stats.get('synonym_used', 0),
+                    "remaining": stats.get('synonym_remaining', 0)
+                },
+                "reading": {
+                    "used": stats.get('reading_used', 0),
+                    "remaining": stats.get('reading_remaining', 0)
+                },
+                "writing": {
+                    "used": stats.get('writing_used', 0),
+                    "remaining": stats.get('writing_remaining', 0)
+                }
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"🔍 ADMIN STATISTICS: Error getting pool statistics: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get pool statistics: {str(e)}"
         )
 
 if __name__ == "__main__":
