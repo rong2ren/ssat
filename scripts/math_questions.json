@@ -1,0 +1,17 @@
+[
+    {
+      "source": "SSAT",
+      "year": 2025,
+      "level": "Elementary",
+      "question_text": "What is 15 + 27?",
+      "solution_text": "15 + 27 = 42.",
+      "image_urls": [
+        "https://mycdn.com/q1.png"
+      ],
+      "image_descriptions": [
+        "Addition problem with two numbers"
+      ],
+      "tags": ["arithmetic", "addition"],
+      "difficulty": 1
+    }
+  ]
