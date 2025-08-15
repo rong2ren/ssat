@@ -357,9 +357,12 @@ async def generate_content(request: QuestionGenerationRequest, current_user: Use
             logger.info(f"🔍 POOL DEBUG: Attempting pool retrieval for reading passages")
             logger.info(f"🔍 POOL DEBUG: Passages requested={request.count}")
             
+            difficulty = request.difficulty.value if request.difficulty else None
+            
             pool_passages = await pool_service.get_unused_reading_content_for_user(
                 user_id=str(current_user.id),
-                count=request.count  # This is now passages, not questions
+                count=request.count,  # This is now passages, not questions
+                difficulty=difficulty
             )
             
             logger.info(f"🔍 POOL DEBUG: Retrieved {len(pool_passages)} reading passages from pool, need {request.count}")
@@ -937,9 +940,12 @@ async def generate_single_section_background(job_id: str, section_type, request:
             logger.info(f"🔍 POOL DEBUG: Attempting pool retrieval for reading content")
             logger.info(f"🔍 POOL DEBUG: Passages requested={section_count}")
             
+            difficulty = request.difficulty.value if request.difficulty else None
+            
             pool_content = await pool_service.get_unused_reading_content_for_user(
                 user_id=job.user_id,
-                count=section_count  # This is now passages, not questions
+                count=section_count,  # This is now passages, not questions
+                difficulty=difficulty
             )
             
             logger.info(f"🔍 POOL DEBUG: Retrieved {len(pool_content)} reading passages from pool, need {section_count}")

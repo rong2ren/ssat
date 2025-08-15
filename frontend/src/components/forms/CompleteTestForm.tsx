@@ -165,6 +165,9 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
             id="test-difficulty"
             className="md:w-1/3"
           />
+          <p className="text-xs text-gray-500">
+            Note: Difficulty applies to Quantitative, Reading, Analogy, and Synonym sections. Writing prompts are not difficulty-based.
+          </p>
         </div>
 
         {/* Enhanced Format Selection */}

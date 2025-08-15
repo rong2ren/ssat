@@ -159,19 +159,22 @@ class PoolSelectionService:
     async def get_unused_reading_content_for_user(
         self, 
         user_id: str, 
-        count: int
+        count: int,
+        difficulty: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Get unused reading passages and questions for a user."""
         
         try:
             logger.info(f"🔍 POOL SERVICE: Getting {count} unused reading passages for user {user_id}")
+            logger.info(f"🔍 POOL SERVICE DEBUG: Difficulty={difficulty}")
             
             # Use database function to get unused reading content
             response = self.supabase.rpc(
                 'get_unused_reading_content_for_user',
                 {
                     'p_user_id': user_id,
-                    'p_limit_count': count
+                    'p_limit_count': count,
+                    'p_difficulty': difficulty
                 }
             ).execute()
             

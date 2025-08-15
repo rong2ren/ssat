@@ -97,7 +97,8 @@ $$;
 -- Get reading content a user has never used before
 CREATE OR REPLACE FUNCTION get_unused_reading_content_for_user(
     p_user_id UUID,
-    p_limit_count INT DEFAULT 10
+    p_limit_count INT DEFAULT 10,
+    p_difficulty TEXT DEFAULT NULL
 )
 RETURNS TABLE (
     passage_id TEXT,
@@ -133,7 +134,8 @@ BEGIN
     FROM ai_generated_reading_passages rp
     JOIN ai_generated_reading_questions rq ON rp.id = rq.passage_id
     WHERE 
-        rp.id IN (
+        (p_difficulty IS NULL OR rq.difficulty = p_difficulty)
+        AND rp.id IN (
             -- Get N unused passages
             SELECT id FROM ai_generated_reading_passages 
             WHERE NOT EXISTS (

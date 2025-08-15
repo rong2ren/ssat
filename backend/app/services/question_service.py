@@ -187,7 +187,7 @@ class QuestionService:
         # Create request for AI generation (same as individual writing generation)
         ssat_request = QuestionRequest(
             question_type=QuestionType.WRITING,
-            difficulty=DifficultyLevel.MEDIUM if difficulty == DifficultyLevel.MEDIUM else DifficultyLevel.EASY,
+            difficulty=difficulty,  # Use the provided difficulty for admin generation
             topic=None,  # No specific topic for complete tests
             count=1      # Generate one prompt
         )

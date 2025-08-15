@@ -34,7 +34,7 @@ export default function CustomSectionPage() {
   const translations = {
     'Single Section Practice': '单项练习',
     'Generate targeted practice questions for specific SSAT sections': '针对单项SSAT科目，生成个性化练习题',
-    'Error generating questions': '生成题目时出错',
+    'Error generating questions': '生成题目时出错，请稍后再试',
     'Generating questions...': '正在生成题目...',
     'Our AI is creating SSAT questions based on your requirements. This may take a few moments.': '我们的AI正在根据您的要求创建SSAT题目，请稍候片刻。',
     'Processing...': '处理中...',

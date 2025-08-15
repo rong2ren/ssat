@@ -101,7 +101,7 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
       </div>
       
       <form onSubmit={handleSubmit} className="space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className={`grid grid-cols-1 gap-6 ${formData.question_type === 'writing' ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
           {/* Question Type */}
           <div className="space-y-2">
             <Label htmlFor="practice-question-type">{t('Question Type')} *</Label>
@@ -113,16 +113,18 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
             />
           </div>
 
-          {/* Difficulty */}
-          <div className="space-y-2">
-            <Label htmlFor="practice-difficulty">{t('Difficulty')} *</Label>
-            <Select
-              value={formData.difficulty}
-              onChange={(value) => setFormData(prev => ({ ...prev, difficulty: value as any }))}
-              options={difficulties}
-              id="practice-difficulty"
-            />
-          </div>
+          {/* Difficulty - Hidden for writing */}
+          {formData.question_type !== 'writing' && (
+            <div className="space-y-2">
+              <Label htmlFor="practice-difficulty">{t('Difficulty')} *</Label>
+              <Select
+                value={formData.difficulty}
+                onChange={(value) => setFormData(prev => ({ ...prev, difficulty: value as any }))}
+                options={difficulties}
+                id="practice-difficulty"
+              />
+            </div>
+          )}
 
           {/* Count */}
           <div className="space-y-2">
