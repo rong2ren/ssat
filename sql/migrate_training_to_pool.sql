@@ -256,6 +256,7 @@ BEGIN
                     prompt,
                     tags,
                     visual_description,
+                    image_path,  -- Added image_path field
                     embedding,
                     training_examples_used
                 ) VALUES (
@@ -264,6 +265,7 @@ BEGIN
                     writing_prompt.prompt,
                     COALESCE(writing_prompt.tags, ARRAY[]::TEXT[]),
                     COALESCE(writing_prompt.visual_description, ''),
+                    COALESCE(writing_prompt.image_path, ''),  -- Added image_path value
                     writing_prompt.embedding,
                     ARRAY[writing_prompt.id]
                 );

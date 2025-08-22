@@ -203,8 +203,8 @@ class QuestionService:
                     "prompt_text": writing_prompt.prompt_text,  # type: ignore[attr-defined]
                     "instructions": writing_prompt.instructions,  # type: ignore[attr-defined]
                     "visual_description": writing_prompt.visual_description,  # type: ignore[attr-defined]
+                    "image_path": writing_prompt.image_path,  # type: ignore[attr-defined] - Add image_path support
                     "grade_level": writing_prompt.grade_level,  # type: ignore[attr-defined]
-    
                     "prompt_type": writing_prompt.prompt_type,  # type: ignore[attr-defined]
                     "subsection": writing_prompt.subsection,  # type: ignore[attr-defined]
                     "tags": writing_prompt.tags,  # type: ignore[attr-defined]
@@ -1104,6 +1104,7 @@ REMEMBER: Use the EXACT subsection names listed above and generate the EXACT num
             prompt_text=prompt_data["prompt_text"],
             instructions=prompt_data["instructions"],
             visual_description=prompt_data.get("visual_description"),
+            image_path=prompt_data.get("image_path"),  # Add image_path support
             grade_level=prompt_data.get("grade_level", "3-4"),
             prompt_type=prompt_data.get("prompt_type", "picture_story"),
             tags=prompt_data.get("tags", []),

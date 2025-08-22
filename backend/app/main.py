@@ -5,6 +5,7 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 import time
@@ -82,6 +83,9 @@ app.add_middleware(
 
 # Include auth router
 app.include_router(auth_router)
+
+# Static files are now served by the frontend
+# app.mount("/images", StaticFiles(directory="public/images"), name="images")
 
 @app.get("/", response_model=HealthResponse)
 async def root():

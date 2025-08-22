@@ -492,8 +492,30 @@ export function QuestionDisplay({
                     <p className="text-lg text-gray-900 leading-relaxed">{question.text}</p>
                   </div>
 
-                  {/* Visual Description */}
-                  {question.visual_description && (
+                  {/* Display image if available */}
+                  {question.image_path && (
+                    <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex flex-col space-y-3">
+                        <p className="text-sm text-blue-800 font-medium">
+                          <strong>📷 Visual Element:</strong>
+                        </p>
+                        <div className="flex justify-center">
+                          <img 
+                            src={`/images/${question.image_path}`}
+                            alt="Question visual"
+                            className="max-w-full max-h-96 rounded-lg shadow-md border-2 border-blue-200"
+                            onError={(e) => {
+                              console.warn('Failed to load image:', question.image_path);
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Display visual description if no image but description available */}
+                  {!question.image_path && question.visual_description && (
                     <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                       <p className="text-sm text-blue-800">
                         <strong>{t('Visual Element')}:</strong> {question.visual_description}
@@ -594,8 +616,25 @@ export function QuestionDisplay({
                 <p className="text-lg text-gray-900 leading-relaxed">{question.text}</p>
               </div>
 
-              {/* Visual Description */}
-              {question.visual_description && (
+              {/* Display image if available */}
+              {question.image_path && (
+                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex justify-center">
+                    <img 
+                      src={`/images/${question.image_path}`}
+                      alt="Question visual"
+                      className="max-w-full max-h-96 rounded-lg shadow-md border-2 border-blue-200"
+                      onError={(e) => {
+                        console.warn('Failed to load image:', question.image_path);
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {/* Display visual description if no image but description available */}
+              {!question.image_path && question.visual_description && (
                 <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <p className="text-sm text-blue-800">
                     <strong>{t('Visual Element')}:</strong> {question.visual_description}

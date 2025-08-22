@@ -1,0 +1,148 @@
+{
+  "writing_prompts": [
+    {
+      "id": "IMG-PROMPT-83E894AB",
+      "prompt": "Look at this picture of embedded. Write a story about what might happen next. What adventures could this scene have?",
+      "visual_description": "A group of men enjoys a meal of oysters and wine at a table submerged in a flooded Venetian canal.  Undeterred by the high water, they are seated in chairs, demonstrating resilience and a jovial spirit.  The scene showcases the unique challenges and adaptability of life in Venice.",
+      "image_path": "writing_prompts/embedded_p11_i0.jpeg",
+      "tags": [
+        "visual-inspiration",
+        "descriptive-language",
+        "image-based"
+      ],
+      "source_file": "extracted_images_from_pdf"
+    },
+    {
+      "id": "IMG-PROMPT-B2E44B4A",
+      "prompt": "Look at this picture of embedded. Write a story about what might happen next. What adventures could this scene have?",
+      "visual_description": "A referee in a striped shirt blows a whistle, officiating a comedic sports event.  Three players in red shirts react dramatically to his call, showcasing playful competition and exaggerated expressions.  The scene is energetic and suggests a humorous improv or sketch comedy performance.",
+      "image_path": "writing_prompts/embedded_p13_i0.jpeg",
+      "tags": [
+        "visual-inspiration",
+        "descriptive-language",
+        "image-based"
+      ],
+      "source_file": "extracted_images_from_pdf"
+    },
+    {
+      "id": "IMG-PROMPT-49205466",
+      "prompt": "Look at this picture of embedded. Write a story about what might happen next. What adventures could this scene have?",
+      "visual_description": "A woman shares a book with a group of children outdoors.  The children, some holding balloons, appear happy and engaged.  The scene suggests a moment of interaction and learning in a possibly rural setting.",
+      "image_path": "writing_prompts/embedded_p15_i0.jpeg",
+      "tags": [
+        "visual-inspiration",
+        "descriptive-language",
+        "image-based"
+      ],
+      "source_file": "extracted_images_from_pdf"
+    },
+    {
+      "id": "IMG-PROMPT-83BFD133",
+      "prompt": "Look at this picture of embedded. Write a story about what might happen next. What adventures could this scene have?",
+      "visual_description": "A large crocodile lies on the bank with its jaws open, while a person in a red shirt leans close to its mouth.  Another person in red stands in the shallow water nearby, possibly overseeing the interaction.  This appears to be a crocodile show or performance.",
+      "image_path": "writing_prompts/embedded_p17_i0.jpeg",
+      "tags": [
+        "visual-inspiration",
+        "descriptive-language",
+        "image-based"
+      ],
+      "source_file": "extracted_images_from_pdf"
+    },
+    {
+      "id": "IMG-PROMPT-FE8671F4",
+      "prompt": "Look at this picture of embedded. Write a story about what might happen next. What adventures could this scene have?",
+      "visual_description": "A young woman sits on a grassy hill overlooking a lake, feeding a flock of Canada geese.  The geese surround her, enjoying their meal, while a city skyline and water activities are visible in the background.  It's a peaceful, sunny scene.",
+      "image_path": "writing_prompts/embedded_p19_i0.jpeg",
+      "tags": [
+        "visual-inspiration",
+        "descriptive-language",
+        "image-based"
+      ],
+      "source_file": "extracted_images_from_pdf"
+    },
+    {
+      "id": "IMG-PROMPT-2E219EA8",
+      "prompt": "Look at this picture of embedded. Write a story about what might happen next. What adventures could this scene have?",
+      "visual_description": "A large, whimsical elephant puppet is being guided down a parade route.  A woman in a vibrant green outfit steers it with a long pole, while a trombonist in a dark suit marches alongside. Other parade participants, including costumed children, follow behind.",
+      "image_path": "writing_prompts/embedded_p21_i0.jpeg",
+      "tags": [
+        "visual-inspiration",
+        "descriptive-language",
+        "image-based"
+      ],
+      "source_file": "extracted_images_from_pdf"
+    },
+    {
+      "id": "IMG-PROMPT-4B2D719A",
+      "prompt": "Look at this picture of embedded. Write a story about what might happen next. What adventures could this scene have?",
+      "visual_description": "A series of carefully balanced rock cairns stand along a grassy lakeshore, creating a serene and artistic display.  The cairns vary in size and height, arranged in a row against the backdrop of calm water and lush green trees.  Fallen leaves decorate the foreground, adding a natural touch to the scene.",
+      "image_path": "writing_prompts/embedded_p23_i0.jpeg",
+      "tags": [
+        "visual-inspiration",
+        "descriptive-language",
+        "image-based"
+      ],
+      "source_file": "extracted_images_from_pdf"
+    },
+    {
+      "id": "IMG-PROMPT-E691B29C",
+      "prompt": "Look at this picture of embedded. Write a story about what might happen next. What adventures could this scene have?",
+      "visual_description": "A large mural of a squirrel adorns the side of a brick building.  Cars are parked along the street in front, and a pedestrian walks by.  The scene is a blend of urban grit and artistic expression.",
+      "image_path": "writing_prompts/embedded_p25_i0.jpeg",
+      "tags": [
+        "visual-inspiration",
+        "descriptive-language",
+        "image-based"
+      ],
+      "source_file": "extracted_images_from_pdf"
+    },
+    {
+      "id": "IMG-PROMPT-01EACA5C",
+      "prompt": "Look at this picture of embedded. Write a story about what might happen next. What adventures could this scene have?",
+      "visual_description": "A white-breasted nuthatch hangs upside down from a snow-covered branch.  Its tiny claws grip the branch firmly as it searches for food.  The snowy winter scene provides a stark, beautiful backdrop.",
+      "image_path": "writing_prompts/embedded_p27_i0.jpeg",
+      "tags": [
+        "visual-inspiration",
+        "descriptive-language",
+        "image-based"
+      ],
+      "source_file": "extracted_images_from_pdf"
+    },
+    {
+      "id": "IMG-PROMPT-45D161A1",
+      "prompt": "Look at this picture of embedded. Write a story about what might happen next. What adventures could this scene have?",
+      "visual_description": "Two snails are slowly making their way across a wet, dark-colored surface, likely pavement after a rain.  Their shells are a striking brown and tan, and their trails are visible in the water.  The image focuses on the snails' journey through the puddle.",
+      "image_path": "writing_prompts/embedded_p5_i0.jpeg",
+      "tags": [
+        "visual-inspiration",
+        "descriptive-language",
+        "image-based"
+      ],
+      "source_file": "extracted_images_from_pdf"
+    },
+    {
+      "id": "IMG-PROMPT-1BEF8257",
+      "prompt": "Look at this picture of embedded. Write a story about what might happen next. What adventures could this scene have?",
+      "visual_description": "Here's a short description of the image:\n\nA rustic log cabin, nestled in a dense forest, shows signs of age and disrepair.  Its stone chimney stands tall, and the surrounding vegetation hints at a secluded, possibly abandoned location. The porch shows some deterioration.",
+      "image_path": "writing_prompts/embedded_p7_i0.jpeg",
+      "tags": [
+        "visual-inspiration",
+        "descriptive-language",
+        "image-based"
+      ],
+      "source_file": "extracted_images_from_pdf"
+    },
+    {
+      "id": "IMG-PROMPT-8D8FEB66",
+      "prompt": "Look at this picture of embedded. Write a story about what might happen next. What adventures could this scene have?",
+      "visual_description": "A light brown and white dog sits serenely amidst a vibrant flower garden.  White daisies and orange and red blanket flowers surround the canine companion, creating a picturesque scene.  The dog appears calm and content in its flowery surroundings.",
+      "image_path": "writing_prompts/embedded_p9_i0.jpeg",
+      "tags": [
+        "visual-inspiration",
+        "descriptive-language",
+        "image-based"
+      ],
+      "source_file": "extracted_images_from_pdf"
+    }
+  ]
+}

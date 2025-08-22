@@ -53,11 +53,91 @@ python upload_data.py            # Upload training data
 
 ## 🔧 Technology Stack
 
-| Project | Language | Package Manager | Framework |
-|---------|----------|----------------|-----------|
-| **Backend** | Python 3.11+ | UV | FastAPI |
-| **Frontend** | TypeScript | npm | Next.js 15 |
-| **Scripts** | Python 3.11+ | pip | - |
+### 🏗️ **Backend Stack**
+| Component | Technology | Version | Purpose |
+|-----------|------------|---------|---------|
+| **Framework** | FastAPI | Latest | High-performance async web framework |
+| **Language** | Python | 3.11+ | Core backend language |
+| **Package Manager** | UV | Latest | Fast Python package manager |
+| **Database** | Supabase (PostgreSQL) | Latest | Primary database with vector extensions |
+| **Authentication** | Supabase Auth | Latest | JWT-based authentication |
+| **LLM Providers** | OpenAI GPT-3.5, Google Gemini, DeepSeek | Latest | AI question generation |
+| **Embeddings** | Sentence Transformers | 4.1.0 | Text embedding for semantic search |
+| **Validation** | Pydantic | 2.0+ | Data validation and serialization |
+| **Logging** | Loguru | 0.7.3 | Structured logging |
+| **HTTP Client** | httpx | Latest | Async HTTP client for API calls |
+| **CORS** | FastAPI CORS | Built-in | Cross-origin resource sharing |
+
+### 🎨 **Frontend Stack**
+| Component | Technology | Version | Purpose |
+|-----------|------------|---------|---------|
+| **Framework** | Next.js | 15.3.5 | React framework with App Router |
+| **Language** | TypeScript | 5+ | Type-safe JavaScript |
+| **UI Library** | React | 19.0.0 | Component library |
+| **Styling** | Tailwind CSS | 4.0+ | Utility-first CSS framework |
+| **UI Components** | Radix UI | Latest | Accessible component primitives |
+| **Icons** | Lucide React | 0.525.0 | Icon library |
+| **State Management** | React Context | Built-in | Global state management |
+| **Authentication** | Supabase Client | 2.52.0 | Client-side auth |
+| **HTTP Client** | Fetch API | Built-in | API communication |
+| **Build Tool** | Turbopack | Built-in | Fast bundler |
+
+### 🗄️ **Database & Infrastructure**
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| **Database** | Supabase PostgreSQL | Primary data storage |
+| **Vector Extensions** | pgvector | Embedding storage and similarity search |
+| **Real-time** | Supabase Realtime | Live updates |
+| **Row Level Security** | Supabase RLS | Data access control |
+| **Functions** | PostgreSQL Functions | Complex queries and business logic |
+| **Storage** | Supabase Storage | File storage (images, PDFs) |
+
+### 🤖 **AI & Machine Learning**
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| **LLM Integration** | OpenAI API, Google AI, DeepSeek API | Question generation |
+| **Embedding Model** | all-MiniLM-L6-v2 | Text embedding generation |
+| **Semantic Search** | Vector similarity (cosine) | Finding similar questions |
+| **Few-shot Learning** | Custom prompts with examples | Quality question generation |
+| **Content Pool** | Pre-generated question database | Instant delivery system |
+
+### 🛠️ **Development Tools**
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| **Package Manager (Backend)** | UV | Fast Python dependency management |
+| **Package Manager (Frontend)** | npm | Node.js package management |
+| **Linting (Frontend)** | ESLint | Code quality and consistency |
+| **Type Checking** | TypeScript | Static type checking |
+| **Hot Reload** | FastAPI reload, Next.js dev | Development experience |
+| **API Documentation** | FastAPI auto-docs | Interactive API documentation |
+
+### 📊 **Monitoring & Logging**
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| **Backend Logging** | Loguru | Structured application logging |
+| **Frontend Logging** | Console + API routes | Client-side event tracking |
+| **Error Tracking** | Custom error handlers | Error monitoring |
+| **Performance** | Built-in timing | Response time monitoring |
+| **Health Checks** | Custom endpoints | System health monitoring |
+
+### 🔒 **Security & Authentication**
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| **Authentication** | Supabase Auth | User authentication |
+| **Authorization** | JWT tokens | API access control |
+| **Role-based Access** | Custom role system | User permissions |
+| **CORS** | FastAPI CORS middleware | Cross-origin security |
+| **Input Validation** | Pydantic models | Data sanitization |
+| **Rate Limiting** | Custom implementation | API abuse prevention |
+
+### 🚀 **Deployment & DevOps**
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| **Backend Deployment** | Docker, AWS Lambda, etc. | Server deployment |
+| **Frontend Deployment** | Vercel, Netlify | Static site hosting |
+| **Environment Management** | .env files | Configuration management |
+| **Database Migration** | SQL scripts | Schema management |
+| **CI/CD** | GitHub Actions (planned) | Automated deployment |
 
 ## 📦 Key Features
 

@@ -108,7 +108,7 @@ export default function CustomSectionPage() {
       } else if (data.prompts) {
         // Writing prompts - convert to question-like format for display
         console.log('🔍 DAILY LIMITS: Received writing prompts:', data.prompts.length)
-        const promptQuestions = data.prompts.map((prompt: { prompt_text: string; visual_description?: string; instructions: string }, index: number) => ({
+        const promptQuestions = data.prompts.map((prompt: { prompt_text: string; visual_description?: string; image_path?: string; instructions: string }, index: number) => ({
           id: `writing-${index}`,
           question_type: 'writing',
           difficulty: request.difficulty,
@@ -119,6 +119,7 @@ export default function CustomSectionPage() {
           cognitive_level: 'CREATE',
           tags: ['writing', 'creative'],
           visual_description: prompt.visual_description || undefined,
+          image_path: prompt.image_path || undefined,
           metadata: {
             isWritingPrompt: true,
             instructions: prompt.instructions

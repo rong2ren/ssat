@@ -425,17 +425,19 @@ class AIContentService:
                 elif isinstance(prompt, dict) and prompt.get('subsection'):
                     subsection = prompt['subsection']
                 
-                # Extract tags, visual description, and training examples from prompt data if available
+                # Extract tags, visual description, image_path, and training examples from prompt data if available
                 tags = []
                 training_examples_from_prompt = []
                 if isinstance(prompt, dict):
                     tags = prompt.get('tags', [])
                     visual_description = prompt.get('visual_description')
+                    image_path = prompt.get('image_path')
                     training_examples_from_prompt = prompt.get('training_examples_used', [])
                 else:
                     if hasattr(prompt, 'tags') and prompt.tags:
                         tags = prompt.tags
                     visual_description = prompt.visual_description if hasattr(prompt, 'visual_description') else getattr(prompt, 'visual_description', None)
+                    image_path = prompt.image_path if hasattr(prompt, 'image_path') else getattr(prompt, 'image_path', None)
                     # Extract training examples from metadata if available
                     if hasattr(prompt, 'metadata') and prompt.metadata:
                         training_examples_from_prompt = prompt.metadata.get('training_examples_used', [])
@@ -446,6 +448,7 @@ class AIContentService:
                     "prompt": prompt_text,
                     "tags": tags,
                     "visual_description": visual_description,
+                    "image_path": image_path,  # Add image_path field
                     "embedding": prompt_embedding,
                     "training_examples_used": training_examples_from_prompt or training_examples_used or []
                 }

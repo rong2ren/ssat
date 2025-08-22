@@ -55,6 +55,7 @@ class PoolResponseConverter:
                 cognitive_level='Application',  # Default
                 tags=pool_question.get('tags', []),
                 visual_description=pool_question.get('visual_description'),
+                image_path=pool_question.get('image_path'),  # Add image_path field
                 subsection=pool_question.get('subsection'),
                 metadata={
                     'source': 'pool',
@@ -112,6 +113,7 @@ class PoolResponseConverter:
                     cognitive_level='Application',  # Default
                     tags=pool_question.get('tags', []),
                     visual_description=pool_question.get('visual_description'),
+                    image_path=pool_question.get('image_path'),  # Add image_path field
                     metadata={
                         'source': 'pool',
                         'passage_id': pool_passage.get('passage_id')
@@ -164,6 +166,7 @@ class PoolResponseConverter:
                 prompt_text=pool_prompt.get('prompt_text', pool_prompt.get('prompt', '')),
                 instructions="",  # Remove redundant instructions - section instructions will be used instead
                 visual_description=pool_prompt.get('visual_description'),
+                image_path=pool_prompt.get('image_path'),
                 tags=pool_prompt.get('tags', []),
                 metadata={
                     'source': 'pool',
@@ -220,6 +223,7 @@ class PoolResponseConverter:
                 cognitive_level='Application',  # Default
                 tags=pool_question.get('tags', []),
                 visual_description=pool_question.get('visual_description'),
+                image_path=pool_question.get('image_path'),  # Add image_path field
                 subsection=pool_question.get('subsection'),
                 metadata={
                     'source': 'pool',
@@ -290,6 +294,7 @@ class PoolResponseConverter:
                     cognitive_level='Application',  # Default
                     tags=pool_question.get('tags', []),
                     visual_description=pool_question.get('visual_description'),
+                    image_path=pool_question.get('image_path'),  # Add image_path field
                     metadata={
                         'source': 'pool',
                         'passage_id': pool_passage.get('passage_id')

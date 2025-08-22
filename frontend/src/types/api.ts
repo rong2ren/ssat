@@ -14,6 +14,7 @@ export interface Question {
   cognitive_level: string
   tags: string[]
   visual_description?: string
+  image_path?: string
   metadata?: Record<string, any>
 }
 
@@ -60,6 +61,7 @@ export interface WritingPrompt {
   prompt_text: string
   instructions: string
   visual_description?: string
+  image_path?: string
   grade_level: string
   prompt_type: string
 }

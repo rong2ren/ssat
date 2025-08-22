@@ -105,6 +105,7 @@ class WritingPrompt:
         self.prompt_text = prompt_data["prompt"]
         self.instructions = prompt_data.get("instructions", "Write a story with a beginning, middle, and end.")
         self.visual_description = prompt_data.get("visual_description")
+        self.image_path = prompt_data.get("image_path")  # Add image_path support
         self.grade_level = prompt_data.get("grade_level", "3-4")
         self.prompt_type = prompt_data.get("prompt_type", "picture_story")
         self.subsection = prompt_data.get("subsection", "Picture Story")  # AI-determined subsection

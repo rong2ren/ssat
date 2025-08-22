@@ -296,6 +296,13 @@ function ReadingSectionDisplay({ section, showAnswers, setShowAnswers }: { secti
 function WritingSectionDisplay({ section, showAnswers }: { section: WritingSection, showAnswers: boolean }) {
   const prompt = section.prompt
   
+  // Debug logging
+  console.log('🔍 WritingSectionDisplay Debug:', {
+    imagePath: prompt.image_path,
+    hasVisualDescription: !!prompt.visual_description,
+    promptText: prompt.prompt_text?.substring(0, 50) + '...'
+  });
+  
   return (
     <div className="space-y-6">
       <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
@@ -303,17 +310,34 @@ function WritingSectionDisplay({ section, showAnswers }: { section: WritingSecti
         <div className="space-y-4">
           <p className="text-purple-900 text-lg leading-relaxed">{prompt.prompt_text}</p>
           
-          {prompt.visual_description && (
+          {/* Display image if available */}
+          {prompt.image_path && (
+            <div className="bg-purple-100 p-4 rounded border-l-4 border-purple-400">
+              <div className="flex justify-center">
+                <img 
+                  src={`/images/${prompt.image_path}`}
+                  alt="Writing prompt visual"
+                  className="max-w-full max-h-96 rounded-lg shadow-md border-2 border-purple-200"
+                  onError={(e) => {
+                    console.warn('Failed to load image:', prompt.image_path);
+                    e.currentTarget.style.display = 'none';
+                  }}
+                  onLoad={() => {
+                    console.log('✅ Image loaded successfully:', prompt.image_path);
+                  }}
+                />
+              </div>
+            </div>
+          )}
+          
+          {/* Display visual description if no image but description available */}
+          {!prompt.image_path && prompt.visual_description && (
             <div className="bg-purple-100 p-3 rounded border-l-4 border-purple-400">
               <p className="text-sm text-purple-800">
                 <strong>Visual Element:</strong> {prompt.visual_description}
               </p>
             </div>
           )}
-          
-
-          
-
         </div>
       </div>
     </div>

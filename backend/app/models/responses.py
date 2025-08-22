@@ -22,6 +22,7 @@ class GeneratedQuestion(BaseModel):
     subsection: Optional[str] = Field(default=None, description="AI-generated subsection categorization")
     tags: List[str] = Field(default_factory=list, description="Question tags")
     visual_description: Optional[str] = Field(default=None, description="Visual elements description")
+    image_path: Optional[str] = Field(default=None, description="Path to the image file for picture-based questions")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
 class GenerationMetadata(BaseModel):
@@ -50,6 +51,7 @@ class WritingPrompt(BaseModel):
     prompt_text: str = Field(..., description="The main writing prompt")
     instructions: str = Field(..., description="Instructions for students")
     visual_description: Optional[str] = Field(default=None, description="Description of visual prompt")
+    image_path: Optional[str] = Field(default=None, description="Path to the image file for picture-based prompts")
     grade_level: str = Field(default="3-4", description="Target grade level")
     prompt_type: str = Field(default="picture_story", description="Type of writing prompt")
     tags: List[str] = Field(default_factory=list, description="Writing skills and element tags")

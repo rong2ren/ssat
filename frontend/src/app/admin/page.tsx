@@ -1370,14 +1370,17 @@ EXPLANATION: The passage mentions that Romans "developed a sophisticated legal s
                         <pre className="text-xs text-blue-800 whitespace-pre-wrap">
 {`Prompt: Look at this picture of children building a treehouse. Write a story about their adventure.
 Visual Description: Children working together with wood and tools to build a treehouse in a backyard
+Image Path: writing_prompts/treehouse_children.jpeg
 Tags: character-development, visual-inspiration, adventure-elements
 
 Prompt: You find a magic key that can open any door. Write a story about where you go and what you discover.
 Visual Description: An ornate, glowing key lying on a wooden table with mysterious symbols
+Image Path: writing_prompts/magic_key.jpeg
 Tags: imaginative-thinking, creative-problem-solving, discovery-learning
 
 Prompt: A friendly robot appears in your backyard. Write a story about what happens next.
 Visual Description: Small, colorful robot with friendly LED eyes standing in a garden
+Image Path: writing_prompts/friendly_robot.jpeg
 Tags: character-development, visual-inspiration, friendship-themes`}
                         </pre>
                         <p className="text-xs text-blue-700 mt-2">
@@ -1389,7 +1392,14 @@ Tags: character-development, visual-inspiration, friendship-themes`}
                           • Use age-appropriate language for grades 3-4
                         </p>
                         <p className="text-xs text-blue-700 mt-2">
-                          <strong>Database:</strong> Saved to writing_prompts table with visual_description field
+                          <strong>Image Path Guidelines:</strong>
+                          • Use web-accessible path format: writing_prompts/filename.jpeg
+                          • Images should be uploaded to public/images/writing_prompts/
+                          • Leave empty if no image is available
+                          • Example: writing_prompts/adventure_scene.jpeg
+                        </p>
+                        <p className="text-xs text-blue-700 mt-2">
+                          <strong>Database:</strong> Saved to writing_prompts table with visual_description and image_path fields
                         </p>
                       </div>
                     )}

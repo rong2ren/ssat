@@ -160,6 +160,7 @@ RETURNS TABLE (
     id TEXT,
     prompt_text TEXT,
     visual_description TEXT,
+    image_path TEXT,
     tags TEXT[],
     generation_session_id TEXT,
     created_at TIMESTAMPTZ
@@ -172,6 +173,7 @@ BEGIN
         wp.id,
         wp.prompt as prompt_text,
         wp.visual_description,
+        wp.image_path,
         wp.tags,
         wp.generation_session_id,
         wp.created_at

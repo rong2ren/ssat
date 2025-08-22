@@ -2,7 +2,6 @@
 # Use: pip install -r requirements.txt
 
 # Core utilities
-python-dotenv>=1.0.0
 loguru>=0.7.3,<0.8.0
 
 # Database operations
@@ -10,14 +9,11 @@ supabase>=2.15.1,<3.0.0
 
 # ML and embeddings for data processing
 sentence-transformers>=4.1.0,<5.0.0
-transformers>=4.51.3,<5.0.0
 
 # PDF processing and OCR
 pdfplumber>=0.11.7
 pdf2image>=1.17.0
 pytesseract>=0.3.13
-pillow>=10.0.0
-opencv-python>=4.8.0
 
 # Progress bars and utilities
 tqdm>=4.65.0

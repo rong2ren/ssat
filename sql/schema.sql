@@ -59,6 +59,7 @@ CREATE TABLE writing_prompts (
     prompt TEXT NOT NULL,                   -- The writing prompt text
     tags TEXT[],                            -- Array of tags
     visual_description TEXT,                -- Description of picture prompts or visual stimuli
+    image_path TEXT,                        -- Path to the image file for picture-based prompts
     embedding vector(384),                  -- For finding similar prompts
     created_at TIMESTAMPTZ DEFAULT NOW()
 );

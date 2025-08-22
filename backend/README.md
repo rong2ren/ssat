@@ -67,6 +67,7 @@ uv sync
 ```bash
 # Run with auto-reload
 uv run uvicorn app.main:app --reload --port 8000
+npm run dev
 
 # Or on different port
 uv run uvicorn app.main:app --reload --port 8001

@@ -346,6 +346,7 @@ OUTPUT FORMAT - Return ONLY a JSON object:
                     "prompt": prompt_text,
                     "tags": prompt.get('tags', []),
                     "visual_description": prompt.get('visual_description', ''),
+                    "image_path": prompt.get('image_path', ''),  # Add image_path field
                     "embedding": embedding
                 }
                 
@@ -532,6 +533,8 @@ OUTPUT FORMAT - Return ONLY a JSON object:
                 current_prompt['tags'] = [tag.strip() for tag in tags_text.split(',')]
             elif line.lower().startswith('visual description:'):
                 current_prompt['visual_description'] = line[19:].strip()
+            elif line.lower().startswith('image path:'):
+                current_prompt['image_path'] = line[11:].strip()
             elif not current_prompt.get('prompt'):
                 # If no "Prompt:" label, treat the first non-empty line as prompt
                 current_prompt['prompt'] = line

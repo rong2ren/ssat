@@ -79,6 +79,7 @@ CREATE TABLE ai_generated_writing_prompts (
     prompt TEXT NOT NULL,
     tags TEXT[],
     visual_description TEXT,
+    image_path TEXT,                        -- Path to the image file for picture-based prompts
     embedding vector(384),
     
     -- Generation metadata
@@ -246,6 +247,7 @@ RETURNS TABLE (
     id TEXT,
     prompt TEXT,
     visual_description TEXT,
+    image_path TEXT,  -- Added image_path
     tags TEXT[],
     generation_session_id TEXT,
     created_at TIMESTAMPTZ
@@ -258,6 +260,7 @@ BEGIN
         wp.id,
         wp.prompt,
         wp.visual_description,
+        wp.image_path,  -- Added image_path
         wp.tags,
         wp.generation_session_id,
         wp.created_at
@@ -349,11 +352,12 @@ $$;
 COMMENT ON TABLE ai_generated_questions IS 'AI-generated SSAT questions with generation metadata';
 COMMENT ON TABLE ai_generated_reading_passages IS 'AI-generated reading passages with metadata';
 COMMENT ON TABLE ai_generated_reading_questions IS 'AI-generated reading questions linked to AI passages';
-COMMENT ON TABLE ai_generated_writing_prompts IS 'AI-generated writing prompts with metadata';
+COMMENT ON TABLE ai_generated_writing_prompts IS 'AI-generated writing prompts with metadata and image support';
+COMMENT ON COLUMN ai_generated_writing_prompts.image_path IS 'Path to the image file for picture-based writing prompts';
 COMMENT ON TABLE ai_generation_sessions IS 'Tracking sessions for complete test generation';
 
 COMMENT ON FUNCTION get_ai_generated_questions_by_section IS 'Get AI-generated questions with filtering by section/difficulty';
 COMMENT ON FUNCTION get_ai_generated_reading_content IS 'Get AI-generated reading comprehension content';
-COMMENT ON FUNCTION get_ai_generated_writing_prompts IS 'Get AI-generated writing prompts with topic filtering';
+COMMENT ON FUNCTION get_ai_generated_writing_prompts IS 'Get AI-generated writing prompts with topic filtering and image_path support';
 COMMENT ON FUNCTION get_ai_generation_sessions IS 'Get generation sessions (all or filtered by user)';
 COMMENT ON FUNCTION get_session_statistics IS 'Get detailed statistics for a specific session';
