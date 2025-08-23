@@ -40,6 +40,7 @@ backend/.env.local
 backend/.env.development.local
 backend/.env.test.local
 backend/.env.production.local
+# Note: .env.example files are NOT ignored and should be committed
 
 # IDE and editor files
 .vscode/
