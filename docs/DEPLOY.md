@@ -100,7 +100,7 @@ After your first deployment, for future code updates, you only need:
 ```bash
 cd backend
 gcloud run deploy ssat-backend --source . --region us-central1
-gcloud run deploy ssat-backend --source . --region us-central1 --project smartssat
+gcloud run deploy ssat-backend --source . --region us-central1 --project smartssat (if not specify the project before)
 ```
 **No need to specify environment variables again** - they persist between deployments!
 

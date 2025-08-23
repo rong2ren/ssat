@@ -155,6 +155,8 @@ local/
 *.backup
 
 # Data and example files
-data/examples/
-data/extracted/
+data/
+
+# Legacy/unused directories
 minimax/
+dist/
