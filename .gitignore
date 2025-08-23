@@ -40,6 +40,11 @@ backend/.env.local
 backend/.env.development.local
 backend/.env.test.local
 backend/.env.production.local
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
 # Note: .env.example files are NOT ignored and should be committed
 
 # IDE and editor files
@@ -107,6 +112,20 @@ out/
 # Production builds
 /build
 /dist
+
+# Frontend-specific
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+/coverage
+*.pem
+.vercel
+*.tsbuildinfo
+next-env.d.ts
 
 # Temporary files
 *.tmp

@@ -100,6 +100,7 @@ After your first deployment, for future code updates, you only need:
 ```bash
 cd backend
 gcloud run deploy ssat-backend --source . --region us-central1
+gcloud run deploy ssat-backend --source . --region us-central1 --project smartssat
 ```
 **No need to specify environment variables again** - they persist between deployments!
 
@@ -169,20 +170,20 @@ Click "Deploy" and wait for the build to complete.
 
 ### Backend Environment Variables (Google Cloud Run)
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `SUPABASE_URL` | Your Supabase project URL | `https://your-project.supabase.co` |
-| `SUPABASE_KEY` | Supabase service role key | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` |
-| `OPENAI_API_KEY` | OpenAI API key | `sk-...` |
-| `ANTHROPIC_API_KEY` | Anthropic API key | `sk-ant-...` |
+| Variable            | Description               | Example                                   |
+| ------------------- | ------------------------- | ----------------------------------------- |
+| `SUPABASE_URL`      | Your Supabase project URL | `https://your-project.supabase.co`        |
+| `SUPABASE_KEY`      | Supabase service role key | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` |
+| `OPENAI_API_KEY`    | OpenAI API key            | `sk-...`                                  |
+| `ANTHROPIC_API_KEY` | Anthropic API key         | `sk-ant-...`                              |
 
 ### Frontend Environment Variables (Vercel)
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `NEXT_PUBLIC_BACKEND_URL` | Your backend URL from Google Cloud Run | `https://ssat-backend-xxxxx-uc.a.run.app` |
-| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL | `https://your-project.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` |
+| Variable                        | Description                            | Example                                   |
+| ------------------------------- | -------------------------------------- | ----------------------------------------- |
+| `NEXT_PUBLIC_BACKEND_URL`       | Your backend URL from Google Cloud Run | `https://ssat-backend-xxxxx-uc.a.run.app` |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Your Supabase project URL              | `https://your-project.supabase.co`        |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key                 | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` |
 
 ## Custom Domain Setup
 
