@@ -91,7 +91,7 @@ class EmbeddingService:
     
     def generate_embedding(self, text: str) -> Optional[List[float]]:
         """Generate embedding for a single text (thread-safe)."""
-        if not self.model or not text.strip():
+        if not self.model or not text or not isinstance(text, str) or not text.strip():
             return None
         
         try:

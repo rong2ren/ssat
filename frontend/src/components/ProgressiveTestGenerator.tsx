@@ -385,7 +385,11 @@ export function ProgressiveTestGenerator({
           pollAbortController.abort()
         }, 5000)
         
+        // Get auth headers for polling request
+        const headers = await getAuthHeaders()
+        
         const response = await fetch(`/api/generate/complete-test/${jobId}/status`, {
+          headers,
           signal: pollAbortController.signal
         })
         

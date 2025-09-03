@@ -9,11 +9,21 @@ export async function GET(
   try {
     const { jobId } = await params
     
+    // Get the authorization header from the incoming request
+    const authHeader = request.headers.get('authorization')
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    
+    // Forward the authorization header if present
+    if (authHeader) {
+      headers['Authorization'] = authHeader
+    }
+    
     const response = await fetch(`${BACKEND_URL}/generate/complete-test/${jobId}/status`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
     })
 
     if (!response.ok) {

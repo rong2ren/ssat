@@ -72,6 +72,14 @@ export const invalidateLimitsCache = (userId?: string) => {
   }
 }
 
+// Function to reset fetch flag so component can re-fetch
+export const resetDailyLimitsFetch = () => {
+  // Dispatch custom event to trigger re-fetch
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('dailyLimitsRefresh'))
+  }
+}
+
 // Function to clear all cache (for logout)
 export const clearAllLimitsCache = () => {
   try {
@@ -217,6 +225,19 @@ function DailyLimitsDisplayComponent({ showChinese = false, className = '' }: Da
       setRefreshing(false)
     }
   }
+
+  // Listen for refresh events
+  useEffect(() => {
+    const handleRefresh = () => {
+      console.log('🔍 DailyLimitsDisplay: Refresh event received, resetting fetch state')
+      hasFetchedRef.current = false
+      // Force a re-render to trigger the fetch
+      setLoading(true)
+    }
+
+    window.addEventListener('dailyLimitsRefresh', handleRefresh)
+    return () => window.removeEventListener('dailyLimitsRefresh', handleRefresh)
+  }, [])
 
   // Fetch limits once when component mounts
   useEffect(() => {

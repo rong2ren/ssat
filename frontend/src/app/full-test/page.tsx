@@ -6,7 +6,7 @@ import { CompleteTestForm } from '@/components/forms/CompleteTestForm'
 import { useFullTestState, useFullTestActions, usePreferences } from '@/contexts/AppStateContext'
 import { getAuthHeaders } from '@/utils/auth'
 import { useAuth } from '@/contexts/AuthContext'
-import { invalidateLimitsCache } from '@/components/DailyLimitsDisplay'
+import { invalidateLimitsCache, resetDailyLimitsFetch } from '@/components/DailyLimitsDisplay'
 import AuthGuard from '@/components/auth/AuthGuard'
 
 export default function FullTestPage() {
@@ -110,20 +110,34 @@ export default function FullTestPage() {
         console.log('🚀 JOB CREATED:', data.job_id)
         console.log('🔍 FULL TEST: ✅ Test generation started successfully')
         
-        // Invalidate limits cache to refresh the display
+        // Invalidate limits cache and reset fetch flag to refresh the display
         if (user?.id) {
           invalidateLimitsCache(user.id)
-          console.log('🔍 FULL TEST: Invalidated cache after test generation')
+          resetDailyLimitsFetch()
+          console.log('🔍 FULL TEST: Invalidated cache and reset fetch flag after test generation')
         }
       } else {
         const errorData = await response.json().catch(() => ({}))
-        const errorMessage = errorData.error || 'Failed to start test generation'
-        setError(errorMessage)
+        console.log('🔍 FULL TEST: Error response received:', errorData)
         
-        // Handle limit exceeded errors specially
-        if (errorData.limit_exceeded && errorData.limits_info) {
-          setLimitErrorInfo(errorData.limits_info)
+        let errorMessage = 'Failed to start test generation'
+        
+        // Handle structured error responses from backend
+        if (errorData.error && typeof errorData.error === 'string') {
+          // Backend returned structured error
+          errorMessage = errorData.error
+          setError(errorMessage)
+          
+          // Handle limit exceeded errors specially
+          if (errorData.limit_exceeded && errorData.limits_info) {
+            setLimitErrorInfo(errorData.limits_info)
+          } else {
+            setLimitErrorInfo(null)
+          }
         } else {
+          // Fallback for simple error messages
+          errorMessage = errorData.error || errorData.detail || 'Failed to start test generation'
+          setError(errorMessage)
           setLimitErrorInfo(null)
         }
         

@@ -7,26 +7,21 @@ This module provides the correct architecture for generating different types of 
 - Writing prompts (creative writing tasks)
 """
 
-import time
 import uuid
-import json
-import random
 import logging
 from typing import List, Dict, Any, Optional, Union, NamedTuple
 from loguru import logger
 
-from app.models import QuestionRequest, Question, Option
-from app.models.enums import QuestionType, DifficultyLevel
-from app.generator import SSATGenerator, generate_questions, generate_reading_passages
-from app.llm import llm_client, LLMProvider
+from app.models import QuestionRequest, Question
+from app.generator import SSATGenerator, generate_questions
+from app.llm import get_llm_client, LLMProvider
 from app.util import extract_json_from_text
-from app.specifications import OFFICIAL_ELEMENTARY_SPECS
 
 logger = logging.getLogger(__name__)
 
 def _select_llm_provider(requested_provider: Optional[str]) -> LLMProvider:
     """Centralized provider selection logic."""
-    available_providers = llm_client.get_available_providers()
+    available_providers = get_llm_client().get_available_providers()
     
     if not available_providers:
         raise ValueError("No LLM providers available. Please configure at least one API key in .env file")
@@ -192,11 +187,13 @@ def generate_reading_passages_with_metadata(request: QuestionRequest, llm: Optio
         training_example_ids = [ex.get('question_id', '') for ex in training_examples if ex.get('question_id')]
         logger.info(f"Using {len(training_examples)} database reading training examples")
     
-    # Use single call for admin generation (efficiency for small batches)
-    use_single_call = True
-    # Pass pre-fetched training examples to avoid double fetching
+    # For admin generation: single call for ≤3 passages (efficiency), multiple calls for >3 (quality)
+    use_single_call = request.count <= 3
+    logger.debug(f"🔍 DEBUG: Requesting {request.count} passages, use_single_call={use_single_call}")
     results = generate_reading_passages(request, llm=llm, custom_examples=custom_examples, use_single_call=use_single_call, training_examples=training_examples)
-    
+    logger.debug(f"🔍 DEBUG: generate_reading_passages returned {len(results)} results")
+    logger.debug(f"🔍 DEBUG: Results structure: {[type(r) for r in results]}")
+   
     # Convert results to ReadingPassage objects
     passages = []
     provider_used = "auto-selected"
@@ -262,7 +259,7 @@ def generate_writing_prompts_with_metadata(request: QuestionRequest, llm: Option
         provider = _select_llm_provider(llm)
         
         # Generate prompts using LLM
-        content = llm_client.call_llm(
+        content = get_llm_client().call_llm(
             provider=provider,
             system_message=system_message,
             prompt="Generate the writing prompts as specified.",
@@ -350,10 +347,14 @@ async def generate_reading_passages_async(request: QuestionRequest, llm: Optiona
         training_examples = generator.get_reading_training_examples(topic=request.topic)
         logger.info(f"Using {len(training_examples)} database reading training examples")
     
-    # Use single call for admin generation (efficiency for small batches)
-    use_single_call = True
-    # Pass pre-fetched training examples to avoid double fetching
+    # For admin generation: single call for ≤3 passages (efficiency), multiple calls for >3 (quality)
+    use_single_call = request.count <= 3
+    logger.info(f"🔍 DEBUG ASYNC: Requesting {request.count} passages, use_single_call={use_single_call}")
     results = await generate_reading_async(request, llm=llm, custom_examples=custom_examples, use_single_call=use_single_call, training_examples=training_examples)
+    logger.info(f"🔍 DEBUG ASYNC: generate_reading_async returned {len(results)} results")
+    logger.info(f"🔍 DEBUG ASYNC: Results structure: {[type(r) for r in results]}")
+    if results:
+        logger.info(f"🔍 DEBUG ASYNC: First result keys: {list(results[0].keys()) if isinstance(results[0], dict) else 'Not a dict'}")
     
     # Convert results to ReadingPassage objects
     passages = []
@@ -404,7 +405,7 @@ async def generate_writing_prompts_async(request: QuestionRequest, llm: Optional
         logger.info(f"Using LLM provider: {provider.value} (async)")
         
         # Generate prompts using async LLM call for true parallelism
-        content = await llm_client.call_llm_async(
+        content = await get_llm_client().call_llm_async(
             provider=provider,
             system_message=system_message,
             prompt="Generate the writing prompts as specified.",

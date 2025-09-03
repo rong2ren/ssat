@@ -1,17 +1,13 @@
 """SSAT question generator using real SSAT examples for training."""
 
 import asyncio
-import json
-from math import e
 import random
-import uuid
 from typing import List, Optional, Dict, Any
 from supabase import create_client, Client
-from sentence_transformers import SentenceTransformer
 
 from app.models.base import Question, Option, QuestionRequest
 from loguru import logger
-from app.llm import llm_client, LLMProvider
+from app.llm import get_llm_client, LLMProvider
 from app.util import extract_json_from_text
 from app.settings import settings
 from app.services.embedding_service import get_embedding_service
@@ -20,7 +16,7 @@ logger = logger
 
 def _select_llm_provider(requested_provider: Optional[str]) -> LLMProvider:
     """Centralized provider selection logic."""
-    available_providers = llm_client.get_available_providers()
+    available_providers = get_llm_client().get_available_providers()
     
     if not available_providers:
         raise ValueError("No LLM providers available. Please configure at least one API key in .env file")
@@ -134,7 +130,7 @@ class SSATGenerator:
             for choice in choice_parts:
                 choice = choice.strip()
                 if ')' in choice:
-                    letter, text = choice.split(')', 1)
+                    _, text = choice.split(')', 1)
                     choices.append(text.strip())
                 else:
                     choices.append(choice)
@@ -179,7 +175,7 @@ class SSATGenerator:
             for choice in choice_parts:
                 choice = choice.strip()
                 if ')' in choice:
-                    letter, text = choice.split(')', 1)
+                    _, text = choice.split(')', 1)
                     choices.append(text.strip())
                 else:
                     choices.append(choice)
@@ -258,7 +254,7 @@ class SSATGenerator:
                     for choice in choice_parts:
                         choice = choice.strip()
                         if ')' in choice:
-                            letter, text = choice.split(')', 1)
+                            _, text = choice.split(')', 1)
                             choices.append(text.strip())
                         else:
                             choices.append(choice)
@@ -631,7 +627,7 @@ class SSATGenerator:
         examples_text = ""
         valid_examples = 0
         
-        for i, example in enumerate(training_examples, 1):
+        for example in training_examples:
             if not example.get('prompt'):
                 continue
                 
@@ -948,7 +944,7 @@ COMPLEXITY GUIDELINES:
 
 CATEGORIZATION REQUIREMENTS:
 
-1. SUBSECTION: {f'Use "{request.topic}" as the subsection for ALL questions. This is the specific mathematical concept you are generating.' if request.topic else 'Use appropriate subsection names from: Number Sense, Arithmetic, Fractions, Decimals, Percentages, Patterns, Sequences, Algebra, Variables, Area, Perimeter, Shapes, Spatial, Measurement, Time, Money, Probability, Data, Graphs'}
+1. SUBSECTION: {f'Use "{request.topic}" as the subsection for ALL questions. This is the specific mathematical concept you are generating.' if request.topic else f'Use ONLY these EXACT subsection names: {", ".join(QUANTITATIVE_SUBSECTIONS)}. Do NOT create new names, use variations, or combine names. Use ONLY the names from this list.'}
 
 2. TAGS: Create 2-4 descriptive tags from these categories:
    - Content: ["algebraic-thinking", "geometric-reasoning", "number-sense", "measurement-concepts", "data-analysis", "fraction-concepts", "decimal-operations"]
@@ -967,7 +963,7 @@ OUTPUT FORMAT - Return ONLY a JSON object:
       "explanation": "detailed explanation",
       "cognitive_level": "{self._get_cognitive_level_by_difficulty(request.difficulty.value)}",
       "tags": ["tag1", "tag2", "tag3"],
-      "subsection": "{request.topic if request.topic else 'Choose from: Number Sense, Arithmetic, Fractions, Decimals, Percentages, Patterns, Sequences, Algebra, Variables, Area, Perimeter, Shapes, Spatial, Measurement, Time, Money, Probability, Data, Graphs'}",
+      "subsection": "{request.topic if request.topic else f'Use ONLY these EXACT names: {', '.join(QUANTITATIVE_SUBSECTIONS)}. No variations, no new names, no combinations.'}",
       "visual_description": "Description of any visual elements (if applicable)"
     }}
   ]
@@ -1298,7 +1294,7 @@ DISTRIBUTION GUIDELINES:
 
 CRITICAL CATEGORIZATION:
 
-1. SUBSECTION: Use the EXACT subsection names from the list above. Each question must be categorized into one of these specific subsections.{f" If a topic is specified ({request.topic}), ensure questions relate to that topic while still covering diverse subsections." if request.topic else ""}
+1. SUBSECTION: Use ONLY these EXACT subsection names: {", ".join(QUANTITATIVE_SUBSECTIONS)}. Do NOT create new names, use variations, or combine names. Use ONLY the names from this list.{f" If a topic is specified ({request.topic}), ensure questions relate to that topic while still covering diverse subsections." if request.topic else ""}
 
 2. TAGS: Create 2-4 descriptive tags from these categories:
    - Content: ["algebraic-thinking", "geometric-reasoning", "number-sense", "measurement-concepts", "data-analysis", "fraction-concepts", "decimal-operations"]
@@ -1319,7 +1315,7 @@ OUTPUT FORMAT - Return ONLY a JSON object:
       "explanation": "detailed explanation",
       "cognitive_level": "{self._get_cognitive_level_by_difficulty(request.difficulty.value)}",
       "tags": ["tag1", "tag2", "tag3"],
-      "subsection": "Exact subsection name from the list",
+      "subsection": "Use ONLY these EXACT names: {', '.join(QUANTITATIVE_SUBSECTIONS)}. No variations, no new names, no combinations.",
       "visual_description": "Description of any visual elements (if applicable)"
     }}
   ]
@@ -1350,7 +1346,7 @@ COMPLEXITY GUIDELINES:
 
 CRITICAL CATEGORIZATION:
 
-1. SUBSECTION: {f'Use "{request.topic}" as the subsection for ALL questions. This is the specific mathematical concept you are generating.' if request.topic else 'Use appropriate subsection names from: Number Sense, Arithmetic, Fractions, Decimals, Percentages, Patterns, Sequences, Algebra, Variables, Area, Perimeter, Shapes, Spatial, Measurement, Time, Money, Probability, Data, Graphs'}
+1. SUBSECTION: {f'Use "{request.topic}" as the subsection for ALL questions. This is the specific mathematical concept you are generating.' if request.topic else f'Use ONLY these EXACT subsection names: {", ".join(QUANTITATIVE_SUBSECTIONS)}. Do NOT create new names, use variations, or combine names. Use ONLY the names from this list.'}
 
 2. TAGS: Create 2-4 descriptive tags from these categories:
    - Content: ["algebraic-thinking", "geometric-reasoning", "number-sense", "measurement-concepts", "data-analysis", "fraction-concepts", "decimal-operations"]
@@ -1369,7 +1365,7 @@ OUTPUT FORMAT - Return ONLY a JSON object:
       "explanation": "detailed explanation",
       "cognitive_level": "{self._get_cognitive_level_by_difficulty(request.difficulty.value)}",
       "tags": ["tag1", "tag2", "tag3"],
-      "subsection": "{request.topic if request.topic else 'Choose from: Number Sense, Arithmetic, Fractions, Decimals, Percentages, Patterns, Sequences, Algebra, Variables, Area, Perimeter, Shapes, Spatial, Measurement, Time, Money, Probability, Data, Graphs'}",
+      "subsection": "{request.topic if request.topic else f'Use ONLY these EXACT names: {', '.join(QUANTITATIVE_SUBSECTIONS)}. No variations, no new names, no combinations.'}",
       "visual_description": "Description of any visual elements (if applicable)"
     }}
   ]
@@ -1697,6 +1693,14 @@ def generate_questions(request: QuestionRequest, llm: Optional[str] = "deepseek"
     if request.question_type.value == "reading":
         raise ValueError("Reading comprehension questions should use generate_reading_passages() function instead of generate_questions()")
     
+    # Handle simple word list format for synonyms
+    if request.question_type.value == "synonym" and hasattr(request, 'input_format') and request.input_format == "simple":
+        if custom_examples is None:
+            raise ValueError("Word list is required for simple word list format")
+        if llm is None:
+            raise ValueError("LLM provider is required")
+        return _generate_synonym_questions_from_words(request, custom_examples, llm)
+    
     # Use provided training examples if available, otherwise fetch them
     if training_examples is None:
         generator = SSATGenerator()
@@ -1732,7 +1736,7 @@ def generate_questions(request: QuestionRequest, llm: Optional[str] = "deepseek"
     logger.info(f"Generating {request.count} questions, using max_tokens={max_tokens}")
     
     # Generate questions using LLM
-    content = llm_client.call_llm(
+    content = get_llm_client().call_llm(
         provider=provider,
         system_message=system_message,
         prompt="Generate the questions as specified.",
@@ -1754,6 +1758,14 @@ def generate_questions(request: QuestionRequest, llm: Optional[str] = "deepseek"
         options = [Option(letter=opt["letter"], text=opt["text"]) for opt in q_data["options"]]
         # Convert cognitive level to uppercase
         cognitive_level = q_data.get("cognitive_level", "UNDERSTAND").upper()
+        # Validate and fix subsection for quantitative questions
+        subsection = q_data.get("subsection")
+        if request.question_type.value == "quantitative" and subsection:
+            from app.specifications import validate_quantitative_subsection
+            if not validate_quantitative_subsection(subsection):
+                logger.warning(f"⚠️ Invalid subsection '{subsection}' for quantitative question, using 'Algebra' as fallback")
+                subsection = "Algebra"  # Default fallback for algebra-related questions
+        
         question = Question(
             question_type=request.question_type,
             difficulty=request.difficulty,
@@ -1764,7 +1776,7 @@ def generate_questions(request: QuestionRequest, llm: Optional[str] = "deepseek"
             cognitive_level=cognitive_level,
             tags=q_data.get("tags", []),
             visual_description=q_data.get("visual_description"),
-            subsection=q_data.get("subsection")  # Extract AI-determined subsection
+            subsection=subsection  # Use validated subsection
         )
         questions.append(question)
     
@@ -1820,7 +1832,7 @@ OUTPUT FORMAT - Return ONLY a JSON object:
         provider = _select_llm_provider(llm)
         
         # Call LLM to generate questions
-        content = llm_client.call_llm(
+        content = get_llm_client().call_llm(
             provider=provider,
             system_message=system_message,
             prompt="Generate the synonym questions as specified.",
@@ -1922,7 +1934,7 @@ async def generate_questions_async(request: QuestionRequest, llm: Optional[str] 
     logger.info(f"Generating {request.count} questions, using max_tokens={max_tokens}")
     
     # Generate questions using async LLM call for true parallelism
-    content = await llm_client.call_llm_async(
+    content = await get_llm_client().call_llm_async(
         provider=provider,
         system_message=system_message,
         prompt="Generate the questions as specified.",
@@ -2016,7 +2028,7 @@ def _generate_reading_passages_single_call(request: QuestionRequest, llm: str, c
     required_tokens = base_tokens + (request.count * (passage_tokens + question_tokens))
     max_tokens = min(required_tokens, 8000)
     
-    content = llm_client.call_llm(
+    content = get_llm_client().call_llm(
         provider=provider,
         system_message=system_message,
         prompt="Generate the reading passages and questions as specified.",
@@ -2032,12 +2044,14 @@ def _generate_reading_passages_single_call(request: QuestionRequest, llm: str, c
     if data is None:
         raise ValueError("Failed to extract JSON from LLM response")
     
+    
     passages_data = []
     if "passages" in data:
         passages_data = data["passages"]
     elif "passage" in data and "questions" in data:
         passages_data = [data]
     else:
+        logger.error(f"🔍 DEBUG: LLM response structure: {data}")
         raise ValueError("LLM response missing passage structure")
     
     results = []
@@ -2077,12 +2091,11 @@ def _generate_reading_passages_single_call(request: QuestionRequest, llm: str, c
 
 def _generate_reading_passages_multiple_calls(request: QuestionRequest, llm: str, custom_examples: Optional[str], training_examples: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
     """Generate reading passages in multiple LLM calls."""
-    generator = SSATGenerator()
     results = []
     
     for i in range(request.count):
         # Get a single passage and its questions
-        passage_data = _generate_single_reading_passage(request, llm, custom_examples, training_examples)
+        passage_data = _generate_single_reading_passage(request, llm, custom_examples, training_examples, passage_index=i)
         if passage_data:
             results.append(passage_data)
         else:
@@ -2092,7 +2105,7 @@ def _generate_reading_passages_multiple_calls(request: QuestionRequest, llm: str
     logger.info(f"Successfully generated {len(results)} reading passages with {'real SSAT examples' if training_examples else 'generic prompt'}")
     return results
 
-def _generate_single_reading_passage(request: QuestionRequest, llm: str, custom_examples: Optional[str], training_examples: Optional[List[Dict[str, Any]]] = None) -> Optional[Dict[str, Any]]:
+def _generate_single_reading_passage(request: QuestionRequest, llm: str, custom_examples: Optional[str], training_examples: Optional[List[Dict[str, Any]]] = None, passage_index: Optional[int] = None) -> Optional[Dict[str, Any]]:
     """Generate a single reading passage and its questions."""
     generator = SSATGenerator()
     # Use pre-fetched training examples if provided, otherwise fetch them
@@ -2106,7 +2119,7 @@ def _generate_single_reading_passage(request: QuestionRequest, llm: str, custom_
         training_examples = generator.get_reading_training_examples(topic=request.topic)
         logger.info(f"Using {len(training_examples)} database training examples")
     
-    system_message = generator.build_reading_few_shot_prompt(request, training_examples, passage_index=None)
+    system_message = generator.build_reading_few_shot_prompt(request, training_examples, passage_index=passage_index)
     
     provider = _select_llm_provider(llm)
     
@@ -2116,7 +2129,7 @@ def _generate_single_reading_passage(request: QuestionRequest, llm: str, custom_
     required_tokens = base_tokens + (passage_tokens + question_tokens)
     max_tokens = min(required_tokens, 8000)
     
-    content = llm_client.call_llm(
+    content = get_llm_client().call_llm(
         provider=provider,
         system_message=system_message,
         prompt="Generate the reading passage and its 4 comprehension questions as specified.",
@@ -2218,7 +2231,7 @@ async def _generate_reading_passages_single_call_async(request: QuestionRequest,
     required_tokens = base_tokens + (request.count * (passage_tokens + question_tokens))
     max_tokens = min(required_tokens, 8000)
     
-    content = await llm_client.call_llm_async(
+    content = await get_llm_client().call_llm_async(
         provider=provider,
         system_message=system_message,
         prompt="Generate the reading passages and questions as specified.",
@@ -2280,7 +2293,6 @@ async def _generate_reading_passages_single_call_async(request: QuestionRequest,
 
 async def _generate_reading_passages_multiple_calls_async(request: QuestionRequest, llm: str, custom_examples: Optional[str], training_examples: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
     """Generate reading passages in multiple async LLM calls."""
-    generator = SSATGenerator()
     results = []
     
     # Create tasks for parallel execution with diverse examples
@@ -2342,7 +2354,7 @@ async def _generate_single_reading_passage_async(request: QuestionRequest, llm: 
     required_tokens = base_tokens + (passage_tokens + question_tokens)
     max_tokens = min(required_tokens, 8000)
     
-    content = await llm_client.call_llm_async(
+    content = await get_llm_client().call_llm_async(
         provider=provider,
         system_message=system_message,
         prompt="Generate the reading passage and its 4 comprehension questions as specified.",
@@ -2370,13 +2382,12 @@ async def _generate_single_reading_passage_async(request: QuestionRequest, llm: 
         passage_text = passage_data["passage"]
         questions_data = passage_data["questions"]
         passage_type = passage_data.get("passage_type", "General")
-        visual_description = passage_data.get("visual_description")
+
     elif "passage" in data and "questions" in data:
         # LLM returned direct passage format
         passage_text = data["passage"]
         questions_data = data["questions"]
         passage_type = data.get("passage_type", "General")
-        visual_description = data.get("visual_description")
     else:
         logger.warning(f"Async LLM response missing passage or questions for single passage. Keys found: {list(data.keys())}")
         return None

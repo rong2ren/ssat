@@ -1,13 +1,13 @@
 """Job management system for progressive test generation."""
 
 import asyncio
-import time
 import uuid
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 from enum import Enum
 from dataclasses import dataclass, asdict
 from loguru import logger
+import threading
 
 class JobStatus(str, Enum):
     PENDING = "pending"
@@ -77,12 +77,19 @@ class JobManager:
         self.jobs: Dict[str, TestGenerationJob] = {}
         self.cleanup_interval = 3600  # Clean up jobs older than 1 hour
         self._cleanup_task: Optional[asyncio.Task] = None
-        self._start_cleanup_task()
+        self._cleanup_started = False
     
     def _start_cleanup_task(self):
         """Start background cleanup task."""
-        if self._cleanup_task is None or self._cleanup_task.done():
-            self._cleanup_task = asyncio.create_task(self._cleanup_old_jobs())
+        if not self._cleanup_started:
+            try:
+                if self._cleanup_task is None or self._cleanup_task.done():
+                    self._cleanup_task = asyncio.create_task(self._cleanup_old_jobs())
+                    self._cleanup_started = True
+            except RuntimeError:
+                # No event loop running yet, cleanup will be started later
+                logger.debug("No event loop running, cleanup task will be started on first use")
+                pass
     
     async def _cleanup_old_jobs(self):
         """Clean up old completed/failed jobs periodically."""
@@ -106,6 +113,9 @@ class JobManager:
     
     def create_job(self, request_data: Dict[str, Any], user_id: Optional[str] = None) -> str:
         """Create a new test generation job."""
+        # Start cleanup task if not already started
+        self._start_cleanup_task()
+        
         job_id = str(uuid.uuid4())
         
         # Initialize section progress
@@ -257,6 +267,56 @@ class JobManager:
         
         return completed_sections
     
+    def get_job_status(self, job_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """Get job status with user authorization."""
+        logger.info(f"🔍 DEBUG: Getting job status for job_id={job_id}, user_id={user_id} (type: {type(user_id)}) in JobManager instance {id(self)}")
+        
+        job = self.jobs.get(job_id)
+        if not job:
+            logger.warning(f"🔍 DEBUG: Job {job_id} not found in job manager instance {id(self)}")
+            return None
+        
+        logger.info(f"🔍 DEBUG: Found job {job_id}, job.user_id={job.user_id} (type: {type(job.user_id)}), requesting user_id={user_id} (type: {type(user_id)})")
+        
+        # Check if user is authorized to access this job
+        if job.user_id and job.user_id != user_id:
+            logger.warning(f"User {user_id} attempted to access job {job_id} owned by user {job.user_id}")
+            logger.warning(f"🔍 DEBUG: Authorization failed - job.user_id != user_id: {job.user_id} != {user_id}")
+            return None
+        
+        logger.info(f"🔍 DEBUG: User {user_id} authorized to access job {job_id}")
+        
+        # Get completed sections in the proper format
+        completed_sections = self.get_completed_sections(job_id)
+        
+        return {
+            "job_id": job_id,
+            "status": job.status.value,
+            "progress": {
+                "completed": job.completed_sections,
+                "total": job.total_sections,
+                "percentage": int((job.completed_sections / max(job.total_sections, 1)) * 100)
+            },
+            "sections": completed_sections,
+            "section_details": {k: v.to_dict() for k, v in job.sections.items()},
+            "error": job.error,
+            "created_at": job.created_at.isoformat(),
+            "updated_at": job.updated_at.isoformat()
+        }
 
-# Global job manager instance
-job_manager = JobManager()
+# Thread-safe singleton implementation
+_job_manager_instance: Optional[JobManager] = None
+_job_manager_lock = threading.Lock()
+
+def get_job_manager() -> JobManager:
+    """Get the global singleton instance of JobManager (thread-safe)."""
+    global _job_manager_instance
+    if _job_manager_instance is None:
+        with _job_manager_lock:
+            # Double-check pattern to prevent race conditions
+            if _job_manager_instance is None:
+                _job_manager_instance = JobManager()
+    return _job_manager_instance
+
+# Export the instance for backward compatibility
+job_manager = get_job_manager()

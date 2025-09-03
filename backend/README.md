@@ -165,16 +165,23 @@ uv run uvicorn app.main:app --reload --log-level debug
 
 ```bash
 # Development
-uv run uvicorn app.main:app --reload    # Start development server
-uv run pytest                          # Run tests
-uv run black .                         # Format code
-uv run isort .                         # Sort imports
-uv run mypy .                          # Type checking
-uv run ruff check .                    # Lint code
+uv run uvicorn app.main:app --reload           # Start development server
+
+# Testing
+uv run pytest                                  # Run all tests (unit + integration)
+uv run pytest tests/ -k "not integration"     # Run only unit tests (fast)
+uv run pytest tests/ -k "integration"         # Run only integration tests (real services)
+uv run pytest -v                              # Run tests with verbose output
+
+# Code Quality
+uv run black .                                # Format code
+uv run isort .                                # Sort imports
+uv run mypy .                                 # Type checking
+uv run ruff check .                           # Lint code
 
 # Database
-uv run python scripts/upload_data.py   # Upload training data
-uv run python scripts/test_connection.py # Test database connection
+uv run python scripts/upload_data.py          # Upload training data
+uv run python scripts/test_connection.py      # Test database connection
 ```
 
 ### Code Quality
@@ -192,13 +199,53 @@ uv run ruff check --fix .
 uv run mypy .
 ```
 
+## 🏗️ Architecture Overview
+
+### Service Architecture
+
+The system uses a **consolidated content generation service** that combines functionality from multiple legacy services:
+
+- **`ContentGenerationService`**: Main service for all content generation
+- **`PoolSelectionService`**: Manages content pool access and selection
+- **`PoolResponseConverter`**: Converts pool data to API response format
+- **`JobManager`**: Handles background test generation jobs
+
+### Content Generation Strategy
+
+The system implements a **pool-first approach** with role-based LLM fallback:
+
+| User Role | Single Section (`/generate`) | Complete Test (`/generate/complete-test`) |
+|-----------|------------------------------|-------------------------------------------|
+| **Normal Users** | Pool Only (No LLM) | Pool Only (No LLM) |
+| **Admin Users** | Pool + LLM Fallback | Pool + LLM Fallback |
+
+#### Key Benefits:
+- **Performance**: Pool access is instant (~100ms) vs LLM generation (~20-30 seconds)
+- **Cost Control**: Normal users only consume pre-generated content
+- **Quality Assurance**: Admin ensures pool is well-stocked with high-quality content
+- **Consistent Experience**: Both endpoints follow the same pool-first logic
+
+#### How It Works:
+1. **Pool Check**: System first checks available content in the pool
+2. **Role-Based Fallback**: 
+   - Normal users: Get pool content or 404 if pool is empty
+   - Admin users: Get pool content or LLM-generated content if pool is empty
+3. **Content Marking**: Used content is marked to prevent duplicate delivery
+
+#### Implementation Details:
+- **Single Section Generation**: Uses existing `_generate_single_section_background()` logic
+- **Complete Test Generation**: Uses existing background job system
+- **Pool Access**: Consistent pool logic across both endpoints
+- **Response Conversion**: Unified response formatting for all content types
+- **Error Handling**: Graceful fallback and clear error messages
+
 ## 📡 API Endpoints
 
 ### Core Endpoints
 
 #### Question Generation
-- `POST /generate` - Generate individual questions
-- `POST /generate/complete-test/start` - Start progressive complete test generation
+- `POST /generate` - Generate individual questions (Pool-first with role-based LLM fallback)
+- `POST /generate/complete-test/start` - Start progressive complete test generation (Pool-first with role-based LLM fallback)
 - `GET /generate/complete-test/{job_id}/status` - Get test generation progress
 - `GET /generate/complete-test/{job_id}/result` - Get completed test
 
@@ -259,9 +306,144 @@ curl -X GET "http://localhost:8000/generate/complete-test/{job_id}/status" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
-## 🔐 Authentication
+## 🔄 Generation Workflow
 
-The backend uses Supabase Auth with JWT tokens:
+The backend implements a sophisticated role-based generation system with different flows for normal users and admin users.
+
+### **Generation Architecture Overview**
+
+The system uses a **"Pool-first with role-based LLM fallback"** strategy:
+- **Normal Users**: Pool-only access for both single section and complete test generation
+- **Admin Users**: Always use LLM generation for single sections, LLM + pool fallback for complete tests
+
+### **1. Normal User - Single Section Generation**
+
+**Frontend Flow:**
+```
+User clicks "Generate Questions" → CustomSectionPage.handleGenerateQuestions() → 
+/api/generate → Backend /generate endpoint
+```
+
+**Backend Flow:**
+```
+/generate (generation.py) → 
+ContentGenerationService.generate_individual_content(force_llm_generation=False) → 
+_generate_content_from_pool_only() → 
+PoolSelectionService.get_unused_questions_for_user() → 
+PoolResponseConverter.convert_questions_to_section() → 
+Return QuestionGenerationResponse
+```
+
+**Key Functions Used:**
+- `generate_content()` in `generation.py`
+- `generate_individual_content(force_llm_generation=False)` in `ContentGenerationService`
+- `_generate_content_from_pool_only()` in `ContentGenerationService`
+- `PoolSelectionService.get_unused_questions_for_user()`
+- `PoolResponseConverter.convert_questions_to_section()`
+
+**Logic:** ✅ **CORRECT** - Normal users get pool-only access, no LLM fallback
+
+### **2. Normal User - Complete Test Generation**
+
+**Frontend Flow:**
+```
+User clicks "Generate Complete Test" → FullTestPage.handleGenerateCompleteTest() → 
+/api/generate/complete-test/start → Backend /generate/complete-test/start endpoint
+```
+
+**Backend Flow:**
+```
+/generate/complete-test/start (generation.py) → 
+ContentGenerationService.generate_complete_test_async(force_llm_generation=False) → 
+job_manager.create_job() → 
+_generate_test_sections_background() → 
+_generate_single_section_background(force_llm_generation=False) → 
+Pool-first logic with NO LLM fallback for normal users
+```
+
+**Key Functions Used:**
+- `start_complete_test_generation()` in `generation.py`
+- `generate_complete_test_async(force_llm_generation=False)` in `ContentGenerationService`
+- `_generate_test_sections_background()` in `ContentGenerationService`
+- `_generate_single_section_background(force_llm_generation=False)` in `ContentGenerationService`
+- `PoolSelectionService` methods for pool access
+
+**Logic:** ✅ **CORRECT** - Normal users get pool-only access, no LLM fallback
+
+### **3. Admin User - Single Section Generation (Admin Dashboard)**
+
+**Frontend Flow:**
+```
+Admin clicks "Generate Content" → AdminPage.handleGenerationSubmit() → 
+/api/admin/generate → Backend /admin/generate endpoint
+```
+
+**Backend Flow:**
+```
+/admin/generate (admin.py) → 
+ContentGenerationService.generate_individual_content(force_llm_generation=True) → 
+_generate_content_directly() → 
+Direct LLM calls to content generators → 
+Return response with metadata
+```
+
+**Key Functions Used:**
+- `admin_generate_content()` in `admin.py`
+- `generate_individual_content(force_llm_generation=True)` in `ContentGenerationService`
+- `_generate_content_directly()` in `ContentGenerationService`
+- `generate_standalone_questions_with_metadata()` for questions
+- `generate_reading_passages_with_metadata()` for reading
+- `generate_writing_prompts_with_metadata()` for writing
+
+**Logic:** ✅ **CORRECT** - Admin users always get LLM generation
+
+### **4. Admin User - Complete Test Generation (Admin Dashboard)**
+
+**Frontend Flow:**
+```
+Admin clicks "Generate Complete Test" → AdminPage.handleCompleteTestSubmit() → 
+/api/admin/generate/complete-test → Backend /admin/generate/complete-test endpoint
+```
+
+**Backend Flow:**
+```
+/admin/generate/complete-test (admin.py) → 
+ContentGenerationService.generate_complete_test_async(force_llm_generation=True) → 
+job_manager.create_job() → 
+_generate_test_sections_background() → 
+_generate_single_section_background(force_llm_generation=True) → 
+LLM generation with pool fallback if needed
+```
+
+**Key Functions Used:**
+- `admin_generate_complete_test()` in `admin.py`
+- `generate_complete_test_async(force_llm_generation=True)` in `ContentGenerationService`
+- `_generate_test_sections_background()` in `ContentGenerationService`
+- `_generate_single_section_background(force_llm_generation=True)` in `ContentGenerationService`
+- LLM generation functions with pool fallback logic
+
+**Logic:** ✅ **CORRECT** - Admin users get LLM generation with pool fallback
+
+### **Generation Workflow Summary**
+
+| Route Type | Frontend API | Backend Endpoint | Service Method | LLM Access |
+|------------|--------------|------------------|----------------|------------|
+| **Normal User - Single** | `/api/generate` | `/generate` | `generate_individual_content(false)` | ❌ Pool Only |
+| **Normal User - Complete** | `/api/generate/complete-test/start` | `/generate/complete-test/start` | `generate_complete_test_async(false)` | ❌ Pool Only |
+| **Admin - Single** | `/api/admin/generate` | `/admin/generate` | `generate_individual_content(true)` | ✅ Always LLM |
+| **Admin - Complete** | `/api/admin/generate/complete-test` | `/admin/generate/complete-test` | `generate_complete_test_async(true)` | ✅ LLM + Pool Fallback |
+
+### **Key Benefits of This Architecture**
+
+1. **Clean separation of concerns**: Admin LLM generation vs. user pool access
+2. **Proper role-based access control**: Admin always gets LLM, users always get pool
+3. **Efficient resource usage**: Normal users get instant pool access, admin users get fresh LLM content
+4. **Scalable design**: Background processing for complete tests, direct responses for single sections
+5. **Security**: Normal users cannot access LLM generation, preventing abuse
+
+---
+
+## 🔐 Authentication
 
 ### Features
 - JWT-based authentication
@@ -312,13 +494,24 @@ The backend uses Supabase Auth with JWT tokens:
 - **Setup**: Get API key from OpenAI Platform
 
 ### Question Generation Process
+
+#### Pool-First Approach (Normal Users)
 1. **Input Validation**: Validate request parameters
-2. **Provider Selection**: Choose best available LLM
-3. **Prompt Construction**: Build context-aware prompts
-4. **Generation**: Generate questions with explanations
-5. **Validation**: Verify question quality and format
-6. **Storage**: Save to database with embeddings
-7. **Response**: Return structured response
+2. **Pool Check**: Search for available content in the pool
+3. **Content Retrieval**: Get unused questions/passages/prompts
+4. **Content Marking**: Mark content as used to prevent duplicates
+5. **Response Formatting**: Convert pool content to API response format
+6. **Instant Delivery**: Return content immediately (~100ms)
+
+#### LLM Fallback (Admin Users Only)
+1. **Pool Check**: First check pool (same as above)
+2. **LLM Fallback**: If pool is empty, generate new content via LLM
+3. **Provider Selection**: Choose best available LLM provider
+4. **Prompt Construction**: Build context-aware prompts
+5. **Generation**: Generate questions with explanations
+6. **Validation**: Verify question quality and format
+7. **Storage**: Save to database with embeddings
+8. **Response**: Return structured response (~20-30 seconds)
 
 ## 🚀 Deployment
 
@@ -374,26 +567,78 @@ CORS_ORIGINS=https://your-frontend-domain.com
 
 ### Running Tests
 ```bash
-# Run all tests
+# Run all tests (unit + integration)
 uv run pytest
+
+# Run only unit tests (fast, mocked dependencies)
+uv run pytest tests/ -k "not integration"
+
+# Run only integration tests (real services, requires .env)
+uv run pytest tests/ -k "integration"
 
 # Run with coverage
 uv run pytest --cov=app
 
-# Run specific test file
-uv run pytest tests/test_generation.py
+# Run specific test categories
+uv run pytest tests/test_integration_admin_llm.py -v      # Admin LLM generation tests
+uv run pytest tests/test_integration_user_pool.py -v     # User pool fetching tests  
+uv run pytest tests/test_integration_auth_roles.py -v    # Role-based access tests
 
 # Run with verbose output
 uv run pytest -v
 ```
 
+### Test Categories
+
+#### Unit Tests (Mocked Dependencies)
+- **test_llm.py** - LLM service unit tests
+- **test_models.py** - Pydantic model validation tests  
+- **test_generator.py** - Question generation logic tests
+- **test_utils.py** - Utility function tests
+- **test_embedding_service.py** - Embedding service tests
+
+#### Core Functionality Tests
+- **test_admin_llm.py** - Admin LLM generation and training example management
+- **test_user_pool.py** - User pool fetching and complete test generation (pool-only)
+
+#### Test Focus Areas
+- **Admin LLM Generation**: Tests admin ability to generate content via LLM
+- **User Pool Access**: Tests normal users can only access pool content
+- **Role-Based Access**: Tests LLM fallback is restricted to admin users
+- **Training Examples**: Tests admin ability to save and manage training examples
+
 ### Test Structure
 ```
 tests/
-├── conftest.py              # Test configuration
-├── test_api/                # API endpoint tests
-├── test_services/           # Service layer tests
-└── test_utils/              # Utility function tests
+├── conftest.py                          # Test fixtures (DB, auth, API keys)
+├── helpers.py                           # Shared test utilities
+├── test_admin_llm.py                   # Admin LLM generation tests
+├── test_user_pool.py                   # User pool access tests
+└── README.md                           # Test documentation
+```
+
+### Test Requirements
+Tests require:
+- Valid `.env` file with database and API keys
+- Running Supabase instance
+- At least one LLM provider API key (OpenAI/Gemini/DeepSeek) for admin tests
+- Network access for real API calls
+
+Tests gracefully skip when dependencies are missing.
+
+### Running Specific Test Categories
+```bash
+# Admin LLM functionality
+uv run pytest tests/test_admin_llm.py -v
+
+# User pool access (requires Supabase)
+uv run pytest tests/test_user_pool.py -v
+
+# Content generation service
+uv run pytest tests/test_content_generation_service.py -v
+
+# All tests
+uv run pytest tests/ -v
 ```
 
 ## 📊 Monitoring & Logging

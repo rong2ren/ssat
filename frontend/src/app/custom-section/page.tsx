@@ -8,7 +8,7 @@ import { useCustomSectionState, useCustomSectionActions, usePreferences } from '
 import { useAuth } from '@/contexts/AuthContext'
 import AuthGuard from '@/components/auth/AuthGuard'
 import { getAuthHeaders } from '@/utils/auth'
-import { invalidateLimitsCache } from '@/components/DailyLimitsDisplay'
+import { invalidateLimitsCache, resetDailyLimitsFetch } from '@/components/DailyLimitsDisplay'
 import { Button } from '@/components/ui/Button'
 import { Eye, EyeOff, Download, CheckSquare } from 'lucide-react'
 import { generateUnifiedPDF } from '@/utils/pdfGenerator'
@@ -90,11 +90,17 @@ export default function CustomSectionPage() {
       
       console.log('🔍 DAILY LIMITS: ✅ Generation completed successfully for:', request.question_type)
       
-      // Invalidate limits cache to refresh the display
+      // Invalidate limits cache and reset fetch flag to refresh the display
       if (user?.id) {
         invalidateLimitsCache(user.id)
-        console.log('🔍 DAILY LIMITS: Invalidated cache after generation')
+        resetDailyLimitsFetch()
+        console.log('🔍 DAILY LIMITS: Invalidated cache and reset fetch flag after generation')
       }
+      
+      // Reset all display states for new content
+      setShowAnswers(false)
+      setShowResults(false)
+      setUserAnswers([])
       
       // Handle different response types based on content type
       if (data.questions) {

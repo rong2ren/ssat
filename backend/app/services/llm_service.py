@@ -6,7 +6,7 @@ from typing import Dict, Any, List
 from datetime import datetime
 
 # Import LLM client (now local)
-from app.llm import llm_client
+from app.llm import get_llm_client
 
 # Loguru logger imported above
 
@@ -15,7 +15,7 @@ class LLMService:
     
     def __init__(self):
         """Initialize the LLM service."""
-        self.client = llm_client
+        self.client = get_llm_client()
     
     async def get_provider_status(self) -> Dict[str, Any]:
         """Get status of all available LLM providers."""

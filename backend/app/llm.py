@@ -1,9 +1,10 @@
 """Multi-provider LLM client utilities for generating SSAT questions."""
 
-from typing import Any, Dict, Optional, Union
+from typing import Optional, Union
 import time
 import asyncio
 from enum import Enum
+import threading
 
 from loguru import logger
 from .settings import settings
@@ -38,7 +39,6 @@ class LLMClient:
         # Google Gemini
         if settings.GEMINI_API_KEY:
             try:
-                import google.generativeai as genai
                 from google.generativeai.generative_models import GenerativeModel
                 from google.generativeai.client import configure
                 configure(api_key=settings.GEMINI_API_KEY)
@@ -151,7 +151,6 @@ class LLMClient:
         if model is None:
             model_instance = self.clients[LLMProvider.GEMINI]
         else:
-            import google.generativeai as genai
             from google.generativeai.generative_models import GenerativeModel
             model_instance = GenerativeModel(model)
         
@@ -265,8 +264,21 @@ class LLMClient:
             retry_delay
         )
 
-# Global LLM client instance
-llm_client = LLMClient()
+# Thread-safe singleton implementation
+_llm_client_instance: Optional[LLMClient] = None
+_llm_client_lock = threading.Lock()
+
+def get_llm_client() -> LLMClient:
+    """Get the global singleton instance of LLMClient (thread-safe)."""
+    global _llm_client_instance
+    if _llm_client_instance is None:
+        with _llm_client_lock:
+            # Double-check pattern to prevent race conditions
+            if _llm_client_instance is None:
+                _llm_client_instance = LLMClient()
+    return _llm_client_instance
+
+# Global LLM client instance removed to prevent duplicate initialization during reloads
 
 
 

@@ -1,6 +1,5 @@
 """Service for parsing and saving training examples to existing database tables."""
 
-import re
 import uuid
 from typing import List, Dict, Any, Tuple
 from loguru import logger
@@ -8,6 +7,7 @@ from supabase import Client
 
 from app.models.requests import TrainingExamplesRequest
 from app.services.embedding_service import EmbeddingService
+from app.llm import get_llm_client
 
 
 class TrainingExamplesService:
@@ -43,14 +43,16 @@ class TrainingExamplesService:
         if not questions:
             raise ValueError("No valid questions found in the provided text")
         
-        # Map section type to database section/subsection
+        # Map section type to database section and default subsection
         section_mapping = {
-            "quantitative": ("Quantitative", "General Math"),
+            "quantitative": ("Quantitative", "Arithmetic"),
             "analogy": ("Verbal", "Analogies"),
             "synonym": ("Verbal", "Synonyms")
         }
         
-        section, subsection = section_mapping[request.section_type]
+        section, default_subsection = section_mapping[request.section_type]
+        
+
         
         saved_count = 0
         for question in questions:
@@ -59,23 +61,8 @@ class TrainingExamplesService:
                 question_text = question.get('question', '')
                 embedding = self.embedding_service.generate_embedding(question_text)
                 
-                # Use subsection from question if available, otherwise use default based on section type
-                if question.get('subsection'):
-                    question_subsection = question.get('subsection')
-                    # Validate quantitative subsections
-                    if request.section_type == "quantitative":
-                        from app.specifications import validate_quantitative_subsection
-                        if not validate_quantitative_subsection(question_subsection):
-                            logger.warning(f"Invalid subsection '{question_subsection}' for quantitative question, using default")
-                            question_subsection = "Arithmetic"
-                elif request.section_type == "quantitative":
-                    question_subsection = "Arithmetic"  # Default for quantitative
-                elif request.section_type == "analogy":
-                    question_subsection = "Analogies"
-                elif request.section_type == "synonym":
-                    question_subsection = "Synonyms"
-                else:
-                    question_subsection = "Arithmetic"
+                # Use subsection from question if available, otherwise use default
+                question_subsection = question.get('subsection', default_subsection)
                 
                 # Prepare data for database
                 question_data = {
@@ -168,22 +155,8 @@ class TrainingExamplesService:
     async def _generate_synonym_questions_from_words(self, words: List[str]) -> List[Dict[str, Any]]:
         """Generate synonym questions from a list of words using LLM."""
         try:
-            from app.llm import llm_client
-            from app.generator import SSATGenerator
             
-            # Create a request for synonym generation
-            from app.models.requests import QuestionRequest
-            from app.models.enums import QuestionType, DifficultyLevel
-            
-            request = QuestionRequest(
-                question_type=QuestionType.SYNONYM,
-                difficulty=DifficultyLevel.MEDIUM,
-                count=len(words)
-            )
-            
-            # Initialize generator and get training examples
-            generator = SSATGenerator()
-            training_examples = generator.get_training_examples(request)
+
             
             # Build prompt for word-to-question generation
             system_message = f"""You are an expert SSAT synonym question generator.
@@ -215,7 +188,7 @@ OUTPUT FORMAT - Return ONLY a JSON object:
 }}"""
             
             # Call LLM to generate questions
-            content = await llm_client.call_llm_async(
+            content = await get_llm_client().call_llm_async(
                 provider="deepseek",
                 system_message=system_message,
                 prompt="Generate the synonym questions as specified.",
@@ -288,7 +261,7 @@ OUTPUT FORMAT - Return ONLY a JSON object:
             
             # Save questions
             saved_questions = 0
-            for i, question in enumerate(questions):
+            for question in questions:
                 try:
                     question_text = question.get('question', '')
                     question_embedding = self.embedding_service.generate_embedding(question_text)
@@ -395,7 +368,7 @@ OUTPUT FORMAT - Return ONLY a JSON object:
                 for choice in choice_parts:
                     choice = choice.strip()
                     if ')' in choice:
-                        letter, text = choice.split(')', 1)
+                        _, text = choice.split(')', 1)
                         choices.append(text.strip())
                     else:
                         choices.append(choice)
@@ -483,7 +456,7 @@ OUTPUT FORMAT - Return ONLY a JSON object:
                     for choice in choice_parts:
                         choice = choice.strip()
                         if ')' in choice:
-                            letter, text = choice.split(')', 1)
+                            _, text = choice.split(')', 1)
                             choices.append(text.strip())
                         else:
                             choices.append(choice)

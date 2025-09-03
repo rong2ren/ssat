@@ -4,15 +4,14 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from supabase import create_client, Client
 from loguru import logger
-from typing import Optional
 from uuid import UUID
 from datetime import datetime
 
 from app.models.user import (
-    UserLogin, UserRegister, UserProfileUpdate,
+    UserLogin, UserRegister,
     ResetPasswordRequest,
     AuthResponse, UserStatsResponse,
-    UserProfile, UserContentStats, UserMetadata
+    UserProfile, UserMetadata
 )
 from app.services.user_service import UserService
 from app.settings import settings
@@ -23,8 +22,9 @@ security = HTTPBearer()
 # Initialize Supabase client
 supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
 
-# Initialize user service
-user_service = UserService()
+def get_user_service():
+    """Get user service instance."""
+    return UserService()
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> UserProfile:
     """Extract and validate user from JWT token (following NestJS pattern with signature verification)."""
@@ -249,6 +249,7 @@ async def logout_user(current_user: UserProfile = Depends(get_current_user)):
 async def get_user_stats(current_user: UserProfile = Depends(get_current_user)):
     """Get current user's content generation statistics."""
     try:
+        user_service = get_user_service()
         stats = await user_service.get_user_content_stats(current_user.id)
         return UserStatsResponse(
             success=True,

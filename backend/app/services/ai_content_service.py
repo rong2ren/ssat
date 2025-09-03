@@ -4,8 +4,6 @@ import uuid
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 from loguru import logger
-from datetime import datetime
-import json
 
 from app.services.database import get_database_connection
 from app.services.embedding_service import get_embedding_service
@@ -61,7 +59,7 @@ class AIContentService:
                 session_data["user_id"] = str(user_id)
             
             result = self.supabase.table("ai_generation_sessions").insert(session_data).execute()
-            logger.info(f"Created AI generation session: {job_id}")
+            logger.info(f"Created AI generation session: {job_id}, result: {result}")
             return job_id
             
         except Exception as e:
@@ -298,7 +296,7 @@ class AIContentService:
                 
                 try:
                     result = self.supabase.table("ai_generated_reading_passages").insert(passage_data).execute()
-                    logger.debug(f"📚 DEBUG: Successfully inserted passage {passage_id}")
+                    logger.debug(f"📚 DEBUG: Successfully inserted passage {passage_id}, result: {result}")
                 except Exception as insert_error:
                     logger.error(f"📚 DEBUG: Failed to insert passage {passage_id}: {insert_error}")
                     logger.error(f"📚 DEBUG: Passage data: {passage_data}")
@@ -418,13 +416,6 @@ class AIContentService:
                 embedding_service = get_embedding_service()
                 prompt_embedding = embedding_service.generate_embedding(prompt_text)
                 
-                # Extract subsection from prompt data if available
-                subsection = "Picture Story"  # Default
-                if hasattr(prompt, 'subsection') and prompt.subsection:
-                    subsection = prompt.subsection
-                elif isinstance(prompt, dict) and prompt.get('subsection'):
-                    subsection = prompt['subsection']
-                
                 # Extract tags, visual description, image_path, and training examples from prompt data if available
                 tags = []
                 training_examples_from_prompt = []
@@ -541,11 +532,69 @@ class AIContentService:
             raise
     
     async def generate_embeddings_for_content(self, content_ids: List[str], content_type: str):
-        """Generate embeddings for saved AI content (placeholder for future implementation)."""
+        """Generate embeddings for saved AI content and update the database."""
         try:
-            # TODO: Implement embedding generation using sentence transformers
-            # This would generate embeddings for the saved content and update the database
-            logger.info(f"Embedding generation not yet implemented for {len(content_ids)} {content_type} items")
+            if not content_ids:
+                logger.info("No content IDs provided for embedding generation")
+                return
+            
+            logger.info(f"Generating embeddings for {len(content_ids)} {content_type} items")
+            
+            # Get embedding service
+            embedding_service = get_embedding_service()
+            
+            # Process each content item
+            updated_count = 0
+            for content_id in content_ids:
+                try:
+                    # Get content based on type
+                    if content_type == "questions":
+                        # Get question content
+                        question_response = self.supabase.table('questions').select('question_text').eq('id', content_id).single().execute()
+                        if question_response.data:
+                            text_content = question_response.data['question_text']
+                            # Generate embedding
+                            embedding = embedding_service.generate_embedding(text_content)
+                            # Update question with embedding
+                            self.supabase.table('questions').update({
+                                'embedding': embedding
+                            }).eq('id', content_id).execute()
+                            updated_count += 1
+                    
+                    elif content_type == "passages":
+                        # Get passage content
+                        passage_response = self.supabase.table('reading_passages').select('passage_text').eq('id', content_id).single().execute()
+                        if passage_response.data:
+                            text_content = passage_response.data['passage_text']
+                            # Generate embedding
+                            embedding = embedding_service.generate_embedding(text_content)
+                            # Update passage with embedding
+                            self.supabase.table('reading_passages').update({
+                                'embedding': embedding
+                            }).eq('id', content_id).execute()
+                            updated_count += 1
+                    
+                    elif content_type == "writing":
+                        # Get writing prompt content
+                        prompt_response = self.supabase.table('writing_prompts').select('prompt_text').eq('id', content_id).single().execute()
+                        if prompt_response.data:
+                            text_content = prompt_response.data['prompt_text']
+                            # Generate embedding
+                            embedding = embedding_service.generate_embedding(text_content)
+                            # Update prompt with embedding
+                            self.supabase.table('writing_prompts').update({
+                                'embedding': embedding
+                            }).eq('id', content_id).execute()
+                            updated_count += 1
+                    
+                    else:
+                        logger.warning(f"Unknown content type for embedding generation: {content_type}")
+                
+                except Exception as e:
+                    logger.error(f"Failed to generate embedding for {content_type} {content_id}: {e}")
+                    continue
+            
+            logger.info(f"Successfully generated embeddings for {updated_count}/{len(content_ids)} {content_type} items")
             
         except Exception as e:
             logger.error(f"Failed to generate embeddings: {e}")

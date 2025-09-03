@@ -13,13 +13,13 @@ logger = logging.getLogger(__name__)
 class DailyLimitService:
     """Service for managing user daily usage limits by SSAT section"""
     
-    # Default limits for free users - one full test
+    # Default limits for free users - one full SSAT test per day
     DEFAULT_LIMITS = {
-        "quantitative": 30,      # 30 math questions per day
-        "analogy": 18,           # 18 analogy questions per day
-        "synonym": 12,          # 12 synonym questions per day
-        "reading_passages": 7,  # 7 reading passages per day
-        "writing": 1             # 1 writing prompts per day
+        "quantitative": 30,      # 30 math questions per day (matches full test)
+        "analogy": 12,           # 12 analogy questions per day (matches full test)
+        "synonym": 18,          # 18 synonym questions per day (matches full test)
+        "reading_passages": 7,  # 7 reading passages per day (matches full test)
+        "writing": 1             # 1 writing prompt per day (matches full test)
     }
     
     # Premium user limits (unlimited access)
@@ -53,31 +53,31 @@ class DailyLimitService:
                 
                 # Admin/Unlimited users
                 if user_role in ['admin', 'unlimited']:
-                    return self.UNLIMITED_LIMITS
+                    return DailyLimitService.UNLIMITED_LIMITS
                 
                 # Premium users
                 elif user_role == 'premium':
-                    return self.PREMIUM_LIMITS
+                    return DailyLimitService.PREMIUM_LIMITS
                 
                 # Free users with custom limits
                 else:
                     custom_limits = user_metadata.get('daily_limits', {})
                     if not custom_limits:
-                        return self.DEFAULT_LIMITS
+                        return DailyLimitService.DEFAULT_LIMITS
                     else:
                         return {
-                            "quantitative": custom_limits.get("quantitative", self.DEFAULT_LIMITS["quantitative"]),
-                            "analogy": custom_limits.get("analogy", self.DEFAULT_LIMITS["analogy"]),
-                            "synonym": custom_limits.get("synonym", self.DEFAULT_LIMITS["synonym"]),
-                            "reading_passages": custom_limits.get("reading_passages", self.DEFAULT_LIMITS["reading_passages"]),
-                            "writing": custom_limits.get("writing", self.DEFAULT_LIMITS["writing"])
+                            "quantitative": custom_limits.get("quantitative", DailyLimitService.DEFAULT_LIMITS["quantitative"]),
+                            "analogy": custom_limits.get("analogy", DailyLimitService.DEFAULT_LIMITS["analogy"]),
+                            "synonym": custom_limits.get("synonym", DailyLimitService.DEFAULT_LIMITS["synonym"]),
+                            "reading_passages": custom_limits.get("reading_passages", DailyLimitService.DEFAULT_LIMITS["reading_passages"]),
+                            "writing": custom_limits.get("writing", DailyLimitService.DEFAULT_LIMITS["writing"])
                         }
             
-            return self.DEFAULT_LIMITS
+            return DailyLimitService.DEFAULT_LIMITS
             
         except Exception as e:
             logger.error(f"Error getting user limits for {user_id}: {e}")
-            return self.DEFAULT_LIMITS
+            return DailyLimitService.DEFAULT_LIMITS
     
     async def get_current_usage(self, user_id: str) -> Dict[str, Any]:
         """Get current usage with automatic reset if needed"""
@@ -272,7 +272,8 @@ class DailyLimitService:
                         'increment_user_daily_usage',
                         {
                             'p_user_id': user_id,
-                            'p_section': section
+                            'p_section': section,
+                            'p_amount': 1
                         }
                     ).execute()
                     logger.debug(f"🔍 DAILY LIMITS: Incremented usage for unlimited user {user_id}, section {section}")
@@ -314,7 +315,8 @@ class DailyLimitService:
                 'increment_user_daily_usage',
                 {
                     'p_user_id': user_id,
-                    'p_section': section
+                    'p_section': section,
+                    'p_amount': 1
                 }
             ).execute()
             logger.info(f"🔍 DEBUG: SQL function response: {response.data}")
@@ -365,8 +367,8 @@ class DailyLimitService:
             logger.error(f"Error getting remaining limits for {user_id}: {e}")
             return {
                 "usage": None,
-                "limits": self.DEFAULT_LIMITS,
-                "remaining": self.DEFAULT_LIMITS,
+                "limits": DailyLimitService.DEFAULT_LIMITS,
+                "remaining": DailyLimitService.DEFAULT_LIMITS,
                 "error": str(e)
             }
     

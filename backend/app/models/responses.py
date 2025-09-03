@@ -76,30 +76,35 @@ class QuantitativeSection(BaseModel):
     section_type: Literal[QuestionType.QUANTITATIVE] = QuestionType.QUANTITATIVE
     questions: List[GeneratedQuestion] = Field(..., description="Math questions")
     instructions: str = Field(..., description="Section instructions")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Generation metadata")
 
 class SynonymSection(BaseModel):
     """Vocabulary section - word meaning and definition questions."""
     section_type: Literal[QuestionType.SYNONYM] = QuestionType.SYNONYM
     questions: List[GeneratedQuestion] = Field(..., description="Synonym questions")
     instructions: str = Field(..., description="Section instructions")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Generation metadata")
 
 class AnalogySection(BaseModel):
     """Word relationship section - logical reasoning with word pairs."""
     section_type: Literal[QuestionType.ANALOGY] = QuestionType.ANALOGY
     questions: List[GeneratedQuestion] = Field(..., description="Analogy questions")
     instructions: str = Field(..., description="Section instructions")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Generation metadata")
 
 class ReadingSection(BaseModel):
     """Reading comprehension section with passages and questions."""
     section_type: Literal[QuestionType.READING] = QuestionType.READING
     passages: List[ReadingPassage] = Field(..., description="Reading passages with questions")
     instructions: str = Field(..., description="Section instructions")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Generation metadata")
 
 class WritingSection(BaseModel):
     """Writing section with a single prompt."""
     section_type: Literal[QuestionType.WRITING] = QuestionType.WRITING
     prompt: WritingPrompt = Field(..., description="Writing prompt")
     instructions: str = Field(..., description="Section instructions")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Generation metadata")
 
 # Union type for polymorphic sections
 TestSection = Union[QuantitativeSection, SynonymSection, AnalogySection, ReadingSection, WritingSection]

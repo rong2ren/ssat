@@ -1,6 +1,6 @@
 """Official SSAT Elementary Level test specifications and business rules"""
 
-from typing import Dict, List, Literal
+from typing import Dict, List
 from dataclasses import dataclass
 
 # ========================================
