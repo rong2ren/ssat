@@ -224,12 +224,10 @@ async def start_complete_test_generation(
             raise HTTPException(status_code=500, detail="Failed to check daily limits")
         
         # Determine LLM generation access based on user role
-        if current_user.role == "admin":
-            force_llm_generation = True  # Admin users can use LLM generation
-            logger.info(f"🔍 USER ROLE: User {current_user.id} has role '{current_user.role}', force_llm_generation={force_llm_generation} (LLM access enabled)")
-        else:
-            force_llm_generation = False  # Normal users only get pool access
-            logger.info(f"🔍 USER ROLE: User {current_user.id} has role '{current_user.role}', force_llm_generation={force_llm_generation} (pool-only mode)")
+        # ALL users (including admins) should use pool-first approach from regular endpoints
+        # LLM generation is only available in admin dashboard
+        force_llm_generation = False  # All users get pool access only
+        logger.info(f"🔍 USER ROLE: User {current_user.id} has role '{current_user.role}', force_llm_generation={force_llm_generation} (pool-only mode for all users)")
         
         # Use content service for complete test generation
         result = await get_content_service().generate_complete_test_async(

@@ -267,7 +267,7 @@ async def get_user_stats(current_user: UserProfile = Depends(get_current_user)):
 async def resend_confirmation_email(email: str):
     """Resend email confirmation."""
     try:
-        result = supabase.auth.resend({
+        supabase.auth.resend({
             "type": "signup",
             "email": email
         })
@@ -287,7 +287,7 @@ async def resend_confirmation_email(email: str):
 async def forgot_password(request: ResetPasswordRequest):
     """Request password reset email."""
     try:
-        result = supabase.auth.reset_password_for_email(
+        supabase.auth.reset_password_for_email(
             request.email,
             {
                 "redirect_to": f"{settings.SUPABASE_URL}/auth/reset-password"
@@ -317,7 +317,7 @@ async def auth_health_check():
     """Simple health check for authentication service."""
     try:
         # Test database connectivity (the only critical dependency for auth)
-        result = supabase.table("ai_generation_sessions").select("id").limit(1).execute()
+        supabase.table("ai_generation_sessions").select("id").limit(1).execute()
         
         return {
             "status": "healthy",
