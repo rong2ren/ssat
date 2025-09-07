@@ -171,8 +171,6 @@ class AIContentService:
                 # Only log if there are differences or issues
                 if question_subsection != subsection and question_subsection and subsection:
                     logger.debug(f"Subsection decision: question_subsection='{question_subsection}', passed_subsection='{subsection}', final='{final_subsection}'")
-                if question_tags and len(question_tags) > 0:
-                    logger.debug(f"Using AI-generated tags: {question_tags}")
                 
                 question_data = {
                     "id": question_id,
@@ -295,10 +293,9 @@ class AIContentService:
                 # logger.debug(f"📚 DEBUG: Saving passage {passage_id} with training_examples_used: {training_examples_used or []}")
                 
                 try:
-                    result = self.supabase.table("ai_generated_reading_passages").insert(passage_data).execute()
-                    logger.debug(f"📚 DEBUG: Successfully inserted passage {passage_id}, result: {result}")
+                    self.supabase.table("ai_generated_reading_passages").insert(passage_data).execute()
                 except Exception as insert_error:
-                    logger.error(f"📚 DEBUG: Failed to insert passage {passage_id}: {insert_error}")
+                    logger.error(f"📚 DEBUG: Faexiled to insert passage {passage_id}: {insert_error}")
                     logger.error(f"📚 DEBUG: Passage data: {passage_data}")
                     raise
                 

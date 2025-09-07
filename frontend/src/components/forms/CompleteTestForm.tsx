@@ -40,7 +40,7 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
     'Select Test Sections': '选择题型',
     'Questions per Section': '每部分题目数',
     'Official test format with standard question counts (89 total)': '官方测试格式，标准题目数量（共89题）',
-    'Pick sections and question counts from existing pool': '从现有题库中选择题型和数量',
+    'Pick sections and question counts': '选择题型和数量',
     'Applied to all sections in the test': '应用于测试的所有部分',
     'Recommended': '推荐',
     'Questions:': '题目数：',
@@ -77,7 +77,6 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
     'Verbal Breakdown': '语言细分',
     'word meaning, definitions': '词义、定义',
     'word relationships, patterns': '词汇关系、模式',
-    'Note: Custom tests use existing high-quality questions from the pool': '注意：自定义测试使用现有题库中的高质量题目',
     'Show Math & Verbal Breakdown ▼': '显示数学和语言细分 ▼',
     'Hide Math & Verbal Breakdown ▼': '隐藏数学和语言细分 ▼'
   }
@@ -243,11 +242,7 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
               </Label>
               
               <p className="text-sm text-gray-600 mb-2">
-                ⚙️ {t('Pick sections and question counts from existing pool')}
-              </p>
-              
-              <p className="text-xs text-blue-600 font-medium">
-                {t('Note: Custom tests use existing high-quality questions from the pool')}
+                ⚙️ {t('Pick sections and question counts')}
               </p>
             </div>
           </div>

@@ -118,7 +118,8 @@ class ContentGenerationService:
         self, 
         request: QuestionGenerationRequest,
         force_llm_generation: bool = False,
-        user_id: str = None
+        user_id: str = None,
+        user_metadata: Optional[Dict[str, Any]] = None
     ) -> Union[QuestionGenerationResponse, ReadingGenerationResponse, WritingGenerationResponse]:
         """Generate individual SSAT content (1-20 questions)."""
         try:
@@ -131,7 +132,7 @@ class ContentGenerationService:
             else:
                 # Normal user - try pool first, no LLM fallback
                 logger.info(f"🔍 USER: Pool-only mode, attempting pool retrieval for {request.question_type.value}")
-                return await self._generate_content_from_pool_only(request, user_id)
+                return await self._generate_content_from_pool_only(request, user_id, user_metadata)
             
         except Exception as e:
             logger.error(f"Individual content generation failed: {e}")
@@ -145,7 +146,7 @@ class ContentGenerationService:
         try:
             # Convert to internal request format
             ssat_request = self._convert_to_ssat_request(request)
-            provider = request.provider.value if request.provider else None
+            provider = request.provider.value if request.provider else "deepseek"  # Default to deepseek for admin generation
             
             # Extract custom examples if provided
             custom_examples = request.custom_examples if request.use_custom_examples else None
@@ -236,9 +237,12 @@ class ContentGenerationService:
             logger.error(f"Direct content generation failed: {e}")
             raise
     
-    async def _generate_content_from_pool_only(self, request: QuestionGenerationRequest, user_id: str) -> Union[QuestionGenerationResponse, ReadingGenerationResponse, WritingGenerationResponse]:
+    async def _generate_content_from_pool_only(self, request: QuestionGenerationRequest, user_id: str, user_metadata: Optional[Dict[str, Any]] = None) -> Union[QuestionGenerationResponse, ReadingGenerationResponse, WritingGenerationResponse]:
         """Generate content from pool only for normal users (no LLM fallback)."""
         try:
+            # Check daily limits first
+            await self._check_daily_limits_for_pool(request, user_id, user_metadata)
+            
             # Try to get content from existing AI-generated content pool
             from app.services.pool_selection_service import PoolSelectionService
             from app.services.pool_response_converter import PoolResponseConverter
@@ -282,7 +286,33 @@ class ContentGenerationService:
                     logger.info(f"🔍 POOL: ✅ Found {len(pool_questions)} unused questions in pool")
                     
                     # Convert pool questions to API response format
-                    return pool_converter.convert_questions_to_response(pool_questions[:request.count], request)
+                    pool_result = pool_converter.convert_questions_to_response(pool_questions[:request.count], request)
+                    
+                    # Mark questions as used with specific content type
+                    question_ids = [q['id'] for q in pool_questions[:request.count]]
+                    try:
+                        await pool_service.mark_content_as_used(
+                            user_id=user_id,
+                            question_ids=question_ids,
+                            usage_type="custom_section",
+                            content_type=request.question_type.value  # Pass specific content type
+                        )
+                        
+                        logger.info(f"🔍 POOL: ✅ Successfully delivered {request.count} questions from pool")
+                        logger.info(f"🔍 POOL DEBUG: Marked questions as used: {[qid[:8] + '...' for qid in question_ids]}")
+                    except Exception as mark_error:
+                        # If marking fails, return service unavailable error
+                        if "duplicate key value violates unique constraint" in str(mark_error):
+                            logger.warning(f"🔍 POOL: ⚠️ Pool questions already used, returning service unavailable error")
+                            raise HTTPException(
+                                status_code=503,
+                                detail="Service temporarily unavailable. Please try again in a few minutes."
+                            )
+                        else:
+                            # Re-raise other errors
+                            raise mark_error
+                    
+                    return pool_result
                 else:
                     # Not enough questions in pool
                     raise HTTPException(
@@ -308,7 +338,33 @@ class ContentGenerationService:
                     logger.info(f"🔍 POOL: ✅ Found {len(pool_content)} unused reading passages in pool")
                     
                     # Convert pool content to API response format
-                    return pool_converter.convert_reading_to_response(pool_content[:request.count], request)
+                    pool_result = pool_converter.convert_reading_to_response(pool_content[:request.count], request)
+                    
+                    # Mark reading passages as used
+                    passage_ids = [p['passage_id'] for p in pool_content[:request.count]]
+                    try:
+                        await pool_service.mark_content_as_used(
+                            user_id=user_id,
+                            passage_ids=passage_ids,
+                            usage_type="custom_section",
+                            content_type="reading"
+                        )
+                        
+                        logger.info(f"🔍 POOL: ✅ Successfully delivered {request.count} reading passages from pool")
+                        logger.info(f"🔍 POOL DEBUG: Marked passages as used: {[pid[:8] + '...' for pid in passage_ids]}")
+                    except Exception as mark_error:
+                        # If marking fails, return service unavailable error
+                        if "duplicate key value violates unique constraint" in str(mark_error):
+                            logger.warning(f"🔍 POOL: ⚠️ Pool passages already used, returning service unavailable error")
+                            raise HTTPException(
+                                status_code=503,
+                                detail="Service temporarily unavailable. Please try again in a few minutes."
+                            )
+                        else:
+                            # Re-raise other errors
+                            raise mark_error
+                    
+                    return pool_result
                 else:
                     # Not enough reading content in pool
                     raise HTTPException(
@@ -331,7 +387,33 @@ class ContentGenerationService:
                     logger.info(f"🔍 POOL: ✅ Found {len(pool_prompts)} unused writing prompts in pool")
                     
                     # Convert pool content to API response format
-                    return pool_converter.convert_writing_to_response(pool_prompts[:request.count], request)
+                    pool_result = pool_converter.convert_writing_to_response(pool_prompts[:request.count], request)
+                    
+                    # Mark writing prompts as used
+                    prompt_ids = [p['id'] for p in pool_prompts[:request.count]]
+                    try:
+                        await pool_service.mark_content_as_used(
+                            user_id=user_id,
+                            writing_prompt_ids=prompt_ids,
+                            usage_type="custom_section",
+                            content_type="writing"
+                        )
+                        
+                        logger.info(f"🔍 POOL: ✅ Successfully delivered {request.count} writing prompts from pool")
+                        logger.info(f"🔍 POOL DEBUG: Marked prompts as used: {[pid[:8] + '...' for pid in prompt_ids]}")
+                    except Exception as mark_error:
+                        # If marking fails, return service unavailable error
+                        if "duplicate key value violates unique constraint" in str(mark_error):
+                            logger.warning(f"🔍 POOL: ⚠️ Pool prompts already used, returning service unavailable error")
+                            raise HTTPException(
+                                status_code=503,
+                                detail="Service temporarily unavailable. Please try again in a few minutes."
+                            )
+                        else:
+                            # Re-raise other errors
+                            raise mark_error
+                    
+                    return pool_result
                 else:
                     # Not enough writing prompts in pool
                     raise HTTPException(
@@ -427,7 +509,8 @@ class ContentGenerationService:
         self, 
         request: CompleteTestRequest, 
         user_id: str,
-        force_llm_generation: bool = False
+        force_llm_generation: bool = False,
+        user_metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Start generating a complete SSAT practice test asynchronously."""
         try:
@@ -444,7 +527,8 @@ class ContentGenerationService:
                 "custom_counts": request.custom_counts,
                 "is_official_format": request.is_official_format,
                 "force_llm_generation": force_llm_generation,  # Add flag to job data
-                "user_role": "admin" if force_llm_generation else "user"  # Store user role for background processing
+                "user_role": user_metadata.get('role', 'user') if user_metadata else "user",  # Store user role for background processing
+                "user_metadata": user_metadata  # Store full user metadata for daily limit checking
             }, user_id)
             
             # Start background generation task
@@ -979,157 +1063,35 @@ class ContentGenerationService:
         return instructions.get(section_type, "Answer all questions to the best of your ability.")
     
     def _get_quantitative_domain_distribution(self, difficulty: DifficultyLevel, total_count: int) -> Dict[str, int]:
-        """Get domain distribution for quantitative questions based on difficulty."""
+        """Get domain distribution for quantitative questions based on difficulty using predefined subsections."""
+        
         if difficulty == DifficultyLevel.EASY:
             # Focus on basic operations for easy level
             return {
-                "Number Operations": max(1, total_count // 2),
-                "Measurement": max(1, total_count // 4),
-                "Geometry": max(1, total_count // 4)
+                "Number Sense": max(1, total_count // 3),
+                "Arithmetic": max(1, total_count // 3),
+                "Fractions": max(1, total_count // 4),
+                "Measurement": max(1, total_count // 6)
             }
         elif difficulty == DifficultyLevel.MEDIUM:
             # Balanced distribution for medium level
             return {
-                "Number Operations": max(1, total_count // 3),
-                "Algebra Functions": max(1, total_count // 3),
-                "Geometry": max(1, total_count // 3)
+                "Number Sense": max(1, total_count // 5),
+                "Arithmetic": max(1, total_count // 5),
+                "Fractions": max(1, total_count // 5),
+                "Algebra": max(1, total_count // 5),
+                "Area": max(1, total_count // 5)
             }
         else:  # HARD
             # More advanced topics for hard level
             return {
-                "Algebra Functions": max(1, total_count // 2),
-                "Geometry": max(1, total_count // 3),
-                "Data Probability": max(1, total_count // 6)
+                "Algebra": max(1, total_count // 3),
+                "Area": max(1, total_count // 4),
+                "Fractions": max(1, total_count // 4),
+                "Percentages": max(1, total_count // 6),
+                "Probability": max(1, total_count // 6)
             }
     
-    def _build_domain_specific_prompt(self, domain: str, difficulty: DifficultyLevel, count: int) -> str:
-        """Build domain-specific prompt for quantitative questions."""
-        if domain == "Number Operations":
-            return self._build_number_operations_prompt(difficulty, count)
-        elif domain == "Algebra Functions":
-            return self._build_algebra_functions_prompt(difficulty, count)
-        elif domain == "Geometry":
-            return self._build_geometry_spatial_prompt(difficulty, count)
-        elif domain == "Measurement":
-            return self._build_measurement_prompt(difficulty, count)
-        elif domain == "Data Probability":
-            return self._build_data_probability_prompt(difficulty, count)
-        else:
-            return self._build_generic_domain_prompt(domain, difficulty, count)
-    
-    def _build_number_operations_prompt(self, difficulty: DifficultyLevel, count: int) -> str:
-        """Build number operations prompt."""
-        if difficulty == DifficultyLevel.EASY:
-            return f"""Generate {count} elementary number operations questions covering:
-- Basic addition and subtraction (within 100)
-- Simple multiplication and division facts
-- Number patterns and sequences
-- Place value understanding
-- Rounding to nearest ten or hundred"""
-        elif difficulty == DifficultyLevel.MEDIUM:
-            return f"""Generate {count} intermediate number operations questions covering:
-- Multi-digit addition and subtraction
-- Multiplication with regrouping
-- Division with remainders
-- Fractions (simple operations)
-- Decimals (basic operations)"""
-        else:  # HARD
-            return f"""Generate {count} advanced number operations questions covering:
-- Complex multi-step operations
-- Fractions with unlike denominators
-- Decimal operations with multiple places
-- Order of operations
-- Number theory concepts"""
-    
-    def _build_algebra_functions_prompt(self, difficulty: DifficultyLevel, count: int) -> str:
-        """Build algebra functions prompt."""
-        if difficulty == DifficultyLevel.EASY:
-            return f"""Generate {count} elementary algebra questions covering:
-- Simple patterns and sequences
-- Basic function tables
-- Missing numbers in equations
-- Simple word problems with variables"""
-        elif difficulty == DifficultyLevel.MEDIUM:
-            return f"""Generate {count} intermediate algebra questions covering:
-- Multi-step equations
-- Function patterns and rules
-- Algebraic expressions
-- Word problems with multiple steps"""
-        else:  # HARD
-            return f"""Generate {count} advanced algebra questions covering:
-- Complex equations and inequalities
-- Function transformations
-- Algebraic reasoning
-- Multi-variable problems"""
-    
-    def _build_geometry_spatial_prompt(self, difficulty: DifficultyLevel, count: int) -> str:
-        """Build geometry and spatial reasoning prompt."""
-        if difficulty == DifficultyLevel.EASY:
-            return f"""Generate {count} elementary geometry questions covering:
-- Basic shapes and their properties
-- Simple area and perimeter
-- Spatial visualization
-- Pattern recognition in shapes"""
-        elif difficulty == DifficultyLevel.MEDIUM:
-            return f"""Generate {count} intermediate geometry questions covering:
-- Area and perimeter of complex shapes
-- Volume of simple 3D shapes
-- Coordinate geometry basics
-- Geometric transformations"""
-        else:  # HARD
-            return f"""Generate {count} advanced geometry questions covering:
-- Complex geometric proofs
-- Advanced spatial reasoning
-- Coordinate geometry applications
-- Geometric probability"""
-    
-    def _build_measurement_prompt(self, difficulty: DifficultyLevel, count: int) -> str:
-        """Build measurement prompt."""
-        if difficulty == DifficultyLevel.EASY:
-            return f"""Generate {count} elementary measurement questions covering:
-- Basic units of measurement
-- Simple conversions
-- Time and money
-- Length and weight basics"""
-        elif difficulty == DifficultyLevel.MEDIUM:
-            return f"""Generate {count} intermediate measurement questions covering:
-- Unit conversions
-- Area and volume measurements
-- Time calculations
-- Money word problems"""
-        else:  # HARD
-            return f"""Generate {count} advanced measurement questions covering:
-- Complex unit conversions
-- Precision and accuracy
-- Measurement estimation
-- Advanced time and money problems"""
-    
-    def _build_data_probability_prompt(self, difficulty: DifficultyLevel, count: int) -> str:
-        """Build data analysis and probability prompt."""
-        if difficulty == DifficultyLevel.EASY:
-            return f"""Generate {count} elementary data analysis questions covering:
-- Simple charts and graphs
-- Basic counting
-- Simple probability concepts
-- Data interpretation basics"""
-        elif difficulty == DifficultyLevel.MEDIUM:
-            return f"""Generate {count} intermediate data analysis questions covering:
-- Complex charts and graphs
-- Mean, median, mode
-- Probability calculations
-- Data comparison"""
-        else:  # HARD
-            return f"""Generate {count} advanced data analysis questions covering:
-- Statistical analysis
-- Complex probability scenarios
-- Data interpretation and inference
-- Advanced counting principles"""
-    
-    def _build_generic_domain_prompt(self, domain: str, difficulty: DifficultyLevel, count: int) -> str:
-        """Build generic domain prompt for unknown domains."""
-        return f"""Generate {count} {domain.lower()} questions for elementary SSAT level.
-Difficulty: {difficulty.value}
-Focus on age-appropriate content and clear, engaging problem-solving scenarios."""
     
     async def _generate_test_sections_background(self, job_id: str, request: CompleteTestRequest, force_llm_generation: bool = False):
         """Background task to generate test sections in parallel."""
@@ -1141,11 +1103,15 @@ Focus on age-appropriate content and clear, engaging problem-solving scenarios."
         try:
             job_manager.update_job_status(job_id, JobStatus.RUNNING)
             
+            # Get user metadata from job data
+            job = job_manager.get_job(job_id)
+            user_metadata = job.request_data.get('user_metadata') if job else None
+            
             # Create tasks for all sections to run in parallel
             section_tasks = []
             for section_type in request.include_sections:
                 task = asyncio.create_task(
-                    self._generate_single_section_background(job_id, section_type, request, force_llm_generation)
+                    self._generate_single_section_background(job_id, section_type, request, force_llm_generation, user_metadata)
                 )
                 section_tasks.append(task)
             
@@ -1211,7 +1177,7 @@ Focus on age-appropriate content and clear, engaging problem-solving scenarios."
             logger.error(f"Background generation failed for job {job_id}: {e}")
             job_manager.update_job_status(job_id, JobStatus.FAILED, str(e))
     
-    async def _generate_single_section_background(self, job_id: str, section_type, request: CompleteTestRequest, force_llm_generation: bool = False):
+    async def _generate_single_section_background(self, job_id: str, section_type, request: CompleteTestRequest, force_llm_generation: bool = False, user_metadata: Optional[Dict[str, Any]] = None):
         """Generate a single section in the background."""
         from app.services.job_manager import job_manager
         
@@ -1243,6 +1209,10 @@ Focus on age-appropriate content and clear, engaging problem-solving scenarios."
             if not job or not job.user_id:
                 logger.error(f"Job {job_id} not found or has no user_id")
                 return
+            
+            # Check daily limits before attempting pool retrieval (only for non-admin users)
+            if not force_llm_generation:
+                await self._check_daily_limits_for_background_section(job.user_id, section_type.value, section_count, user_metadata)
             
             # Determine section mapping for pool lookup
             section_mapping = {
@@ -1629,7 +1599,7 @@ Focus on age-appropriate content and clear, engaging problem-solving scenarios."
                     logger.info(f"📝 Completed section {section_type.value}")
                     
                     saved_ids = await ai_content_service.save_test_section(job_id, section)
-                    logger.info(f"Saved AI-generated content for section {section_type.value}: {saved_ids}")
+                    logger.debug(f"Saved AI-generated content for section {section_type.value}: {saved_ids}")
                     # Add AI generation source to metadata for clarity
                     section_data['metadata']['content_source'] = 'ai_generation'
                 except Exception as e:
@@ -1657,4 +1627,100 @@ Focus on age-appropriate content and clear, engaging problem-solving scenarios."
                 'section_type': section_type.value,
                 'error': str(e)
             }
+    
+    async def _check_daily_limits_for_pool(self, request: QuestionGenerationRequest, user_id: str, user_metadata: Optional[Dict[str, Any]] = None):
+        """Check daily limits before attempting pool content retrieval."""
+        try:
+            from app.services.daily_limit_service import DailyLimitService
+            from app.services.database import get_database_connection
+            
+            # Initialize daily limit service
+            supabase = get_database_connection()
+            daily_limit_service = DailyLimitService(supabase)
+            
+            # Map question type to section name for daily limits
+            section_mapping = {
+                "quantitative": "quantitative",
+                "analogy": "analogy", 
+                "synonym": "synonym",
+                "reading": "reading_passages",
+                "writing": "writing"
+            }
+            
+            section = section_mapping.get(request.question_type.value)
+            if not section:
+                logger.warning(f"Unknown question type for daily limits: {request.question_type.value}")
+                return
+            
+            # Check if user can generate this content
+            can_generate, usage_info = await daily_limit_service.check_limits(
+                user_id=user_id,
+                section=section,
+                user_metadata=user_metadata
+            )
+            
+            if not can_generate:
+                remaining = usage_info.get('remaining', {})
+                limit = remaining.get(section, 0)
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"Daily limit exceeded for {section}. You have {limit} remaining. Please try again tomorrow."
+                )
+            
+            logger.info(f"Daily limit check passed for {section} (need {request.count} {section})")
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Daily limit check failed: {e}")
+            # Don't block content generation if limit check fails
+            logger.warning("Continuing with content generation despite limit check failure")
+    
+    async def _check_daily_limits_for_background_section(self, user_id: str, section_type: str, count: int, user_metadata: Optional[Dict[str, Any]] = None):
+        """Check daily limits for background section generation."""
+        try:
+            from app.services.daily_limit_service import DailyLimitService
+            from app.services.database import get_database_connection
+            
+            # Initialize daily limit service
+            supabase = get_database_connection()
+            daily_limit_service = DailyLimitService(supabase)
+            
+            # Map section type to section name for daily limits
+            section_mapping = {
+                "quantitative": "quantitative",
+                "analogy": "analogy", 
+                "synonym": "synonym",
+                "reading": "reading_passages",
+                "writing": "writing"
+            }
+            
+            section = section_mapping.get(section_type)
+            if not section:
+                logger.warning(f"Unknown section type for daily limits: {section_type}")
+                return
+            
+            # Check if user can generate this content
+            can_generate, usage_info = await daily_limit_service.check_limits(
+                user_id=user_id,
+                section=section,
+                user_metadata=user_metadata
+            )
+            
+            if not can_generate:
+                remaining = usage_info.get('remaining', {})
+                limit = remaining.get(section, 0)
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"Daily limit exceeded for {section}. You have {limit} remaining. Please try again tomorrow."
+                )
+            
+            logger.info(f"Daily limit check passed for {section} (need {count} {section})")
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Daily limit check failed for background section: {e}")
+            # Don't block content generation if limit check fails
+            logger.warning("Continuing with background section generation despite limit check failure")
 

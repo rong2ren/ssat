@@ -239,6 +239,143 @@ class DailyLimitService:
             "needs_reset": False
         }
     
+    async def check_limits(self, user_id: str, section: str, user_metadata: Optional[Dict] = None) -> Tuple[bool, Dict[str, Any]]:
+        """
+        Check if user can generate content for a section WITHOUT incrementing usage
+        
+        Args:
+            user_id: User ID
+            section: SSAT section ('quantitative', 'analogy', 'synonyms', 'reading_passages', 'writing')
+            user_metadata: User metadata for role/limits
+            
+        Returns:
+            Tuple of (can_generate: bool, usage_info: dict)
+        """
+        try:
+            logger.info(f"🔍 DEBUG: Checking limits for user {user_id}, section '{section}' (without incrementing)")
+            
+            # Get user limits first to check if unlimited
+            limits = await self.get_user_limits(user_id, user_metadata)
+            limit_value = limits.get(section, 0)
+            
+            logger.info(f"🔍 DEBUG: User {user_id} has limit {limit_value} for section {section}")
+            
+            # If unlimited (-1), always allow
+            if limit_value == -1:
+                logger.debug(f"🔍 DAILY LIMITS: User {user_id} has unlimited access for section {section}")
+                usage_info = await self.get_current_usage(user_id)
+                return True, {
+                    "usage": usage_info,
+                    "limits": limits,
+                    "remaining": self._calculate_remaining(usage_info, limits)
+                }
+            
+            # For limited users, check limits without incrementing
+            usage = await self.get_current_usage(user_id)
+            current_count = usage.get(f"{section}_generated", 0)
+            
+            logger.info(f"🔍 DEBUG: User {user_id} current usage for {section}: {current_count}/{limit_value}")
+            
+            # Check if limit would be exceeded
+            if limit_value > 0 and current_count >= limit_value:
+                logger.warning(f"🔍 DEBUG: User {user_id} exceeded limit for {section}: {current_count}/{limit_value}")
+                return False, {
+                    "usage": usage,
+                    "limits": limits,
+                    "remaining": self._calculate_remaining(usage, limits),
+                    "error": f"Daily limit exceeded for {section}"
+                }
+            
+            # Within limits, can generate
+            logger.info(f"🔍 DEBUG: User {user_id} can generate content for {section}: {current_count}/{limit_value}")
+            return True, {
+                "usage": usage,
+                "limits": limits,
+                "remaining": self._calculate_remaining(usage, limits)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error checking limits for user {user_id}, section {section}: {e}")
+            return False, {"error": f"Failed to check limits: {str(e)}"}
+    
+    async def increment_usage(self, user_id: str, section: str, user_metadata: Optional[Dict] = None) -> Tuple[bool, Dict[str, Any]]:
+        """
+        Increment usage for a user and section (only call after successful content delivery)
+        
+        Args:
+            user_id: User ID
+            section: SSAT section ('quantitative', 'analogy', 'synonyms', 'reading_passages', 'writing')
+            user_metadata: User metadata for role/limits
+            
+        Returns:
+            Tuple of (success: bool, usage_info: dict)
+        """
+        try:
+            logger.info(f"🔍 DEBUG: Incrementing usage for user {user_id}, section '{section}'")
+            
+            # Get user limits first to check if unlimited
+            limits = await self.get_user_limits(user_id, user_metadata)
+            limit_value = limits.get(section, 0)
+            
+            # If unlimited (-1), still increment for tracking
+            if limit_value == -1:
+                logger.debug(f"🔍 DAILY LIMITS: Incrementing usage for unlimited user {user_id}, section {section}")
+                try:
+                    response = self.supabase.rpc(
+                        'increment_user_daily_usage',
+                        {
+                            'p_user_id': user_id,
+                            'p_section': section,
+                            'p_amount': 1
+                        }
+                    ).execute()
+                    logger.debug(f"🔍 DAILY LIMITS: Incremented usage for unlimited user {user_id}, section {section}")
+                except Exception as inc_error:
+                    logger.warning(f"🔍 DAILY LIMITS: Failed to increment usage for unlimited user {user_id}, section {section}: {inc_error}")
+                    # If increment fails, still allow for unlimited users
+                    pass
+                
+                usage_info = await self.get_current_usage(user_id)
+                return True, {
+                    "usage": usage_info,
+                    "limits": limits,
+                    "remaining": self._calculate_remaining(usage_info, limits)
+                }
+            
+            # For limited users, increment usage
+            logger.info(f"🔍 DEBUG: Incrementing usage for user {user_id}, section '{section}'")
+            response = self.supabase.rpc(
+                'increment_user_daily_usage',
+                {
+                    'p_user_id': user_id,
+                    'p_section': section,
+                    'p_amount': 1
+                }
+            ).execute()
+            logger.info(f"🔍 DEBUG: SQL function response: {response.data}")
+            
+            success = response.data if response.data is not None else False
+            
+            if not success:
+                logger.error(f"🔍 DEBUG: ❌ SQL increment failed for user {user_id}, section {section}")
+                return False, {
+                    "error": f"Failed to increment usage for {section}"
+                }
+            
+            # Get updated usage info
+            usage_info = await self.get_current_usage(user_id)
+            logger.info(f"🔍 DEBUG: ✅ Successfully incremented usage for user {user_id}, section {section}")
+            
+            return True, {
+                "usage": usage_info,
+                "limits": limits,
+                "remaining": self._calculate_remaining(usage_info, limits)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error incrementing usage for user {user_id}, section {section}: {e}")
+            return False, {"error": f"Failed to increment usage: {str(e)}"}
+    
     async def check_and_increment(self, user_id: str, section: str, user_metadata: Optional[Dict] = None) -> Tuple[bool, Dict[str, Any]]:
         """
         Check if user can generate content for a section and increment usage if allowed

@@ -86,8 +86,7 @@ export function ProgressiveTestGenerator({
     'Retry': '重试',
     'Generate Another Test': '生成另一个测试',
     'Generate Another': '生成另一个',
-    'Configure New Test': '配置新测试',
-    'Configure New': '配置新的',
+    'Back to Settings': '返回设置',
     'Complete Test Generation': '完整测试生成',
     'Sections appear as they complete': '单项题目将在完成后依次显示',
     'Generation Progress': '进度',
@@ -772,8 +771,8 @@ export function ProgressiveTestGenerator({
                   >
                     <Settings className="h-4 w-4" />
                     <span className="text-sm">
-                      <span className="hidden sm:inline">{t('Configure New Test')}</span>
-                      <span className="sm:hidden">{t('Configure New')}</span>
+                      <span className="hidden sm:inline">{t('Back to Settings')}</span>
+                      <span className="sm:hidden">{t('Back to Settings')}</span>
                     </span>
                   </Button>
                 )}

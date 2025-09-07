@@ -136,15 +136,19 @@ BEGIN
     WHERE 
         (p_difficulty IS NULL OR rq.difficulty = p_difficulty)
         AND rp.id IN (
-            -- Get N unused passages
-            SELECT id FROM ai_generated_reading_passages 
+            -- Get N unused passages that actually have questions
+            SELECT rp2.id 
+            FROM ai_generated_reading_passages rp2
+            JOIN ai_generated_reading_questions rq2 ON rp2.id = rq2.passage_id
             WHERE NOT EXISTS (
                 SELECT 1 
                 FROM user_question_usage uqu 
                 WHERE uqu.user_id = p_user_id 
                   AND uqu.content_type = 'reading' 
-                  AND uqu.question_id = ai_generated_reading_passages.id
+                  AND uqu.question_id = rp2.id
             )
+            AND (p_difficulty IS NULL OR rq2.difficulty = p_difficulty)
+            ORDER BY rp2.created_at DESC
             LIMIT p_limit_count
         )
     ORDER BY rp.created_at DESC, rq.id;

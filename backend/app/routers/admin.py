@@ -234,8 +234,19 @@ async def admin_generate_content(
             "admin_generation": True  # Mark as admin generation
         }, current_user.id)
         
+        # Prepare user metadata for admin generation
+        user_metadata = {
+            'role': current_user.role,
+            'grade_level': current_user.grade_level
+        }
+        
         # Generate content using the service with admin privileges (force LLM generation)
-        result = await get_content_service().generate_individual_content(request, force_llm_generation=True)
+        result = await get_content_service().generate_individual_content(
+            request, 
+            force_llm_generation=True,
+            user_id=str(current_user.id),
+            user_metadata=user_metadata
+        )
         
         # Save AI-generated content to database
         try:
@@ -358,8 +369,20 @@ async def admin_generate_complete_test(
         
         logger.info(f"🔍 ADMIN: Admin {current_user.id} generating complete test (FORCING LLM GENERATION)")
         
+        # Create user metadata for admin user
+        user_metadata = {
+            'full_name': current_user.full_name,
+            'grade_level': current_user.grade_level.value if current_user.grade_level else None,
+            'role': current_user.role,
+        }
+        
         # Use content service for admin complete test generation with force LLM generation
-        result = await get_content_service().generate_complete_test_async(request, str(current_user.id), force_llm_generation=True)
+        result = await get_content_service().generate_complete_test_async(
+            request, 
+            str(current_user.id), 
+            force_llm_generation=True,
+            user_metadata=user_metadata
+        )
         
         # Get the job_id from the result
         job_id = result.get("job_id")

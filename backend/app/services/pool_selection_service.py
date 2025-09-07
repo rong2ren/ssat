@@ -5,8 +5,6 @@ Service for selecting unused questions from existing AI-generated content pools
 
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import date, timedelta
-from supabase import Client
 from app.services.database import get_database_connection
 
 logger = logging.getLogger(__name__)

@@ -1697,9 +1697,9 @@ def generate_questions(request: QuestionRequest, llm: Optional[str] = "deepseek"
     if request.question_type.value == "synonym" and hasattr(request, 'input_format') and request.input_format == "simple":
         if custom_examples is None:
             raise ValueError("Word list is required for simple word list format")
-        if llm is None:
-            raise ValueError("LLM provider is required")
-        return _generate_synonym_questions_from_words(request, custom_examples, llm)
+        # Use provider selection logic instead of requiring explicit provider
+        provider = _select_llm_provider(llm)
+        return _generate_synonym_questions_from_words(request, custom_examples, provider.value)
     
     # Use provided training examples if available, otherwise fetch them
     if training_examples is None:
