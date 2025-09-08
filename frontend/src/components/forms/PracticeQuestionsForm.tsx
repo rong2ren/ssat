@@ -93,9 +93,9 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
   ]
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8">
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+        <h2 className="text-2xl font-semibold text-gray-900 mb-2">
           {t('Generate Single Section Practice Questions')}
         </h2>
       </div>
@@ -179,11 +179,11 @@ export function PracticeQuestionsForm({ onSubmit, loading, showChinese = false }
         </div> */}
 
         {/* Submit Button */}
-        <div className="flex justify-center pt-4">
+        <div className="flex justify-center pt-6">
           <Button 
             type="submit" 
             disabled={loading}
-            className="w-full sm:w-auto px-8"
+            className="w-full sm:w-auto px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
             size="lg"
           >
             {loading ? (

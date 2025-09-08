@@ -146,9 +146,9 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
   ]
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8">
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+        <h2 className="text-2xl font-semibold text-gray-900 mb-2">
           {t('Generate Complete Test')}
         </h2>
       </div>
@@ -175,10 +175,10 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
           
           <div className="grid md:grid-cols-2 gap-4">
             {/* Official Format Card */}
-            <div className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
+            <div className={`border-2 rounded-xl p-6 cursor-pointer transition-all duration-200 ${
               !useCustomization 
-                ? 'border-blue-500 bg-blue-50' 
-                : 'border-gray-200 hover:border-gray-300'
+                ? 'border-blue-500 bg-blue-50 shadow-md' 
+                : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
             }`}
             onClick={() => setUseCustomization(false)}
             >
@@ -230,10 +230,10 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
             </div>
 
             {/* Custom Format Card */}
-            <div className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
+            <div className={`border-2 rounded-xl p-6 cursor-pointer transition-all duration-200 ${
               useCustomization 
-                ? 'border-blue-500 bg-blue-50' 
-                : 'border-gray-200 hover:border-gray-300'
+                ? 'border-blue-500 bg-blue-50 shadow-md' 
+                : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
             }`}
             onClick={() => setUseCustomization(true)}
             >
@@ -250,7 +250,7 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
 
         {/* Customization Options */}
         {useCustomization && (
-          <div className="bg-gray-50 rounded-lg p-6 space-y-6">
+          <div className="bg-gray-50 rounded-xl p-6 space-y-6">
             {/* Combined Section Selection and Counts */}
             <div>
               <Label className="text-sm font-medium mb-3 block">{t('Select Test Sections')}</Label>
@@ -306,11 +306,11 @@ export function CompleteTestForm({ onSubmit, loading, showChinese = false }: Com
         )}
 
         {/* Submit Button */}
-        <div className="flex justify-center pt-4">
+        <div className="flex justify-center pt-6">
           <Button
             type="submit"
             disabled={loading}
-            className="w-full md:w-auto min-w-48"
+            className="w-full md:w-auto min-w-48 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
             size="lg"
           >
             {loading ? (

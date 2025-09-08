@@ -10,7 +10,7 @@ import AuthGuard from '@/components/auth/AuthGuard'
 import { getAuthHeaders } from '@/utils/auth'
 import { invalidateLimitsCache, resetDailyLimitsFetch } from '@/components/DailyLimitsDisplay'
 import { Button } from '@/components/ui/Button'
-import { Eye, EyeOff, Download, CheckSquare } from 'lucide-react'
+import { Eye, EyeOff, Download, CheckSquare, Target } from 'lucide-react'
 import { generateUnifiedPDF } from '@/utils/pdfGenerator'
 
 
@@ -221,14 +221,17 @@ export default function CustomSectionPage() {
 
   return (
     <AuthGuard>
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-        <div className="container mx-auto px-4 py-12">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        <div className="container mx-auto px-4 py-8">
           {/* Page Header */}
-          <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+          <div className="text-center mb-10">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-6 shadow-lg">
+              <Target className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent mb-4">
               {t('Single Section Practice')}
             </h1>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
               {t('Generate targeted practice questions for specific SSAT sections')}
             </p>
           </div>
@@ -236,17 +239,17 @@ export default function CustomSectionPage() {
           <div className="max-w-6xl mx-auto space-y-8">
             {/* Error Display */}
             {error && (
-              <div className="bg-gradient-to-br from-red-50 to-orange-50 border border-red-200 rounded-2xl p-8 shadow-lg">
+              <div className="bg-white border border-red-200 rounded-2xl p-8 shadow-lg">
                 <div className="flex items-start space-x-4">
                   <div className="flex-shrink-0">
-                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                      <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center">
+                      <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
                       </svg>
                     </div>
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-xl font-bold text-red-800 mb-3">
+                    <h3 className="text-xl font-semibold text-red-800 mb-3">
                       {limitErrorInfo ? t('Daily limit exceeded') : t('Error generating questions')}
                     </h3>
                     <p className="text-red-700 mb-4 text-base leading-relaxed">{error}</p>
@@ -327,25 +330,27 @@ export default function CustomSectionPage() {
 
             {/* Loading State */}
             {loading && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12">
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-12">
                 <div className="flex flex-col items-center justify-center text-center">
-                  <div className="relative mb-6">
-                    <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
-                    <div className="absolute inset-0 rounded-full bg-blue-100 opacity-20"></div>
+                  <div className="relative mb-8">
+                    <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+                      <div className="animate-spin rounded-full h-8 w-8 border-3 border-white border-t-transparent"></div>
+                    </div>
+                    <div className="absolute -inset-2 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-3xl opacity-30 animate-pulse"></div>
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-3">
                     {t('Generating questions...')}
                   </h3>
-                  <p className="text-gray-600 max-w-md">
+                  <p className="text-gray-600 max-w-md leading-relaxed mb-6">
                     {t('Our AI is creating SSAT questions based on your requirements. This may take a few moments.')}
                   </p>
-                  <div className="mt-6 flex items-center space-x-2 text-sm text-gray-500">
+                  <div className="flex items-center space-x-3 text-sm text-gray-500">
                     <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
                     </div>
-                    <span>{t('Processing...')}</span>
+                    <span className="font-medium">{t('Processing...')}</span>
                   </div>
                 </div>
               </div>
@@ -414,7 +419,7 @@ export default function CustomSectionPage() {
               (contentType === 'passages' && passages.length > 0) ||
               (contentType === 'prompts' && questions.length > 0)
             ) && (
-              <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg">
+              <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-200 shadow-xl">
                 <div className="container mx-auto px-4 py-4">
                   <div className="flex justify-center space-x-4">
                     {/* Interactive Controls */}
