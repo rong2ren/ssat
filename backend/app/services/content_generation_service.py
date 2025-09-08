@@ -1751,10 +1751,13 @@ class ContentGenerationService:
             job_manager.update_section_progress(job_id, section_type.value, 90, "Processing results...")
             
             # Convert section to dict for storage
-            if hasattr(section, 'model_dump'):
-                section_data = section.model_dump()
+            if section is not None:
+                if hasattr(section, 'model_dump'):
+                    section_data = section.model_dump()
+                else:
+                    section_data = section.__dict__
             else:
-                section_data = section.__dict__
+                section_data = {}
             
             # Add provider_used metadata to section data
             provider_used = None

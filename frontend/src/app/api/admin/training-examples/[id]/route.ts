@@ -4,7 +4,7 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:800
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Get the authorization header from the request
@@ -23,8 +23,9 @@ export async function PUT(
     }
     
     const body = await request.json()
+    const { id } = await params
     
-    const response = await fetch(`${BACKEND_URL}/admin/training-examples/${params.id}`, {
+    const response = await fetch(`${BACKEND_URL}/admin/training-examples/${id}`, {
       method: 'PUT',
       headers,
       body: JSON.stringify(body),
@@ -51,7 +52,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Get the authorization header from the request
@@ -70,8 +71,9 @@ export async function DELETE(
     }
     
     const body = await request.json()
+    const { id } = await params
     
-    const response = await fetch(`${BACKEND_URL}/admin/training-examples/${params.id}`, {
+    const response = await fetch(`${BACKEND_URL}/admin/training-examples/${id}`, {
       method: 'DELETE',
       headers,
       body: JSON.stringify(body),
