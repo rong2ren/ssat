@@ -107,9 +107,9 @@ export function HomePage({ showChinese = false }: HomePageProps) {
             <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
               {t('Generate personalized SSAT practice questions with AI. Practice individual sections or take complete tests.')}
             </p>
-            <div className="flex flex-col md:flex-row gap-4 justify-center max-w-4xl mx-auto">
+            <div className="flex flex-col md:flex-row gap-6 justify-center max-w-4xl mx-auto">
               <Link href="/custom-section" className="flex-1">
-                <Button size="lg" className="w-full inline-flex items-center justify-center px-6 py-4 text-lg shadow-lg hover:shadow-xl">
+                <Button size="lg" className="w-full inline-flex items-center justify-center px-6 py-4 text-lg shadow-lg hover:shadow-xl transition-all duration-200 rounded-xl">
                   <Target className="mr-2 h-5 w-5" />
                   {t('Start Single Section Practice')}
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -119,7 +119,7 @@ export function HomePage({ showChinese = false }: HomePageProps) {
                 <Button 
                   variant="outline" 
                   size="lg" 
-                  className="w-full inline-flex items-center justify-center px-6 py-4 text-lg bg-white/80 backdrop-blur-sm border-2 border-blue-600 text-blue-600 hover:bg-blue-50"
+                  className="w-full inline-flex items-center justify-center px-6 py-4 text-lg bg-white border-2 border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300 shadow-lg hover:shadow-xl transition-all duration-200 rounded-xl"
                 >
                   <BookOpen className="mr-2 h-5 w-5" />
                   {t('Start Full Test Practice')}
@@ -133,7 +133,7 @@ export function HomePage({ showChinese = false }: HomePageProps) {
 
 
       {/* Features Section */}
-      <section className="py-20 bg-white/50 backdrop-blur-sm">
+      <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
@@ -145,8 +145,8 @@ export function HomePage({ showChinese = false }: HomePageProps) {
           </div>
           
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center p-8 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100">
-              <div className="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <div className="text-center p-8 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-200">
+              <div className="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
                 <Zap className="h-8 w-8 text-white" />
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-4">{t('AI-Generated Questions')}</h3>
@@ -155,8 +155,8 @@ export function HomePage({ showChinese = false }: HomePageProps) {
               </p>
             </div>
             
-            <div className="text-center p-8 rounded-2xl bg-gradient-to-br from-green-50 to-emerald-50 border border-green-100">
-              <div className="bg-green-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <div className="text-center p-8 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-200">
+              <div className="bg-green-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
                 <Target className="h-8 w-8 text-white" />
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-4">{t('Personalized Practice')}</h3>
@@ -165,8 +165,8 @@ export function HomePage({ showChinese = false }: HomePageProps) {
               </p>
             </div>
             
-            <div className="text-center p-8 rounded-2xl bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-100">
-              <div className="bg-purple-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <div className="text-center p-8 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-200">
+              <div className="bg-purple-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
                 <Award className="h-8 w-8 text-white" />
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-4">{t('Answer Key & Solutions')}</h3>
@@ -179,7 +179,7 @@ export function HomePage({ showChinese = false }: HomePageProps) {
       </section>
 
       {/* Test Modes Section */}
-      <section className="py-20 bg-gray-50/50 backdrop-blur-sm">
+      <section className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">{t('Choose Your Practice Mode')}</h2>
@@ -190,10 +190,10 @@ export function HomePage({ showChinese = false }: HomePageProps) {
           
           <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
             <Link href="/custom-section" className="group">
-              <div className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 border border-gray-200 group-hover:border-blue-300 group-hover:scale-105">
+              <div className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 border border-gray-100 group-hover:border-blue-200 group-hover:-translate-y-1">
                 <div className="flex items-center mb-6">
-                  <div className="bg-blue-100 p-3 rounded-xl mr-4">
-                    <Target className="h-8 w-8 text-blue-600" />
+                  <div className="bg-blue-600 p-3 rounded-xl mr-4 shadow-md">
+                    <Target className="h-8 w-8 text-white" />
                   </div>
                   <div>
                     <h3 className="text-2xl font-semibold text-gray-900">{t('Single Section Practice')}</h3>
@@ -202,19 +202,19 @@ export function HomePage({ showChinese = false }: HomePageProps) {
                 </div>
                 <ul className="space-y-3 text-gray-600">
                   <li className="flex items-center">
-                    <Clock className="h-4 w-4 text-green-500 mr-3" />
+                    <div className="w-2 h-2 bg-blue-600 rounded-full mr-3"></div>
                     <span>{t('Choose any section (Math, Verbal, Reading, Writing)')}</span>
                   </li>
                   <li className="flex items-center">
-                    <Clock className="h-4 w-4 text-green-500 mr-3" />
+                    <div className="w-2 h-2 bg-blue-600 rounded-full mr-3"></div>
                     <span>{t('Select difficulty level and number of questions')}</span>
                   </li>
                   <li className="flex items-center">
-                    <Clock className="h-4 w-4 text-green-500 mr-3" />
+                    <div className="w-2 h-2 bg-blue-600 rounded-full mr-3"></div>
                     <span>{t('Focus on specific topics within sections')}</span>
                   </li>
                   <li className="flex items-center">
-                    <Clock className="h-4 w-4 text-green-500 mr-3" />
+                    <div className="w-2 h-2 bg-blue-600 rounded-full mr-3"></div>
                     <span>{t('Perfect for quick practice sessions')}</span>
                   </li>
                 </ul>
@@ -222,31 +222,31 @@ export function HomePage({ showChinese = false }: HomePageProps) {
             </Link>
             
             <Link href="/full-test" className="group">
-              <div className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 border border-gray-200 group-hover:border-blue-300 group-hover:scale-105">
+              <div className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 border border-gray-100 group-hover:border-purple-200 group-hover:-translate-y-1">
                 <div className="flex items-center mb-6">
-                  <div className="bg-indigo-100 p-3 rounded-xl mr-4">
-                    <BookOpen className="h-8 w-8 text-indigo-600" />
+                  <div className="bg-purple-600 p-3 rounded-xl mr-4 shadow-md">
+                    <BookOpen className="h-8 w-8 text-white" />
                   </div>
                   <div>
                     <h3 className="text-2xl font-semibold text-gray-900">{t('Complete Practice Test')}</h3>
-                    <p className="text-indigo-600 font-medium">{t('Complete Assessment')}</p>
+                    <p className="text-purple-600 font-medium">{t('Complete Assessment')}</p>
                   </div>
                 </div>
                 <ul className="space-y-3 text-gray-600">
                   <li className="flex items-center">
-                    <Clock className="h-4 w-4 text-green-500 mr-3" />
+                    <div className="w-2 h-2 bg-purple-600 rounded-full mr-3"></div>
                     <span>{t('Official SSAT format with all sections')}</span>
                   </li>
                   <li className="flex items-center">
-                    <Clock className="h-4 w-4 text-green-500 mr-3" />
+                    <div className="w-2 h-2 bg-purple-600 rounded-full mr-3"></div>
                     <span>{t('Customizable section configuration')}</span>
                   </li>
                   <li className="flex items-center">
-                    <Clock className="h-4 w-4 text-green-500 mr-3" />
+                    <div className="w-2 h-2 bg-purple-600 rounded-full mr-3"></div>
                     <span>{t('Comprehensive answer key with explanations')}</span>
                   </li>
                   <li className="flex items-center">
-                    <Clock className="h-4 w-4 text-green-500 mr-3" />
+                    <div className="w-2 h-2 bg-purple-600 rounded-full mr-3"></div>
                     <span>{t('PDF export for offline practice')}</span>
                   </li>
                 </ul>
@@ -266,33 +266,35 @@ export function HomePage({ showChinese = false }: HomePageProps) {
             </p>
           </div>
           
-          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-            <div className="space-y-4">
-              <h3 className="text-xl font-semibold text-gray-900 text-center">{t('Quantitative Practice')}</h3>
-              <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
+          <div className="space-y-16 max-w-6xl mx-auto">
+            <div className="space-y-6">
+              <h3 className="text-2xl font-semibold text-gray-900 text-center">{t('Quantitative Practice')}</h3>
+              <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 hover:shadow-3xl transition-shadow duration-300">
                 <Image 
                   src={quantitativeScreenshot} 
                   alt="SmartSSAT Quantitative Practice Interface"
-                  width={600}
-                  height={400}
+                  width={1000}
+                  height={700}
+                  className="w-full h-auto"
                 />
               </div>
-              <p className="text-sm text-gray-600 text-center">
+              <p className="text-base text-gray-600 text-center leading-relaxed max-w-3xl mx-auto">
                 {t('Mathematical reasoning questions with step-by-step explanations')}
               </p>
             </div>
             
-            <div className="space-y-4">
-              <h3 className="text-xl font-semibold text-gray-900 text-center">{t('Reading Comprehension')}</h3>
-              <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
+            <div className="space-y-6">
+              <h3 className="text-2xl font-semibold text-gray-900 text-center">{t('Reading Comprehension')}</h3>
+              <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 hover:shadow-3xl transition-shadow duration-300">
                 <Image 
                   src={readingScreenshot} 
                   alt="SmartSSAT Reading Practice Interface"
-                  width={600}
-                  height={400}
+                  width={1000}
+                  height={700}
+                  className="w-full h-auto"
                 />
               </div>
-              <p className="text-sm text-gray-600 text-center">
+              <p className="text-base text-gray-600 text-center leading-relaxed max-w-3xl mx-auto">
                 {t('Reading passages with comprehension questions and detailed analysis')}
               </p>
             </div>
@@ -340,29 +342,68 @@ export function HomePage({ showChinese = false }: HomePageProps) {
                 color: 'orange',
                 icon: PenTool
               }
-            ].map((section, index) => (
-              <div key={index} className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-                <div className="flex items-center mb-4">
-                  <div className={`bg-${section.color}-100 p-3 rounded-lg mr-4`}>
-                    <section.icon className={`h-6 w-6 text-${section.color}-600`} />
+            ].map((section, index) => {
+              const getColorClasses = (color: string) => {
+                switch (color) {
+                  case 'blue':
+                    return {
+                      bg: 'bg-blue-100',
+                      text: 'text-blue-600',
+                      textDark: 'text-blue-700'
+                    }
+                  case 'green':
+                    return {
+                      bg: 'bg-green-100',
+                      text: 'text-green-600',
+                      textDark: 'text-green-700'
+                    }
+                  case 'purple':
+                    return {
+                      bg: 'bg-purple-100',
+                      text: 'text-purple-600',
+                      textDark: 'text-purple-700'
+                    }
+                  case 'orange':
+                    return {
+                      bg: 'bg-orange-100',
+                      text: 'text-orange-600',
+                      textDark: 'text-orange-700'
+                    }
+                  default:
+                    return {
+                      bg: 'bg-gray-100',
+                      text: 'text-gray-600',
+                      textDark: 'text-gray-700'
+                    }
+                }
+              }
+              
+              const colors = getColorClasses(section.color)
+              
+              return (
+                <div key={index} className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                  <div className="flex items-center mb-4">
+                    <div className={`${colors.bg} p-3 rounded-lg mr-4`}>
+                      <section.icon className={`h-6 w-6 ${colors.text}`} />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">{section.title}</h3>
+                      <p className="text-sm text-gray-600">{section.description}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{section.title}</h3>
-                    <p className="text-sm text-gray-600">{section.description}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {section.topics.map((topic, topicIndex) => (
+                      <span
+                        key={topicIndex}
+                        className={`px-3 py-1 text-xs font-medium ${colors.bg} ${colors.textDark} rounded-full`}
+                      >
+                        {topic}
+                      </span>
+                    ))}
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {section.topics.map((topic, topicIndex) => (
-                    <span
-                      key={topicIndex}
-                      className={`px-3 py-1 text-xs font-medium bg-${section.color}-100 text-${section.color}-700 rounded-full`}
-                    >
-                      {topic}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       </section>
