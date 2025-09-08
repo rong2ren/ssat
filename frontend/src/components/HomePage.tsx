@@ -107,19 +107,19 @@ export function HomePage({ showChinese = false }: HomePageProps) {
             <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
               {t('Generate personalized SSAT practice questions with AI. Practice individual sections or take complete tests.')}
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/custom-section">
-                <Button size="lg" className="inline-flex items-center px-8 py-4 text-lg shadow-lg hover:shadow-xl">
+            <div className="flex flex-col md:flex-row gap-4 justify-center max-w-4xl mx-auto">
+              <Link href="/custom-section" className="flex-1">
+                <Button size="lg" className="w-full inline-flex items-center justify-center px-6 py-4 text-lg shadow-lg hover:shadow-xl">
                   <Target className="mr-2 h-5 w-5" />
                   {t('Start Single Section Practice')}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
-              <Link href="/full-test">
+              <Link href="/full-test" className="flex-1">
                 <Button 
                   variant="outline" 
                   size="lg" 
-                  className="inline-flex items-center px-8 py-4 text-lg bg-white/80 backdrop-blur-sm border-2 border-blue-600 text-blue-600 hover:bg-blue-50"
+                  className="w-full inline-flex items-center justify-center px-6 py-4 text-lg bg-white/80 backdrop-blur-sm border-2 border-blue-600 text-blue-600 hover:bg-blue-50"
                 >
                   <BookOpen className="mr-2 h-5 w-5" />
                   {t('Start Full Test Practice')}
