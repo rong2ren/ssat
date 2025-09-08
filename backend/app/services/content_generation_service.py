@@ -312,6 +312,53 @@ class ContentGenerationService:
                             # Re-raise other errors
                             raise mark_error
                     
+                    # INCREMENT PHASE: Increment usage after successful pool delivery
+                    try:
+                        from app.services.database import get_database_connection
+                        supabase = get_database_connection()
+                        
+                        # Map question type to section name for daily limits
+                        section_mapping = {
+                            "quantitative": "quantitative",
+                            "analogy": "analogy", 
+                            "synonym": "synonym",
+                            "reading": "reading_passages",
+                            "writing": "writing"
+                        }
+                        
+                        section = section_mapping.get(request.question_type.value)
+                        if section:
+                            logger.info(f"🔍 DAILY LIMITS: Incrementing usage for user {user_id}, section '{section}' by {request.count}")
+                            logger.info(f"🔍 DAILY LIMITS: Calling increment_user_daily_usage with p_user_id={user_id}, p_section='{section}', p_amount={request.count}")
+                            
+                            response = supabase.rpc(
+                                'increment_user_daily_usage',
+                                {
+                                    'p_user_id': user_id,
+                                    'p_section': section,
+                                    'p_amount': request.count
+                                }
+                            ).execute()
+                            
+                            logger.info(f"🔍 DAILY LIMITS: Increment response: {response.data}")
+                            logger.info(f"🔍 DAILY LIMITS: Response status: {response}")
+                            
+                            # Check if the increment actually worked by querying the current usage
+                            try:
+                                current_usage = supabase.rpc('get_or_create_user_daily_limits', {'p_user_id': user_id}).execute()
+                                logger.info(f"🔍 DAILY LIMITS: Current usage after increment: {current_usage.data}")
+                            except Exception as check_error:
+                                logger.error(f"🔍 DAILY LIMITS: Error checking current usage: {check_error}")
+                                
+                        else:
+                            logger.warning(f"🔍 DAILY LIMITS: Unknown section for question type {request.question_type.value}")
+                            
+                    except Exception as e:
+                        logger.error(f"🔍 DAILY LIMITS: ❌ Error incrementing usage: {e}")
+                        logger.error(f"🔍 DAILY LIMITS: ❌ Error type: {type(e)}")
+                        logger.error(f"🔍 DAILY LIMITS: ❌ Error details: {str(e)}")
+                        # Don't fail the request if increment fails
+                    
                     return pool_result
                 else:
                     # Not enough questions in pool
@@ -364,6 +411,39 @@ class ContentGenerationService:
                             # Re-raise other errors
                             raise mark_error
                     
+                    # INCREMENT PHASE: Increment usage after successful pool delivery
+                    try:
+                        from app.services.database import get_database_connection
+                        supabase = get_database_connection()
+                        
+                        logger.info(f"🔍 DAILY LIMITS: Incrementing usage for user {user_id}, section 'reading_passages' by {request.count}")
+                        logger.info(f"🔍 DAILY LIMITS: Calling increment_user_daily_usage with p_user_id={user_id}, p_section='reading_passages', p_amount={request.count}")
+                        
+                        response = supabase.rpc(
+                            'increment_user_daily_usage',
+                            {
+                                'p_user_id': user_id,
+                                'p_section': 'reading_passages',
+                                'p_amount': request.count
+                            }
+                        ).execute()
+                        
+                        logger.info(f"🔍 DAILY LIMITS: Increment response: {response.data}")
+                        logger.info(f"🔍 DAILY LIMITS: Response status: {response}")
+                        
+                        # Check if the increment actually worked by querying the current usage
+                        try:
+                            current_usage = supabase.rpc('get_or_create_user_daily_limits', {'p_user_id': user_id}).execute()
+                            logger.info(f"🔍 DAILY LIMITS: Current usage after increment: {current_usage.data}")
+                        except Exception as check_error:
+                            logger.error(f"🔍 DAILY LIMITS: Error checking current usage: {check_error}")
+                            
+                    except Exception as e:
+                        logger.error(f"🔍 DAILY LIMITS: ❌ Error incrementing usage: {e}")
+                        logger.error(f"🔍 DAILY LIMITS: ❌ Error type: {type(e)}")
+                        logger.error(f"🔍 DAILY LIMITS: ❌ Error details: {str(e)}")
+                        # Don't fail the request if increment fails
+                    
                     return pool_result
                 else:
                     # Not enough reading content in pool
@@ -412,6 +492,39 @@ class ContentGenerationService:
                         else:
                             # Re-raise other errors
                             raise mark_error
+                    
+                    # INCREMENT PHASE: Increment usage after successful pool delivery
+                    try:
+                        from app.services.database import get_database_connection
+                        supabase = get_database_connection()
+                        
+                        logger.info(f"🔍 DAILY LIMITS: Incrementing usage for user {user_id}, section 'writing' by {request.count}")
+                        logger.info(f"🔍 DAILY LIMITS: Calling increment_user_daily_usage with p_user_id={user_id}, p_section='writing', p_amount={request.count}")
+                        
+                        response = supabase.rpc(
+                            'increment_user_daily_usage',
+                            {
+                                'p_user_id': user_id,
+                                'p_section': 'writing',
+                                'p_amount': request.count
+                            }
+                        ).execute()
+                        
+                        logger.info(f"🔍 DAILY LIMITS: Increment response: {response.data}")
+                        logger.info(f"🔍 DAILY LIMITS: Response status: {response}")
+                        
+                        # Check if the increment actually worked by querying the current usage
+                        try:
+                            current_usage = supabase.rpc('get_or_create_user_daily_limits', {'p_user_id': user_id}).execute()
+                            logger.info(f"🔍 DAILY LIMITS: Current usage after increment: {current_usage.data}")
+                        except Exception as check_error:
+                            logger.error(f"🔍 DAILY LIMITS: Error checking current usage: {check_error}")
+                            
+                    except Exception as e:
+                        logger.error(f"🔍 DAILY LIMITS: ❌ Error incrementing usage: {e}")
+                        logger.error(f"🔍 DAILY LIMITS: ❌ Error type: {type(e)}")
+                        logger.error(f"🔍 DAILY LIMITS: ❌ Error details: {str(e)}")
+                        # Don't fail the request if increment fails
                     
                     return pool_result
                 else:
@@ -1268,6 +1381,54 @@ class ContentGenerationService:
                         )
                         
                         logger.info(f"🔍 POOL: ✅ Marked {len(question_ids)} questions as used")
+                        
+                        # INCREMENT PHASE: Increment usage after successful pool delivery
+                        try:
+                            from app.services.database import get_database_connection
+                            supabase = get_database_connection()
+                            
+                            # Map question type to section name for daily limits
+                            section_mapping = {
+                                "quantitative": "quantitative",
+                                "analogy": "analogy", 
+                                "synonym": "synonym",
+                                "reading": "reading_passages",
+                                "writing": "writing"
+                            }
+                            
+                            section = section_mapping.get(section_type.value)
+                            if section:
+                                logger.info(f"🔍 DAILY LIMITS: Incrementing usage for user {job.user_id}, section '{section}' by {section_count}")
+                                logger.info(f"🔍 DAILY LIMITS: Calling increment_user_daily_usage with p_user_id={job.user_id}, p_section='{section}', p_amount={section_count}")
+                                
+                                response = supabase.rpc(
+                                    'increment_user_daily_usage',
+                                    {
+                                        'p_user_id': job.user_id,
+                                        'p_section': section,
+                                        'p_amount': section_count
+                                    }
+                                ).execute()
+                                
+                                logger.info(f"🔍 DAILY LIMITS: Increment response: {response.data}")
+                                logger.info(f"🔍 DAILY LIMITS: Response status: {response}")
+                                
+                                # Check if the increment actually worked by querying the current usage
+                                try:
+                                    current_usage = supabase.rpc('get_or_create_user_daily_limits', {'p_user_id': job.user_id}).execute()
+                                    logger.info(f"🔍 DAILY LIMITS: Current usage after increment: {current_usage.data}")
+                                except Exception as check_error:
+                                    logger.error(f"🔍 DAILY LIMITS: Error checking current usage: {check_error}")
+                                    
+                            else:
+                                logger.warning(f"🔍 DAILY LIMITS: Unknown section for question type {section_type.value}")
+                                
+                        except Exception as e:
+                            logger.error(f"🔍 DAILY LIMITS: ❌ Error incrementing usage: {e}")
+                            logger.error(f"🔍 DAILY LIMITS: ❌ Error type: {type(e)}")
+                            logger.error(f"🔍 DAILY LIMITS: ❌ Error details: {str(e)}")
+                            # Don't fail the request if increment fails
+                            
                     except Exception as mark_error:
                         if "duplicate key value violates unique constraint" in str(mark_error):
                             logger.warning(f"🔍 POOL: ⚠️ Pool questions already used, failing section {section_type.value}")
@@ -1334,6 +1495,40 @@ class ContentGenerationService:
                         )
                         
                         logger.info(f"🔍 POOL: ✅ Marked {len(passage_ids)} reading passages as used")
+                        
+                        # INCREMENT PHASE: Increment usage after successful pool delivery
+                        try:
+                            from app.services.database import get_database_connection
+                            supabase = get_database_connection()
+                            
+                            logger.info(f"🔍 DAILY LIMITS: Incrementing usage for user {job.user_id}, section 'reading_passages' by {section_count}")
+                            logger.info(f"🔍 DAILY LIMITS: Calling increment_user_daily_usage with p_user_id={job.user_id}, p_section='reading_passages', p_amount={section_count}")
+                            
+                            response = supabase.rpc(
+                                'increment_user_daily_usage',
+                                {
+                                    'p_user_id': job.user_id,
+                                    'p_section': 'reading_passages',
+                                    'p_amount': section_count
+                                }
+                            ).execute()
+                            
+                            logger.info(f"🔍 DAILY LIMITS: Increment response: {response.data}")
+                            logger.info(f"🔍 DAILY LIMITS: Response status: {response}")
+                            
+                            # Check if the increment actually worked by querying the current usage
+                            try:
+                                current_usage = supabase.rpc('get_or_create_user_daily_limits', {'p_user_id': job.user_id}).execute()
+                                logger.info(f"🔍 DAILY LIMITS: Current usage after increment: {current_usage.data}")
+                            except Exception as check_error:
+                                logger.error(f"🔍 DAILY LIMITS: Error checking current usage: {check_error}")
+                                
+                        except Exception as e:
+                            logger.error(f"🔍 DAILY LIMITS: ❌ Error incrementing usage: {e}")
+                            logger.error(f"🔍 DAILY LIMITS: ❌ Error type: {type(e)}")
+                            logger.error(f"🔍 DAILY LIMITS: ❌ Error details: {str(e)}")
+                            # Don't fail the request if increment fails
+                            
                     except Exception as mark_error:
                         if "duplicate key value violates unique constraint" in str(mark_error):
                             logger.warning(f"🔍 POOL: ⚠️ Pool passages already used, failing section {section_type.value}")
@@ -1415,6 +1610,40 @@ class ContentGenerationService:
                         )
                         
                         logger.info(f"🔍 POOL: ✅ Marked {len(prompt_ids)} writing prompts as used")
+                        
+                        # INCREMENT PHASE: Increment usage after successful pool delivery
+                        try:
+                            from app.services.database import get_database_connection
+                            supabase = get_database_connection()
+                            
+                            logger.info(f"🔍 DAILY LIMITS: Incrementing usage for user {job.user_id}, section 'writing' by {section_count}")
+                            logger.info(f"🔍 DAILY LIMITS: Calling increment_user_daily_usage with p_user_id={job.user_id}, p_section='writing', p_amount={section_count}")
+                            
+                            response = supabase.rpc(
+                                'increment_user_daily_usage',
+                                {
+                                    'p_user_id': job.user_id,
+                                    'p_section': 'writing',
+                                    'p_amount': section_count
+                                }
+                            ).execute()
+                            
+                            logger.info(f"🔍 DAILY LIMITS: Increment response: {response.data}")
+                            logger.info(f"🔍 DAILY LIMITS: Response status: {response}")
+                            
+                            # Check if the increment actually worked by querying the current usage
+                            try:
+                                current_usage = supabase.rpc('get_or_create_user_daily_limits', {'p_user_id': job.user_id}).execute()
+                                logger.info(f"🔍 DAILY LIMITS: Current usage after increment: {current_usage.data}")
+                            except Exception as check_error:
+                                logger.error(f"🔍 DAILY LIMITS: Error checking current usage: {check_error}")
+                                
+                        except Exception as e:
+                            logger.error(f"🔍 DAILY LIMITS: ❌ Error incrementing usage: {e}")
+                            logger.error(f"🔍 DAILY LIMITS: ❌ Error type: {type(e)}")
+                            logger.error(f"🔍 DAILY LIMITS: ❌ Error details: {str(e)}")
+                            # Don't fail the request if increment fails
+                            
                     except Exception as mark_error:
                         if "duplicate key value violates unique constraint" in str(mark_error):
                             logger.warning(f"🔍 POOL: ⚠️ Pool prompts already used, failing section {section_type.value}")

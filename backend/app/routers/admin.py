@@ -814,3 +814,719 @@ async def admin_get_pool_statistics(
             status_code=500,
             detail=f"Failed to get pool statistics: {str(e)}"
         )
+
+
+@router.get("/statistics/pool/user-usage")
+async def admin_get_pool_user_usage_statistics(
+    current_user: UserProfile = Depends(get_current_user)
+):
+    """Get pool usage statistics for all users."""
+    try:
+        check_admin_access(current_user)
+        
+        # Get admin database connection
+        service_role_key = get_config().supabase_service_role_key
+        if not service_role_key:
+            logger.error("🔍 ADMIN: Service role key not set in environment")
+            raise HTTPException(status_code=500, detail='Service role key not set in environment')
+        
+        admin_client = create_client(get_config().supabase_url, service_role_key)
+        
+        # Get all users
+        users_response = admin_client.auth.admin.list_users()
+        users = users_response if users_response else []
+        
+        # Get usage statistics for each user
+        user_usage_stats = []
+        
+        for user in users:
+            user_id = user.id
+            user_email = user.email
+            
+            # Get user's pool usage statistics
+            usage_response = admin_client.table("user_question_usage").select(
+                "content_type, usage_type, created_at"
+            ).eq("user_id", user_id).execute()
+            
+            # Calculate usage by content type
+            usage_by_type = {}
+            total_usage = 0
+            
+            for item in usage_response.data:
+                content_type = item['content_type']
+                usage_by_type[content_type] = usage_by_type.get(content_type, 0) + 1
+                total_usage += 1
+            
+            # Get user metadata for role
+            user_metadata = user.user_metadata or {}
+            role = user_metadata.get('role', 'free')
+            
+            user_usage_stats.append({
+                "user_id": user_id,
+                "email": user_email,
+                "role": role,
+                "total_usage": total_usage,
+                "quantitative_used": usage_by_type.get('quantitative', 0),
+                "analogy_used": usage_by_type.get('analogy', 0),
+                "synonym_used": usage_by_type.get('synonym', 0),
+                "reading_used": usage_by_type.get('reading', 0),
+                "writing_used": usage_by_type.get('writing', 0),
+                "usage_by_type": usage_by_type
+            })
+        
+        # Sort by total usage (descending)
+        user_usage_stats.sort(key=lambda x: x['total_usage'], reverse=True)
+        
+        result = {
+            "success": True,
+            "user_count": len(user_usage_stats),
+            "users": user_usage_stats
+        }
+        
+        logger.info(f"🔍 ADMIN POOL USER USAGE: Retrieved usage stats for {len(user_usage_stats)} users")
+        return result
+        
+    except Exception as e:
+        logger.error(f"🔍 ADMIN STATISTICS: Error getting pool user usage statistics: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get pool user usage statistics: {str(e)}"
+        )
+
+
+@router.get("/debug/difficulties")
+async def get_difficulty_values(
+    current_user: UserProfile = Depends(get_current_user)
+):
+    """Debug endpoint to see what difficulty values exist in the database."""
+    try:
+        check_admin_access(current_user)
+        
+        # Get admin database connection
+        service_role_key = get_config().supabase_service_role_key
+        if not service_role_key:
+            raise HTTPException(status_code=500, detail='Service role key not set in environment')
+        
+        admin_client = create_client(get_config().supabase_url, service_role_key)
+        
+        # Get distinct difficulty values from ssat_questions
+        quantitative_response = admin_client.table('ssat_questions').select('difficulty').eq('section', 'Quantitative').execute()
+        analogy_response = admin_client.table('ssat_questions').select('difficulty').eq('section', 'Verbal').eq('subsection', 'Analogies').execute()
+        synonym_response = admin_client.table('ssat_questions').select('difficulty').eq('section', 'Verbal').eq('subsection', 'Synonyms').execute()
+        
+        # Get distinct difficulty values from reading_questions
+        reading_response = admin_client.table('reading_questions').select('difficulty').execute()
+        
+        return {
+            "quantitative_difficulties": list(set([item['difficulty'] for item in quantitative_response.data if item.get('difficulty')])),
+            "analogy_difficulties": list(set([item['difficulty'] for item in analogy_response.data if item.get('difficulty')])),
+            "synonym_difficulties": list(set([item['difficulty'] for item in synonym_response.data if item.get('difficulty')])),
+            "reading_difficulties": list(set([item['difficulty'] for item in reading_response.data if item.get('difficulty')])),
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get difficulty values: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get difficulty values")
+
+
+@router.get("/training-examples")
+async def get_training_examples(
+    section: str = None,
+    difficulty: str = None,
+    current_user: UserProfile = Depends(get_current_user)
+):
+    """Get all training examples grouped by section (admin only)."""
+    try:
+        check_admin_access(current_user)
+        
+        logger.info(f"🔍 ADMIN: Admin {current_user.id} requesting training examples with difficulty={difficulty}, section={section}")
+        
+        # Get admin database connection
+        service_role_key = get_config().supabase_service_role_key
+        if not service_role_key:
+            logger.error("🔍 ADMIN: Service role key not set in environment")
+            raise HTTPException(status_code=500, detail='Service role key not set in environment')
+        
+        admin_client = create_client(get_config().supabase_url, service_role_key)
+        
+        # Initialize training examples structure
+        training_examples = {
+            "quantitative": [],
+            "analogy": [],
+            "synonym": [],
+            "reading": [],
+            "writing": []
+        }
+        
+        # If specific section requested, only fetch that section
+        if section:
+            logger.info(f"🔍 ADMIN: Fetching specific section: {section}")
+            
+            if section == "quantitative":
+                try:
+                    query = admin_client.table('ssat_questions').select('*').eq('section', 'Quantitative')
+                    if difficulty:
+                        logger.info(f"🔍 ADMIN: Adding difficulty filter: '{difficulty}'")
+                        query = query.eq('difficulty', difficulty)
+                    else:
+                        logger.info(f"🔍 ADMIN: No difficulty filter applied")
+                    quantitative_response = query.execute()
+                    logger.info(f"🔍 ADMIN: Quantitative query returned {len(quantitative_response.data) if quantitative_response.data else 0} results")
+                    if quantitative_response.data:
+                        # Log a sample of the difficulties we got
+                        sample_difficulties = [item.get('difficulty') for item in quantitative_response.data[:3]]
+                        logger.info(f"🔍 ADMIN: Sample difficulties in results: {sample_difficulties}")
+                        training_examples["quantitative"] = quantitative_response.data
+                except Exception as e:
+                    logger.warning(f"Failed to get quantitative training examples: {e}")
+            
+            elif section == "analogy":
+                try:
+                    query = admin_client.table('ssat_questions').select('*').eq('section', 'Verbal').eq('subsection', 'Analogies')
+                    if difficulty:
+                        query = query.eq('difficulty', difficulty)
+                    analogy_response = query.execute()
+                    if analogy_response.data:
+                        training_examples["analogy"] = analogy_response.data
+                except Exception as e:
+                    logger.warning(f"Failed to get analogy training examples: {e}")
+            
+            elif section == "synonym":
+                try:
+                    query = admin_client.table('ssat_questions').select('*').eq('section', 'Verbal').eq('subsection', 'Synonyms')
+                    if difficulty:
+                        query = query.eq('difficulty', difficulty)
+                    synonym_response = query.execute()
+                    if synonym_response.data:
+                        training_examples["synonym"] = synonym_response.data
+                except Exception as e:
+                    logger.warning(f"Failed to get synonym training examples: {e}")
+            
+            elif section == "reading":
+                try:
+                    reading_passages_response = admin_client.table('reading_passages').select('*').execute()
+                    if reading_passages_response.data:
+                        # For each passage, get its questions
+                        for passage in reading_passages_response.data:
+                            passage_id = passage['id']
+                            query = admin_client.table('reading_questions').select('*').eq('passage_id', passage_id)
+                            if difficulty:
+                                query = query.eq('difficulty', difficulty)
+                            questions_response = query.execute()
+                            passage['questions'] = questions_response.data if questions_response.data else []
+                        # Filter out passages that have no questions after difficulty filtering
+                        training_examples["reading"] = [p for p in reading_passages_response.data if p.get('questions')]
+                except Exception as e:
+                    logger.warning(f"Failed to get reading training examples: {e}")
+            
+            elif section == "writing":
+                try:
+                    writing_response = admin_client.table('writing_prompts').select('*').execute()
+                    if writing_response.data:
+                        training_examples["writing"] = writing_response.data
+                except Exception as e:
+                    logger.warning(f"Failed to get writing training examples: {e}")
+        else:
+            # Fetch all sections
+            logger.info("🔍 ADMIN: Fetching all training examples")
+            
+            # Get quantitative training questions
+            try:
+                query = admin_client.table('ssat_questions').select('*').eq('section', 'Quantitative')
+                if difficulty:
+                    query = query.eq('difficulty', difficulty)
+                quantitative_response = query.execute()
+                if quantitative_response.data:
+                    training_examples["quantitative"] = quantitative_response.data
+            except Exception as e:
+                logger.warning(f"Failed to get quantitative training examples: {e}")
+            
+            # Get analogy training questions
+            try:
+                query = admin_client.table('ssat_questions').select('*').eq('section', 'Verbal').eq('subsection', 'Analogies')
+                if difficulty:
+                    query = query.eq('difficulty', difficulty)
+                analogy_response = query.execute()
+                if analogy_response.data:
+                    training_examples["analogy"] = analogy_response.data
+            except Exception as e:
+                logger.warning(f"Failed to get analogy training examples: {e}")
+            
+            # Get synonym training questions
+            try:
+                query = admin_client.table('ssat_questions').select('*').eq('section', 'Verbal').eq('subsection', 'Synonyms')
+                if difficulty:
+                    query = query.eq('difficulty', difficulty)
+                synonym_response = query.execute()
+                if synonym_response.data:
+                    training_examples["synonym"] = synonym_response.data
+            except Exception as e:
+                logger.warning(f"Failed to get synonym training examples: {e}")
+            
+            # Get reading training examples (passages with questions)
+            try:
+                reading_passages_response = admin_client.table('reading_passages').select('*').execute()
+                if reading_passages_response.data:
+                    # For each passage, get its questions
+                    for passage in reading_passages_response.data:
+                        passage_id = passage['id']
+                        query = admin_client.table('reading_questions').select('*').eq('passage_id', passage_id)
+                        if difficulty:
+                            query = query.eq('difficulty', difficulty)
+                        questions_response = query.execute()
+                        passage['questions'] = questions_response.data if questions_response.data else []
+                    # Filter out passages that have no questions after difficulty filtering
+                    training_examples["reading"] = [p for p in reading_passages_response.data if p.get('questions')]
+            except Exception as e:
+                logger.warning(f"Failed to get reading training examples: {e}")
+            
+            # Get writing training prompts
+            try:
+                writing_response = admin_client.table('writing_prompts').select('*').execute()
+                if writing_response.data:
+                    training_examples["writing"] = writing_response.data
+            except Exception as e:
+                logger.warning(f"Failed to get writing training examples: {e}")
+        
+        # Calculate summary statistics
+        summary = {
+            "quantitative": len(training_examples["quantitative"]),
+            "analogy": len(training_examples["analogy"]),
+            "synonym": len(training_examples["synonym"]),
+            "reading_passages": len(training_examples["reading"]),
+            "reading_questions": sum(len(p.get('questions', [])) for p in training_examples["reading"]),
+            "writing": len(training_examples["writing"])
+        }
+        
+        logger.info(f"🔍 ADMIN: Retrieved training examples - {summary}")
+        
+        return {
+            "success": True,
+            "summary": summary,
+            "training_examples": training_examples
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get training examples: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get training examples"
+        )
+
+
+@router.delete("/training-examples/{example_id}")
+async def delete_training_example(
+    example_id: str,
+    request: dict,
+    current_user: UserProfile = Depends(get_current_user)
+):
+    """Delete a training example (admin only)."""
+    try:
+        check_admin_access(current_user)
+        
+        logger.info(f"🔍 ADMIN: Admin {current_user.id} deleting training example {example_id}")
+        
+        # Get admin database connection
+        service_role_key = get_config().supabase_service_role_key
+        if not service_role_key:
+            logger.error("🔍 ADMIN: Service role key not set in environment")
+            raise HTTPException(status_code=500, detail='Service role key not set in environment')
+        
+        admin_client = create_client(get_config().supabase_url, service_role_key)
+        
+        # Get table name from request body
+        table_name = request.get('table')
+        if not table_name:
+            raise HTTPException(status_code=400, detail='Table name is required')
+        
+        # Validate table name for security
+        valid_tables = ['ssat_questions', 'reading_passages', 'writing_prompts']
+        if table_name not in valid_tables:
+            raise HTTPException(status_code=400, detail=f'Invalid table name. Must be one of: {valid_tables}')
+        
+        # Delete the training example
+        try:
+            response = admin_client.table(table_name).delete().eq('id', example_id).execute()
+            logger.info(f"🔍 ADMIN: Deleted training example {example_id} from {table_name}")
+            
+            return {
+                "success": True,
+                "message": f"Training example {example_id} deleted successfully from {table_name}"
+            }
+        except Exception as e:
+            logger.error(f"Failed to delete training example {example_id} from {table_name}: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to delete training example: {str(e)}"
+            )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete training example: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to delete training example"
+        )
+
+
+@router.put("/training-examples/{example_id}")
+async def update_training_example(
+    example_id: str,
+    request: dict,
+    current_user: UserProfile = Depends(get_current_user)
+):
+    """Update a training example (admin only)."""
+    try:
+        check_admin_access(current_user)
+        
+        logger.info(f"🔍 ADMIN: Admin {current_user.id} updating training example {example_id}")
+        
+        # Get admin database connection
+        service_role_key = get_config().supabase_service_role_key
+        if not service_role_key:
+            logger.error("🔍 ADMIN: Service role key not set in environment")
+            raise HTTPException(status_code=500, detail='Service role key not set in environment')
+        
+        admin_client = create_client(get_config().supabase_url, service_role_key)
+        
+        # Get table name and updates from request body
+        table_name = request.get('table')
+        updates = request.get('updates', {})
+        
+        if not table_name:
+            raise HTTPException(status_code=400, detail='Table name is required')
+        
+        if not updates:
+            raise HTTPException(status_code=400, detail='Updates are required')
+        
+        # Validate table name for security
+        valid_tables = ['ssat_questions', 'reading_passages', 'writing_prompts']
+        if table_name not in valid_tables:
+            raise HTTPException(status_code=400, detail=f'Invalid table name. Must be one of: {valid_tables}')
+        
+        # Update the training example
+        try:
+            response = admin_client.table(table_name).update(updates).eq('id', example_id).execute()
+            logger.info(f"🔍 ADMIN: Updated training example {example_id} in {table_name}")
+            
+            return {
+                "success": True,
+                "message": f"Training example {example_id} updated successfully in {table_name}",
+                "data": response.data[0] if response.data else None
+            }
+        except Exception as e:
+            logger.error(f"Failed to update training example {example_id} in {table_name}: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to update training example: {str(e)}"
+            )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update training example: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update training example"
+        )
+
+
+@router.get("/pool-questions")
+async def get_pool_questions(
+    section: str = None,
+    difficulty: str = None,
+    current_user: UserProfile = Depends(get_current_user)
+):
+    """Get all pool questions grouped by section (admin only)."""
+    try:
+        check_admin_access(current_user)
+        
+        logger.info(f"🔍 ADMIN: Admin {current_user.id} requesting pool questions")
+        
+        # Get admin database connection
+        service_role_key = get_config().supabase_service_role_key
+        if not service_role_key:
+            logger.error("🔍 ADMIN: Service role key not set in environment")
+            raise HTTPException(status_code=500, detail='Service role key not set in environment')
+        
+        admin_client = create_client(get_config().supabase_url, service_role_key)
+        
+        # Initialize pool questions structure
+        pool_questions = {
+            "quantitative": [],
+            "analogy": [],
+            "synonym": [],
+            "reading": [],
+            "writing": []
+        }
+        
+        # If specific section requested, only fetch that section
+        if section:
+            logger.info(f"🔍 ADMIN: Fetching specific section: {section}")
+            
+            if section == "quantitative":
+                try:
+                    query = admin_client.table('ai_generated_questions').select('*').eq('section', 'Quantitative')
+                    if difficulty:
+                        query = query.eq('difficulty', difficulty)
+                    quantitative_response = query.execute()
+                    if quantitative_response.data:
+                        pool_questions["quantitative"] = quantitative_response.data
+                except Exception as e:
+                    logger.warning(f"Failed to get quantitative pool questions: {e}")
+            
+            elif section == "analogy":
+                try:
+                    query = admin_client.table('ai_generated_questions').select('*').eq('section', 'Verbal').eq('subsection', 'Analogies')
+                    if difficulty:
+                        query = query.eq('difficulty', difficulty)
+                    analogy_response = query.execute()
+                    if analogy_response.data:
+                        pool_questions["analogy"] = analogy_response.data
+                except Exception as e:
+                    logger.warning(f"Failed to get analogy pool questions: {e}")
+            
+            elif section == "synonym":
+                try:
+                    query = admin_client.table('ai_generated_questions').select('*').eq('section', 'Verbal').eq('subsection', 'Synonyms')
+                    if difficulty:
+                        query = query.eq('difficulty', difficulty)
+                    synonym_response = query.execute()
+                    if synonym_response.data:
+                        pool_questions["synonym"] = synonym_response.data
+                except Exception as e:
+                    logger.warning(f"Failed to get synonym pool questions: {e}")
+            
+            elif section == "reading":
+                try:
+                    reading_passages_response = admin_client.table('ai_generated_reading_passages').select('*').execute()
+                    if reading_passages_response.data:
+                        # For each passage, get its questions
+                        for passage in reading_passages_response.data:
+                            passage_id = passage['id']
+                            query = admin_client.table('ai_generated_reading_questions').select('*').eq('passage_id', passage_id)
+                            if difficulty:
+                                query = query.eq('difficulty', difficulty)
+                            questions_response = query.execute()
+                            passage['questions'] = questions_response.data if questions_response.data else []
+                        # Filter out passages that have no questions after difficulty filtering
+                        pool_questions["reading"] = [p for p in reading_passages_response.data if p.get('questions')]
+                except Exception as e:
+                    logger.warning(f"Failed to get reading pool questions: {e}")
+            
+            elif section == "writing":
+                try:
+                    writing_response = admin_client.table('ai_generated_writing_prompts').select('*').execute()
+                    if writing_response.data:
+                        pool_questions["writing"] = writing_response.data
+                except Exception as e:
+                    logger.warning(f"Failed to get writing pool questions: {e}")
+        else:
+            # Fetch all sections
+            logger.info("🔍 ADMIN: Fetching all pool questions")
+            
+            # Get quantitative pool questions
+            try:
+                query = admin_client.table('ai_generated_questions').select('*').eq('section', 'Quantitative')
+                if difficulty:
+                    query = query.eq('difficulty', difficulty)
+                quantitative_response = query.execute()
+                if quantitative_response.data:
+                    pool_questions["quantitative"] = quantitative_response.data
+            except Exception as e:
+                logger.warning(f"Failed to get quantitative pool questions: {e}")
+            
+            # Get analogy pool questions
+            try:
+                query = admin_client.table('ai_generated_questions').select('*').eq('section', 'Verbal').eq('subsection', 'Analogies')
+                if difficulty:
+                    query = query.eq('difficulty', difficulty)
+                analogy_response = query.execute()
+                if analogy_response.data:
+                    pool_questions["analogy"] = analogy_response.data
+            except Exception as e:
+                logger.warning(f"Failed to get analogy pool questions: {e}")
+            
+            # Get synonym pool questions
+            try:
+                query = admin_client.table('ai_generated_questions').select('*').eq('section', 'Verbal').eq('subsection', 'Synonyms')
+                if difficulty:
+                    query = query.eq('difficulty', difficulty)
+                synonym_response = query.execute()
+                if synonym_response.data:
+                    pool_questions["synonym"] = synonym_response.data
+            except Exception as e:
+                logger.warning(f"Failed to get synonym pool questions: {e}")
+            
+            # Get reading pool questions (passages with questions)
+            try:
+                reading_passages_response = admin_client.table('ai_generated_reading_passages').select('*').execute()
+                if reading_passages_response.data:
+                    # For each passage, get its questions
+                    for passage in reading_passages_response.data:
+                        passage_id = passage['id']
+                        query = admin_client.table('ai_generated_reading_questions').select('*').eq('passage_id', passage_id)
+                        if difficulty:
+                            query = query.eq('difficulty', difficulty)
+                        questions_response = query.execute()
+                        passage['questions'] = questions_response.data if questions_response.data else []
+                    # Filter out passages that have no questions after difficulty filtering
+                    pool_questions["reading"] = [p for p in reading_passages_response.data if p.get('questions')]
+            except Exception as e:
+                logger.warning(f"Failed to get reading pool questions: {e}")
+            
+            # Get writing pool prompts
+            try:
+                writing_response = admin_client.table('ai_generated_writing_prompts').select('*').execute()
+                if writing_response.data:
+                    pool_questions["writing"] = writing_response.data
+            except Exception as e:
+                logger.warning(f"Failed to get writing pool questions: {e}")
+        
+        # Calculate summary statistics
+        summary = {
+            "quantitative": len(pool_questions["quantitative"]),
+            "analogy": len(pool_questions["analogy"]),
+            "synonym": len(pool_questions["synonym"]),
+            "reading_passages": len(pool_questions["reading"]),
+            "reading_questions": sum(len(p.get('questions', [])) for p in pool_questions["reading"]),
+            "writing": len(pool_questions["writing"])
+        }
+        
+        logger.info(f"🔍 ADMIN: Retrieved pool questions - {summary}")
+        
+        return {
+            "success": True,
+            "summary": summary,
+            "pool_questions": pool_questions
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get pool questions: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get pool questions"
+        )
+
+
+@router.delete("/pool-questions/{question_id}")
+async def delete_pool_question(
+    question_id: str,
+    request: dict,
+    current_user: UserProfile = Depends(get_current_user)
+):
+    """Delete a pool question (admin only)."""
+    try:
+        check_admin_access(current_user)
+        
+        logger.info(f"🔍 ADMIN: Admin {current_user.id} deleting pool question {question_id}")
+        
+        # Get admin database connection
+        service_role_key = get_config().supabase_service_role_key
+        if not service_role_key:
+            logger.error("🔍 ADMIN: Service role key not set in environment")
+            raise HTTPException(status_code=500, detail='Service role key not set in environment')
+        
+        admin_client = create_client(get_config().supabase_url, service_role_key)
+        
+        # Get table name from request body
+        table_name = request.get('table')
+        if not table_name:
+            raise HTTPException(status_code=400, detail='Table name is required')
+        
+        # Validate table name for security
+        valid_tables = ['ai_generated_questions', 'ai_generated_reading_passages', 'ai_generated_writing_prompts']
+        if table_name not in valid_tables:
+            raise HTTPException(status_code=400, detail=f'Invalid table name. Must be one of: {valid_tables}')
+        
+        # Delete the pool question
+        try:
+            response = admin_client.table(table_name).delete().eq('id', question_id).execute()
+            logger.info(f"🔍 ADMIN: Deleted pool question {question_id} from {table_name}")
+            
+            return {
+                "success": True,
+                "message": f"Pool question {question_id} deleted successfully from {table_name}"
+            }
+        except Exception as e:
+            logger.error(f"Failed to delete pool question {question_id} from {table_name}: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to delete pool question: {str(e)}"
+            )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete pool question: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to delete pool question"
+        )
+
+
+@router.put("/pool-questions/{question_id}")
+async def update_pool_question(
+    question_id: str,
+    request: dict,
+    current_user: UserProfile = Depends(get_current_user)
+):
+    """Update a pool question (admin only)."""
+    try:
+        check_admin_access(current_user)
+        
+        logger.info(f"🔍 ADMIN: Admin {current_user.id} updating pool question {question_id}")
+        
+        # Get admin database connection
+        service_role_key = get_config().supabase_service_role_key
+        if not service_role_key:
+            logger.error("🔍 ADMIN: Service role key not set in environment")
+            raise HTTPException(status_code=500, detail='Service role key not set in environment')
+        
+        admin_client = create_client(get_config().supabase_url, service_role_key)
+        
+        # Get table name and updates from request body
+        table_name = request.get('table')
+        updates = request.get('updates', {})
+        
+        if not table_name:
+            raise HTTPException(status_code=400, detail='Table name is required')
+        
+        if not updates:
+            raise HTTPException(status_code=400, detail='Updates are required')
+        
+        # Validate table name for security
+        valid_tables = ['ai_generated_questions', 'ai_generated_reading_passages', 'ai_generated_writing_prompts']
+        if table_name not in valid_tables:
+            raise HTTPException(status_code=400, detail=f'Invalid table name. Must be one of: {valid_tables}')
+        
+        # Update the pool question
+        try:
+            response = admin_client.table(table_name).update(updates).eq('id', question_id).execute()
+            logger.info(f"🔍 ADMIN: Updated pool question {question_id} in {table_name}")
+            
+            return {
+                "success": True,
+                "message": f"Pool question {question_id} updated successfully in {table_name}",
+                "data": response.data[0] if response.data else None
+            }
+        except Exception as e:
+            logger.error(f"Failed to update pool question {question_id} in {table_name}: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to update pool question: {str(e)}"
+            )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update pool question: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update pool question"
+        )

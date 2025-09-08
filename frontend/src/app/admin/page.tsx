@@ -4,6 +4,8 @@ import React, { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { getAuthHeaders } from '@/utils/auth'
 import { useRouter } from 'next/navigation'
+import { TrainingExamplesViewer } from '@/components/admin/TrainingExamplesViewer'
+import { PoolQuestionsViewer } from '@/components/admin/PoolQuestionsViewer'
 
 interface UserData {
   id: string
@@ -49,7 +51,7 @@ interface StatisticsError {
   pool: string | null
 }
 
-type AdminSection = 'generate' | 'complete-test' | 'users' | 'training-examples' | 'migration' | 'statistics'
+type AdminSection = 'generate' | 'complete-test' | 'users' | 'training-examples' | 'view-training-examples' | 'view-pool-questions' | 'migration' | 'statistics'
 
 export default function AdminPage() {
   const [activeSection, setActiveSection] = useState<AdminSection>('generate')
@@ -125,6 +127,11 @@ export default function AdminPage() {
     content: null,
     pool: null
   })
+  
+  // Pool user usage statistics state
+  const [poolUserUsageStats, setPoolUserUsageStats] = useState<any>(null)
+  const [poolUserUsageLoading, setPoolUserUsageLoading] = useState(false)
+  const [poolUserUsageError, setPoolUserUsageError] = useState<string | null>(null)
   
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -451,6 +458,28 @@ export default function AdminPage() {
     }
   }
 
+  const loadPoolUserUsageStats = async () => {
+    setPoolUserUsageLoading(true)
+    setPoolUserUsageError(null)
+    
+    try {
+      const headers = await getAuthHeaders()
+      const response = await fetch('/api/admin/statistics/pool/user-usage', { headers })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setPoolUserUsageStats(data)
+      } else {
+        const errorData = await response.json()
+        setPoolUserUsageError(errorData.error || 'Failed to load pool user usage statistics')
+      }
+    } catch (error) {
+      setPoolUserUsageError('Network error. Please try again.')
+    } finally {
+      setPoolUserUsageLoading(false)
+    }
+  }
+
   // Load migration stats when migration section is active
   React.useEffect(() => {
     if (activeSection === 'migration') {
@@ -535,16 +564,6 @@ export default function AdminPage() {
               Complete Test
             </button>
             <button
-              onClick={() => setActiveSection('users')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeSection === 'users'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Manage Users
-            </button>
-            <button
               onClick={() => setActiveSection('training-examples')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 activeSection === 'training-examples'
@@ -555,6 +574,16 @@ export default function AdminPage() {
               Save AI Training Examples
             </button>
             <button
+              onClick={() => setActiveSection('view-training-examples')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeSection === 'view-training-examples'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              View Training Examples
+            </button>
+            <button
               onClick={() => setActiveSection('migration')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 activeSection === 'migration'
@@ -563,6 +592,26 @@ export default function AdminPage() {
               }`}
             >
               Migrate Training Examples to Pool
+            </button>
+            <button
+              onClick={() => setActiveSection('view-pool-questions')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeSection === 'view-pool-questions'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              View Pool Questions
+            </button>
+            <button
+              onClick={() => setActiveSection('users')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeSection === 'users'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Manage Users
             </button>
             <button
               onClick={() => setActiveSection('statistics')}
@@ -1123,7 +1172,7 @@ Tags: imaginative-thinking, creative-problem-solving, world-building`}
                           Limits
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Usage Today
+                          Last Usage
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Actions
@@ -1432,6 +1481,16 @@ Tags: character-development, visual-inspiration, friendship-themes`}
           </div>
         )}
 
+        {/* View Training Examples Section */}
+        {activeSection === 'view-training-examples' && (
+          <TrainingExamplesViewer showChinese={false} />
+        )}
+
+        {/* View Pool Questions Section */}
+        {activeSection === 'view-pool-questions' && (
+          <PoolQuestionsViewer showChinese={false} />
+        )}
+
         {/* Migration Section */}
         {activeSection === 'migration' && (
           <div className="bg-white shadow sm:rounded-lg">
@@ -1693,18 +1752,33 @@ Tags: character-development, visual-inspiration, friendship-themes`}
                       AI-generated content usage across all sections (Quantitative, Analogies, Synonyms, Reading, Writing) with remaining counts
                     </p>
                   </div>
-                  <button
-                    onClick={loadPoolStats}
-                    disabled={statisticsLoading.pool}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400"
-                  >
-                    {statisticsLoading.pool ? 'Loading...' : 'Load Pool Stats'}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={loadPoolStats}
+                      disabled={statisticsLoading.pool}
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400"
+                    >
+                      {statisticsLoading.pool ? 'Loading...' : 'Load Pool Stats'}
+                    </button>
+                    <button
+                      onClick={loadPoolUserUsageStats}
+                      disabled={poolUserUsageLoading}
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-gray-400"
+                    >
+                      {poolUserUsageLoading ? 'Loading...' : 'Load User Usage'}
+                    </button>
+                  </div>
                 </div>
                 
                 {statisticsError.pool && (
                   <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-4">
                     <div className="text-red-800">Error: {statisticsError.pool}</div>
+                  </div>
+                )}
+                
+                {poolUserUsageError && (
+                  <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-4">
+                    <div className="text-red-800">Error: {poolUserUsageError}</div>
                   </div>
                 )}
                 
@@ -1744,6 +1818,83 @@ Tags: character-development, visual-inspiration, friendship-themes`}
                         <div>Used: {poolStats.writing.used}</div>
                         <div>Remaining: {poolStats.writing.remaining}</div>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* User Usage Statistics */}
+                {poolUserUsageStats && (
+                  <div className="mt-6">
+                    <h4 className="text-lg font-medium text-gray-900 mb-4">
+                      👥 User Pool Usage Statistics ({poolUserUsageStats.user_count} users)
+                    </h4>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              User
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Role
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Total Usage
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Quantitative
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Analogy
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Synonym
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Reading
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Writing
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {poolUserUsageStats.users.map((user: any, index: number) => (
+                            <tr key={user.user_id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {user.email}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                  user.role === 'admin' ? 'bg-red-100 text-red-800' :
+                                  user.role === 'premium' ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {user.role}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                                {user.total_usage}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {user.quantitative_used}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {user.analogy_used}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {user.synonym_used}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {user.reading_used}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {user.writing_used}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 )}
