@@ -12,15 +12,15 @@ interface LayoutWrapperProps {
 function LayoutContent({ children }: LayoutWrapperProps) {
   const { showChinese, dispatch } = usePreferences()
 
-  const handleLanguageToggle = () => {
-    dispatch({ type: 'SET_SHOW_CHINESE', payload: !showChinese })
+  const handleLanguageChange = (language: string) => {
+    dispatch({ type: 'SET_SHOW_CHINESE', payload: language === 'zh' })
   }
 
   return (
     <div className="min-h-screen flex flex-col">
       <Header 
         showChinese={showChinese}
-        onLanguageToggle={handleLanguageToggle}
+        onLanguageChange={handleLanguageChange}
       />
       <main className="flex-1">
         {children}

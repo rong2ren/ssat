@@ -5,15 +5,16 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { BookOpen, Home, Globe, LogIn, Target } from 'lucide-react'
 import { Button } from './ui/Button'
+import { LanguageSelector } from './ui/LanguageSelector'
 import { useAuth } from '@/contexts/AuthContext'
 import UserProfile from './auth/UserProfile'
 
 interface HeaderProps {
   showChinese?: boolean
-  onLanguageToggle?: () => void
+  onLanguageChange?: (language: string) => void
 }
 
-function HeaderComponent({ showChinese = false, onLanguageToggle }: HeaderProps) {
+function HeaderComponent({ showChinese = false, onLanguageChange }: HeaderProps) {
   const pathname = usePathname()
   const { user, loading } = useAuth()
   
@@ -102,20 +103,18 @@ function HeaderComponent({ showChinese = false, onLanguageToggle }: HeaderProps)
               </Link>
             </nav>
 
-            {/* Language Toggle - Compact on mobile */}
-            {onLanguageToggle && (
-              <Button
-                variant="outline"
+            {/* Language Selector */}
+            {onLanguageChange && (
+              <LanguageSelector
+                value={showChinese ? 'zh' : 'en'}
+                onChange={onLanguageChange}
+                options={[
+                  { value: 'en', label: 'English' },
+                  { value: 'zh', label: '中文' }
+                ]}
                 size="sm"
-                onClick={onLanguageToggle}
-                className="flex items-center justify-center px-1.5 sm:px-3 h-8 sm:h-9 min-w-0"
-                title={showChinese ? 'Switch to English' : '切换到中文'}
-              >
-                <Globe className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="text-xs sm:text-sm font-medium truncate hidden sm:inline sm:ml-1">
-                  {showChinese ? 'EN' : '中文'}
-                </span>
-              </Button>
+                className="w-8 sm:w-24"
+              />
             )}
 
             {/* Authentication */}

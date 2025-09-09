@@ -8,6 +8,7 @@ import LoginForm from '@/components/auth/LoginForm'
 import RegisterForm from '@/components/auth/RegisterForm'
 import ForgotPasswordForm from '@/components/auth/ForgotPasswordForm'
 import { Globe } from 'lucide-react'
+import { LanguageSelector } from '@/components/ui/LanguageSelector'
 
 type AuthMode = 'login' | 'register' | 'forgot-password'
 
@@ -74,15 +75,18 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      {/* Language Toggle Button */}
+      {/* Language Selector */}
       <div className="absolute top-4 right-4">
-        <button
-          onClick={() => dispatch({ type: 'SET_SHOW_CHINESE', payload: !showChinese })}
-          className="flex items-center space-x-2 px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 transition-colors"
-        >
-          <Globe className="h-4 w-4" />
-          <span className="text-sm">{showChinese ? 'EN' : '中文'}</span>
-        </button>
+        <LanguageSelector
+          value={showChinese ? 'zh' : 'en'}
+          onChange={(language) => dispatch({ type: 'SET_SHOW_CHINESE', payload: language === 'zh' })}
+          options={[
+            { value: 'en', label: 'English' },
+            { value: 'zh', label: '中文' }
+          ]}
+          size="md"
+          className="w-10 sm:w-28"
+        />
       </div>
       
       <div className="w-full max-w-md">
