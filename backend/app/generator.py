@@ -963,7 +963,7 @@ OUTPUT FORMAT - Return ONLY a JSON object:
       "explanation": "detailed explanation",
       "cognitive_level": "{self._get_cognitive_level_by_difficulty(request.difficulty.value)}",
       "tags": ["tag1", "tag2", "tag3"],
-      "subsection": "{request.topic if request.topic else f'Use ONLY these EXACT names: {', '.join(QUANTITATIVE_SUBSECTIONS)}. No variations, no new names, no combinations.'}",
+      "subsection": "{request.topic if request.topic else 'Use ONLY these EXACT names: ' + ', '.join(QUANTITATIVE_SUBSECTIONS) + '. No variations, no new names, no combinations.'}",
       "visual_description": "Description of any visual elements (if applicable)"
     }}
   ]
@@ -1365,7 +1365,7 @@ OUTPUT FORMAT - Return ONLY a JSON object:
       "explanation": "detailed explanation",
       "cognitive_level": "{self._get_cognitive_level_by_difficulty(request.difficulty.value)}",
       "tags": ["tag1", "tag2", "tag3"],
-      "subsection": "{request.topic if request.topic else f'Use ONLY these EXACT names: {', '.join(QUANTITATIVE_SUBSECTIONS)}. No variations, no new names, no combinations.'}",
+      "subsection": "{request.topic if request.topic else 'Use ONLY these EXACT names: ' + ', '.join(QUANTITATIVE_SUBSECTIONS) + '. No variations, no new names, no combinations.'}",
       "visual_description": "Description of any visual elements (if applicable)"
     }}
   ]

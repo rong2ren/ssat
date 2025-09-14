@@ -5,6 +5,8 @@ import { BookOpen, Target, Zap, Clock, Award, ArrowRight, Calculator, FileText, 
 import Link from 'next/link'
 import quantitativeScreenshot from '../../screenshots/quantiative.png'
 import readingScreenshot from '../../screenshots/reading.png'
+import analogyScreenshot from '../../screenshots/analogy.png'
+import synonymScreenshot from '../../screenshots/synonym.png'
 import Image from 'next/image'
 
 interface HomePageProps {
@@ -86,7 +88,11 @@ export function HomePage({ showChinese = false }: HomePageProps) {
     'Quantitative Practice': '数学练习',
     'Mathematical reasoning questions with step-by-step explanations': '数学推理题目，配有逐步解析',
     'Reading Comprehension': '阅读理解',
-    'Reading passages with comprehension questions and detailed analysis': '阅读文章配有理解题目和详细分析'
+    'Reading passages with comprehension questions and detailed analysis': '阅读文章配有理解题目和详细分析',
+    'Verbal Reasoning - Analogies': '语言推理 - 类比题',
+    'Analogy questions that test your ability to identify relationships between words': '类比题目测试您识别词汇关系的能力',
+    'Verbal Reasoning - Synonyms': '语言推理 - 同义词',
+    'Synonym questions that expand your vocabulary and word recognition skills': '同义词题目扩展您的词汇量和词汇识别技能'
   }
 
   const t = (key: string) => showChinese ? (translations[key as keyof typeof translations] || key) : key
@@ -298,6 +304,38 @@ export function HomePage({ showChinese = false }: HomePageProps) {
                 {t('Reading passages with comprehension questions and detailed analysis')}
               </p>
             </div>
+            
+            <div className="space-y-6">
+              <h3 className="text-2xl font-semibold text-gray-900 text-center">{t('Verbal Reasoning - Analogies')}</h3>
+              <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 hover:shadow-3xl transition-shadow duration-300">
+                <Image 
+                  src={analogyScreenshot} 
+                  alt="SmartSSAT Analogy Practice Interface"
+                  width={1000}
+                  height={700}
+                  className="w-full h-auto"
+                />
+              </div>
+              <p className="text-base text-gray-600 text-center leading-relaxed max-w-3xl mx-auto">
+                {t('Analogy questions that test your ability to identify relationships between words')}
+              </p>
+            </div>
+            
+            <div className="space-y-6">
+              <h3 className="text-2xl font-semibold text-gray-900 text-center">{t('Verbal Reasoning - Synonyms')}</h3>
+              <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 hover:shadow-3xl transition-shadow duration-300">
+                <Image 
+                  src={synonymScreenshot} 
+                  alt="SmartSSAT Synonym Practice Interface"
+                  width={1000}
+                  height={700}
+                  className="w-full h-auto"
+                />
+              </div>
+              <p className="text-base text-gray-600 text-center leading-relaxed max-w-3xl mx-auto">
+                {t('Synonym questions that expand your vocabulary and word recognition skills')}
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -307,8 +345,8 @@ export function HomePage({ showChinese = false }: HomePageProps) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">{t('SSAT Test Sections')}</h2>
-            <p className="text-lg text-gray-600">
-              {t('Comprehensive coverage of all SSAT sections with authentic question types.')}
+            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+              {t('Master all four SSAT sections with our AI-powered practice platform. Each section is designed to mirror the actual test experience.')}
             </p>
           </div>
           
@@ -318,72 +356,38 @@ export function HomePage({ showChinese = false }: HomePageProps) {
                 title: t('Quantitative'),
                 description: t('Mathematical reasoning and problem-solving skills'),
                 topics: [t('Fractions'), t('Algebra'), t('Geometry'), t('Word Problems')],
-                color: 'blue',
                 icon: Calculator
               },
               {
                 title: t('Verbal'),
                 description: t('Vocabulary and verbal reasoning skills'),
                 topics: [t('Synonyms'), t('Analogies'), t('Vocabulary'), t('Word Relationships')],
-                color: 'green',
                 icon: BookOpen
               },
               {
                 title: t('Reading'),
                 description: t('Reading comprehension and analysis'),
                 topics: [t('Literature'), t('Science'), t('History'), t('Critical Reading')],
-                color: 'purple',
                 icon: FileText
               },
               {
                 title: t('Writing'),
                 description: t('Creative writing and essay skills'),
                 topics: [t('Grammar'), t('Punctuation'), t('Sentence Structure'), t('Style')],
-                color: 'orange',
                 icon: PenTool
               }
             ].map((section, index) => {
-              const getColorClasses = (color: string) => {
-                switch (color) {
-                  case 'blue':
-                    return {
-                      bg: 'bg-blue-100',
-                      text: 'text-blue-600',
-                      textDark: 'text-blue-700'
-                    }
-                  case 'green':
-                    return {
-                      bg: 'bg-green-100',
-                      text: 'text-green-600',
-                      textDark: 'text-green-700'
-                    }
-                  case 'purple':
-                    return {
-                      bg: 'bg-purple-100',
-                      text: 'text-purple-600',
-                      textDark: 'text-purple-700'
-                    }
-                  case 'orange':
-                    return {
-                      bg: 'bg-orange-100',
-                      text: 'text-orange-600',
-                      textDark: 'text-orange-700'
-                    }
-                  default:
-                    return {
-                      bg: 'bg-gray-100',
-                      text: 'text-gray-600',
-                      textDark: 'text-gray-700'
-                    }
-                }
+              // Use consistent blue theme for all sections
+              const colors = {
+                bg: 'bg-blue-50',
+                text: 'text-blue-600',
+                textDark: 'text-blue-700'
               }
               
-              const colors = getColorClasses(section.color)
-              
               return (
-                <div key={index} className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                <div key={index} className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 group">
                   <div className="flex items-center mb-4">
-                    <div className={`${colors.bg} p-3 rounded-lg mr-4`}>
+                    <div className={`${colors.bg} p-3 rounded-lg mr-4 group-hover:scale-110 transition-transform duration-300`}>
                       <section.icon className={`h-6 w-6 ${colors.text}`} />
                     </div>
                     <div>

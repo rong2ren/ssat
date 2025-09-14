@@ -1142,13 +1142,13 @@ async def delete_training_example(
             raise HTTPException(status_code=400, detail='Table name is required')
         
         # Validate table name for security
-        valid_tables = ['ssat_questions', 'reading_passages', 'writing_prompts']
+        valid_tables = ['ssat_questions', 'reading_passages', 'reading_questions', 'writing_prompts']
         if table_name not in valid_tables:
             raise HTTPException(status_code=400, detail=f'Invalid table name. Must be one of: {valid_tables}')
         
         # Delete the training example
         try:
-            response = admin_client.table(table_name).delete().eq('id', example_id).execute()
+            admin_client.table(table_name).delete().eq('id', example_id).execute()
             logger.info(f"🔍 ADMIN: Deleted training example {example_id} from {table_name}")
             
             return {
@@ -1203,7 +1203,7 @@ async def update_training_example(
             raise HTTPException(status_code=400, detail='Updates are required')
         
         # Validate table name for security
-        valid_tables = ['ssat_questions', 'reading_passages', 'writing_prompts']
+        valid_tables = ['ssat_questions', 'reading_passages', 'reading_questions', 'writing_prompts']
         if table_name not in valid_tables:
             raise HTTPException(status_code=400, detail=f'Invalid table name. Must be one of: {valid_tables}')
         
@@ -1446,7 +1446,7 @@ async def delete_pool_question(
         
         # Delete the pool question
         try:
-            response = admin_client.table(table_name).delete().eq('id', question_id).execute()
+            admin_client.table(table_name).delete().eq('id', question_id).execute()
             logger.info(f"🔍 ADMIN: Deleted pool question {question_id} from {table_name}")
             
             return {

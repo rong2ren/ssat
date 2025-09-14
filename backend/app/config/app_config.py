@@ -5,7 +5,6 @@ This module provides a clean interface for accessing configuration values
 with proper validation and environment-specific handling.
 """
 
-import os
 from typing import Optional
 from loguru import logger
 from app.settings import settings

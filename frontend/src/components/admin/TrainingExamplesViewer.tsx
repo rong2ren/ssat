@@ -55,6 +55,8 @@ export function TrainingExamplesViewer({ showChinese = false }: TrainingExamples
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [editingExample, setEditingExample] = useState<TrainingExample | null>(null)
   const [editForm, setEditForm] = useState<Partial<TrainingExample>>({})
+  const [isCreating, setIsCreating] = useState(false)
+  const [creatingSection, setCreatingSection] = useState<string | null>(null)
   const [sectionDifficultyFilters, setSectionDifficultyFilters] = useState<Record<string, string>>({
     quantitative: '',
     analogy: '',
@@ -226,6 +228,25 @@ export function TrainingExamplesViewer({ showChinese = false }: TrainingExamples
     
     if (example) {
       setEditingExample(example)
+      setIsCreating(false)
+      
+      // For reading examples, ensure we always have exactly 4 questions
+      let questions = example.questions || []
+      if (example.passage && questions.length < 4) {
+        // Fill up to 4 questions with empty ones if needed
+        while (questions.length < 4) {
+          questions.push({
+            id: '',
+            question: '',
+            choices: ['', '', '', ''],
+            answer: 0,
+            explanation: '',
+            difficulty: '',
+            tags: []
+          })
+        }
+      }
+      
       setEditForm({
         question: example.question || '',
         choices: example.choices || [],
@@ -234,101 +255,391 @@ export function TrainingExamplesViewer({ showChinese = false }: TrainingExamples
         difficulty: example.difficulty || '',
         prompt: example.prompt || '',
         passage: example.passage || '',
+        passage_type: example.passage_type || '',
+        questions: questions,
         tags: example.tags || []
       })
     }
   }
 
+  const createNewTrainingExample = (section: string) => {
+    setCreatingSection(section)
+    setIsCreating(true)
+    setEditingExample(null)
+    
+    // Initialize form based on section type
+    const initialForm: Partial<TrainingExample> = {
+      question: '',
+      choices: section === 'writing' ? [] : ['', '', '', ''],
+      answer: 0,
+      explanation: '',
+      difficulty: '',
+      prompt: section === 'writing' ? '' : undefined,
+      passage: section === 'reading' ? '' : undefined,
+      passage_type: section === 'reading' ? '' : undefined,
+      questions: section === 'reading' ? [
+        {
+          id: '',
+          question: '',
+          choices: ['', '', '', ''],
+          answer: 0,
+          explanation: '',
+          difficulty: '',
+          tags: []
+        },
+        {
+          id: '',
+          question: '',
+          choices: ['', '', '', ''],
+          answer: 0,
+          explanation: '',
+          difficulty: '',
+          tags: []
+        },
+        {
+          id: '',
+          question: '',
+          choices: ['', '', '', ''],
+          answer: 0,
+          explanation: '',
+          difficulty: '',
+          tags: []
+        },
+        {
+          id: '',
+          question: '',
+          choices: ['', '', '', ''],
+          answer: 0,
+          explanation: '',
+          difficulty: '',
+          tags: []
+        }
+      ] : undefined,
+      tags: []
+    }
+    
+    setEditForm(initialForm)
+  }
+
   const saveTrainingExample = async () => {
-    if (!editingExample) return
+    if (!editingExample && !isCreating) return
 
     try {
-      setEditingId(editingExample.id)
+      if (isCreating) {
+        setEditingId('creating')
+      } else if (editingExample) {
+        setEditingId(editingExample.id)
+      }
+      
       const headers = await getAuthHeaders()
       
       // Determine the table based on the example type
       let tableName = ''
-      let filteredUpdates: any = {}
+      let requestData: any = {}
       
-      if (editingExample.passage) {
-        tableName = 'reading_passages'
-        // Only include fields that exist in reading_passages table
-        filteredUpdates = {
-          passage: editForm.passage,
-          tags: editForm.tags
+      if (isCreating) {
+        // For creating, determine table based on section
+        if (creatingSection === 'reading') {
+          // For reading, we need to create both passage and questions
+          const passageData = {
+            passage: editForm.passage,
+            passage_type: editForm.passage_type,
+            tags: editForm.tags
+          }
+          
+          // First create the passage
+          const passageResponse = await fetch('/api/admin/training-examples', {
+            method: 'POST',
+            headers: {
+              ...headers,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              table: 'reading_passages',
+              data: passageData
+            })
+          })
+          
+          if (!passageResponse.ok) {
+            const errorData = await passageResponse.json()
+            throw new Error(errorData.error || 'Failed to create reading passage')
+          }
+          
+          const passageResult = await passageResponse.json()
+          const passageId = passageResult.id
+          
+          // Then create the questions (exactly 4 required)
+          if (editForm.questions && editForm.questions.length === 4) {
+            for (const question of editForm.questions) {
+              if (!question.question || !question.question.trim()) {
+                throw new Error('All 4 questions must have question text')
+              }
+              
+              const questionData = {
+                passage_id: passageId,
+                question: question.question,
+                choices: question.choices,
+                answer: question.answer,
+                explanation: question.explanation,
+                difficulty: question.difficulty,
+                tags: question.tags || []
+              }
+              
+              const questionResponse = await fetch('/api/admin/training-examples', {
+                method: 'POST',
+                headers: {
+                  ...headers,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                  table: 'reading_questions',
+                  data: questionData
+                })
+              })
+              
+              if (!questionResponse.ok) {
+                const errorData = await questionResponse.json()
+                throw new Error(errorData.error || 'Failed to create reading question')
+              }
+            }
+          } else {
+            throw new Error('Reading passage must have exactly 4 questions')
+          }
+          
+          // Reload the section data
+          if (creatingSection) {
+            await fetchTrainingExamples(creatingSection)
+          }
+          alert('Reading training example created successfully!')
+          setEditingExample(null)
+          setEditForm({})
+          setIsCreating(false)
+          setCreatingSection(null)
+          return
+        } else if (creatingSection === 'writing') {
+          tableName = 'writing_prompts'
+          requestData = {
+            prompt: editForm.prompt,
+            tags: editForm.tags
+          }
+        } else {
+          tableName = 'ssat_questions'
+          requestData = {
+            question: editForm.question,
+            choices: editForm.choices,
+            answer: editForm.answer,
+            explanation: editForm.explanation,
+            difficulty: editForm.difficulty,
+            tags: editForm.tags
+          }
         }
-      } else if (editingExample.prompt) {
-        tableName = 'writing_prompts'
-        // Only include fields that exist in writing_prompts table
-        filteredUpdates = {
-          prompt: editForm.prompt,
-          tags: editForm.tags
-        }
-      } else {
-        tableName = 'ssat_questions'
-        // Only include fields that exist in ssat_questions table
-        filteredUpdates = {
-          question: editForm.question,
-          choices: editForm.choices,
-          answer: editForm.answer,
-          explanation: editForm.explanation,
-          difficulty: editForm.difficulty,
-          tags: editForm.tags
+      } else if (editingExample) {
+        // For editing, determine table based on existing example
+        if (editingExample.passage) {
+          // For reading examples, we need to update both passage and questions
+          const passageData = {
+            passage: editForm.passage,
+            passage_type: editForm.passage_type,
+            tags: editForm.tags
+          }
+          
+          // First update the passage
+          const passageResponse = await fetch(`/api/admin/training-examples/${editingExample.id}`, {
+            method: 'PUT',
+            headers: {
+              ...headers,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              table: 'reading_passages',
+              updates: passageData
+            })
+          })
+          
+          if (!passageResponse.ok) {
+            const errorData = await passageResponse.json()
+            throw new Error(errorData.error || 'Failed to update reading passage')
+          }
+          
+          // Then handle the questions
+          if (editForm.questions && editForm.questions.length === 4) {
+            // Get existing questions to determine which to update vs create
+            const existingQuestions = editingExample.questions || []
+            
+            for (let i = 0; i < editForm.questions.length; i++) {
+              const question = editForm.questions[i]
+              const existingQuestion = existingQuestions[i]
+              
+              if (!question.question || !question.question.trim()) {
+                throw new Error('All 4 questions must have question text')
+              }
+              
+              const questionData = {
+                passage_id: editingExample.id,
+                question: question.question,
+                choices: question.choices,
+                answer: question.answer,
+                explanation: question.explanation,
+                difficulty: question.difficulty,
+                tags: question.tags || []
+              }
+              
+              let questionResponse: Response
+              if (existingQuestion && existingQuestion.id) {
+                // Update existing question
+                questionResponse = await fetch(`/api/admin/training-examples/${existingQuestion.id}`, {
+                  method: 'PUT',
+                  headers: {
+                    ...headers,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ 
+                    table: 'reading_questions',
+                    updates: questionData
+                  })
+                })
+              } else {
+                // Create new question
+                questionResponse = await fetch('/api/admin/training-examples', {
+                  method: 'POST',
+                  headers: {
+                    ...headers,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ 
+                    table: 'reading_questions',
+                    data: questionData
+                  })
+                })
+              }
+              
+              if (!questionResponse.ok) {
+                const errorData = await questionResponse.json()
+                throw new Error(errorData.error || 'Failed to save reading question')
+              }
+            }
+          } else {
+            throw new Error('Reading passage must have exactly 4 questions')
+          }
+          
+          // Update local data
+          const updateData = (data: TrainingExamplesData | null) => {
+            if (!data || !editingExample) return data
+            const updatedData = { ...data }
+            const updatedExample = { ...editingExample, ...editForm }
+            for (const [sectionKey, examples] of Object.entries(updatedData.training_examples)) {
+              const index = examples.findIndex(item => item.id === editingExample.id)
+              if (index !== -1) {
+                updatedData.training_examples[sectionKey as keyof typeof updatedData.training_examples][index] = updatedExample
+                break
+              }
+            }
+            return updatedData
+          }
+          setData(updateData)
+          setUnfilteredData(updateData)
+          alert('Reading training example updated successfully!')
+          setEditingExample(null)
+          setEditForm({})
+          setIsCreating(false)
+          setCreatingSection(null)
+          return
+        } else if (editingExample.prompt) {
+          tableName = 'writing_prompts'
+          requestData = {
+            prompt: editForm.prompt,
+            tags: editForm.tags
+          }
+        } else {
+          tableName = 'ssat_questions'
+          requestData = {
+            question: editForm.question,
+            choices: editForm.choices,
+            answer: editForm.answer,
+            explanation: editForm.explanation,
+            difficulty: editForm.difficulty,
+            tags: editForm.tags
+          }
         }
       }
 
       // Remove undefined/null values
-      Object.keys(filteredUpdates).forEach(key => {
-        if (filteredUpdates[key] === undefined || filteredUpdates[key] === null || filteredUpdates[key] === '') {
-          delete filteredUpdates[key]
+      Object.keys(requestData).forEach(key => {
+        if (requestData[key] === undefined || requestData[key] === null || requestData[key] === '') {
+          delete requestData[key]
         }
       })
 
-      const response = await fetch(`/api/admin/training-examples/${editingExample.id}`, {
-        method: 'PUT',
-        headers: {
-          ...headers,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          table: tableName,
-          updates: filteredUpdates
+      let response: Response
+      if (isCreating) {
+        response = await fetch('/api/admin/training-examples', {
+          method: 'POST',
+          headers: {
+            ...headers,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            table: tableName,
+            data: requestData
+          })
         })
-      })
+      } else {
+        response = await fetch(`/api/admin/training-examples/${editingExample?.id}`, {
+          method: 'PUT',
+          headers: {
+            ...headers,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            table: tableName,
+            updates: requestData
+          })
+        })
+      }
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to update training example')
+        throw new Error(errorData.error || `Failed to ${isCreating ? 'create' : 'update'} training example`)
       }
 
-      // Update local state (both filtered and unfiltered)
-      const updateData = (data: TrainingExamplesData | null) => {
-        if (!data) return data
-        
-        const updatedData = { ...data }
-        const updatedExample = { ...editingExample, ...editForm }
-        
-        // Find and update the example in the appropriate section
-        for (const [sectionKey, examples] of Object.entries(updatedData.training_examples)) {
-          const index = examples.findIndex(item => item.id === editingExample.id)
-          if (index !== -1) {
-            updatedData.training_examples[sectionKey as keyof typeof updatedData.training_examples][index] = updatedExample
-            break
+      if (isCreating) {
+        // For creating, reload the section data
+        if (creatingSection) {
+          await fetchTrainingExamples(creatingSection)
+        }
+        alert('Training example created successfully!')
+      } else {
+        // For editing, update local state
+        const updateData = (data: TrainingExamplesData | null) => {
+          if (!data || !editingExample) return data
+          
+          const updatedData = { ...data }
+          const updatedExample = { ...editingExample, ...editForm }
+          
+          // Find and update the example in the appropriate section
+          for (const [sectionKey, examples] of Object.entries(updatedData.training_examples)) {
+            const index = examples.findIndex(item => item.id === editingExample.id)
+            if (index !== -1) {
+              updatedData.training_examples[sectionKey as keyof typeof updatedData.training_examples][index] = updatedExample
+              break
+            }
           }
+          
+          return updatedData
         }
         
-        return updatedData
+        setData(updateData)
+        setUnfilteredData(updateData)
+        alert('Training example updated successfully!')
       }
-      
-      setData(updateData)
-      setUnfilteredData(updateData)
 
-      alert('Training example updated successfully!')
       setEditingExample(null)
       setEditForm({})
+      setIsCreating(false)
+      setCreatingSection(null)
     } catch (err) {
-      console.error('Error updating training example:', err)
-      alert(`Failed to update training example: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      console.error(`Error ${isCreating ? 'creating' : 'updating'} training example:`, err)
+      alert(`Failed to ${isCreating ? 'create' : 'update'} training example: ${err instanceof Error ? err.message : 'Unknown error'}`)
     } finally {
       setEditingId(null)
     }
@@ -337,6 +648,8 @@ export function TrainingExamplesViewer({ showChinese = false }: TrainingExamples
   const cancelEdit = () => {
     setEditingExample(null)
     setEditForm({})
+    setIsCreating(false)
+    setCreatingSection(null)
   }
 
   const fetchTrainingExamples = async (section?: string) => {
@@ -551,6 +864,59 @@ export function TrainingExamplesViewer({ showChinese = false }: TrainingExamples
             <div className="mt-1 p-3 bg-gray-100 rounded text-sm">
               {example.passage}
             </div>
+            
+            {/* Show questions if they exist */}
+            {example.questions && example.questions.length > 0 && (
+              <div className="mt-4">
+                <strong className="text-gray-800 mb-2 block">Questions ({example.questions.length}):</strong>
+                <div className="space-y-3">
+                  {example.questions.map((question, qIndex) => (
+                    <div key={qIndex} className="bg-white p-3 rounded border border-gray-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-medium text-gray-600">Question {qIndex + 1}</span>
+                        {question.difficulty && (
+                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                            {question.difficulty}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {question.question && (
+                        <p className="text-gray-800 font-medium mb-2">{question.question}</p>
+                      )}
+                      
+                      {question.choices && question.choices.length > 0 && (
+                        <div className="ml-4">
+                          {question.choices.map((choice, i) => (
+                            <div key={i} className="flex items-center mb-1">
+                              <span className="w-6 text-sm font-medium text-gray-600">
+                                {String.fromCharCode(65 + i)}.
+                              </span>
+                              <span className={`text-sm ${
+                                question.answer === i ? 'font-semibold text-green-600' : 'text-gray-700'
+                              }`}>
+                                {choice}
+                              </span>
+                              {question.answer === i && (
+                                <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                                  Correct
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {question.explanation && (
+                        <div className="mt-2 text-sm text-gray-600 bg-blue-50 p-2 rounded">
+                          <strong>Explanation:</strong> {question.explanation}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -697,6 +1063,19 @@ export function TrainingExamplesViewer({ showChinese = false }: TrainingExamples
                   <span className="text-sm text-gray-500">({examples.length} questions)</span>
                 </div>
                 <div className="flex items-center gap-2">
+                  {isLoaded && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        createNewTrainingExample(section.key)
+                      }}
+                      className="px-3 py-1 text-sm bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
+                      title="Add new training example"
+                    >
+                      + Add New
+                    </button>
+                  )}
                   {isLoaded && section.key !== 'writing' && (
                     <>
                       <select
@@ -770,13 +1149,13 @@ export function TrainingExamplesViewer({ showChinese = false }: TrainingExamples
       </div>
 
       {/* Edit Modal */}
-      {editingExample && (
+      {(editingExample || isCreating) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">
-                  Edit Training Example
+                  {isCreating ? 'Create New Training Example' : 'Edit Training Example'}
                 </h3>
                 <button
                   onClick={cancelEdit}
@@ -790,13 +1169,15 @@ export function TrainingExamplesViewer({ showChinese = false }: TrainingExamples
 
               <div className="space-y-4">
                 {/* ID Display */}
-                <div className="flex items-center gap-2">
-                  <strong>ID:</strong>
-                  {renderIdDisplay(editingExample.id)}
-                </div>
+                {!isCreating && editingExample && (
+                  <div className="flex items-center gap-2">
+                    <strong>ID:</strong>
+                    {renderIdDisplay(editingExample.id)}
+                  </div>
+                )}
 
                 {/* Question */}
-                {editingExample.question && (
+                {(editingExample?.question || (isCreating && creatingSection !== 'reading' && creatingSection !== 'writing')) && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Question
@@ -811,7 +1192,7 @@ export function TrainingExamplesViewer({ showChinese = false }: TrainingExamples
                 )}
 
                 {/* Choices */}
-                {editingExample.choices && editingExample.choices.length > 0 && (
+                {(editingExample?.choices && editingExample.choices.length > 0) || (isCreating && creatingSection !== 'reading' && creatingSection !== 'writing') && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Choices
@@ -839,7 +1220,7 @@ export function TrainingExamplesViewer({ showChinese = false }: TrainingExamples
                 )}
 
                 {/* Answer */}
-                {editingExample.choices && editingExample.choices.length > 0 && (
+                {((editingExample?.choices && editingExample.choices.length > 0) || (isCreating && creatingSection !== 'reading' && creatingSection !== 'writing')) && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Correct Answer (0-based index)
@@ -869,7 +1250,7 @@ export function TrainingExamplesViewer({ showChinese = false }: TrainingExamples
                 </div>
 
                 {/* Difficulty - only for ssat_questions */}
-                {editingExample.question && (
+                {(editingExample?.question || (isCreating && creatingSection !== 'reading' && creatingSection !== 'writing')) && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Difficulty
@@ -888,7 +1269,7 @@ export function TrainingExamplesViewer({ showChinese = false }: TrainingExamples
                 )}
 
                 {/* Prompt (for writing prompts) */}
-                {editingExample.prompt && (
+                {(editingExample?.prompt || (isCreating && creatingSection === 'writing')) && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Prompt
@@ -903,7 +1284,7 @@ export function TrainingExamplesViewer({ showChinese = false }: TrainingExamples
                 )}
 
                 {/* Passage (for reading passages) */}
-                {editingExample.passage && (
+                {(editingExample?.passage || (isCreating && creatingSection === 'reading')) && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Passage
@@ -914,6 +1295,148 @@ export function TrainingExamplesViewer({ showChinese = false }: TrainingExamples
                       className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                       rows={6}
                     />
+                  </div>
+                )}
+
+                {/* Passage Type (for reading passages) */}
+                {(editingExample?.passage || (isCreating && creatingSection === 'reading')) && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Passage Type
+                    </label>
+                    <select
+                      value={editForm.passage_type || ''}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, passage_type: e.target.value }))}
+                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Select passage type</option>
+                      <option value="Fiction">Fiction</option>
+                      <option value="Non-Fiction">Non-Fiction</option>
+                      <option value="Poetry">Poetry</option>
+                      <option value="Science">Science</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Questions (for reading passages) */}
+                {(editingExample?.passage || (isCreating && creatingSection === 'reading')) && (
+                  <div>
+                    
+                    <div className="space-y-4">
+                      {editForm.questions?.map((question, qIndex) => (
+                        <div key={qIndex} className={`border rounded-lg p-4 ${
+                          !question.question || !question.question.trim() 
+                            ? 'border-red-200 bg-red-50' 
+                            : 'border-gray-200 bg-white'
+                        }`}>
+                          <div className="mb-3">
+                            <h4 className="font-medium text-gray-800">Question {qIndex + 1}</h4>
+                          </div>
+                          
+                          {/* Question Text */}
+                          <div className="mb-3">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Question Text
+                            </label>
+                            <textarea
+                              value={question.question || ''}
+                              onChange={(e) => {
+                                const newQuestions = [...(editForm.questions || [])]
+                                newQuestions[qIndex] = { ...question, question: e.target.value }
+                                setEditForm(prev => ({ ...prev, questions: newQuestions }))
+                              }}
+                              className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                              rows={2}
+                            />
+                          </div>
+                          
+                          {/* Choices */}
+                          <div className="mb-3">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Choices
+                            </label>
+                            <div className="space-y-2">
+                              {question.choices?.map((choice, cIndex) => (
+                                <div key={cIndex} className="flex items-center gap-2">
+                                  <span className="w-6 text-sm font-medium text-gray-600">
+                                    {String.fromCharCode(65 + cIndex)}.
+                                  </span>
+                                  <input
+                                    type="text"
+                                    value={choice}
+                                    onChange={(e) => {
+                                      const newQuestions = [...(editForm.questions || [])]
+                                      const newChoices = [...(question.choices || [])]
+                                      newChoices[cIndex] = e.target.value
+                                      newQuestions[qIndex] = { ...question, choices: newChoices }
+                                      setEditForm(prev => ({ ...prev, questions: newQuestions }))
+                                    }}
+                                    className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Answer */}
+                          <div className="mb-3">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Correct Answer (0-based index)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="3"
+                              value={question.answer || 0}
+                              onChange={(e) => {
+                                const newQuestions = [...(editForm.questions || [])]
+                                newQuestions[qIndex] = { ...question, answer: parseInt(e.target.value) }
+                                setEditForm(prev => ({ ...prev, questions: newQuestions }))
+                              }}
+                              className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          </div>
+                          
+                          {/* Explanation */}
+                          <div className="mb-3">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Explanation
+                            </label>
+                            <textarea
+                              value={question.explanation || ''}
+                              onChange={(e) => {
+                                const newQuestions = [...(editForm.questions || [])]
+                                newQuestions[qIndex] = { ...question, explanation: e.target.value }
+                                setEditForm(prev => ({ ...prev, questions: newQuestions }))
+                              }}
+                              className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                              rows={2}
+                            />
+                          </div>
+                          
+                          {/* Difficulty */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Difficulty
+                            </label>
+                            <select
+                              value={question.difficulty || ''}
+                              onChange={(e) => {
+                                const newQuestions = [...(editForm.questions || [])]
+                                newQuestions[qIndex] = { ...question, difficulty: e.target.value }
+                                setEditForm(prev => ({ ...prev, questions: newQuestions }))
+                              }}
+                              className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                            >
+                              <option value="">Select difficulty</option>
+                              <option value="Easy">Easy</option>
+                              <option value="Medium">Medium</option>
+                              <option value="Hard">Hard</option>
+                            </select>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -944,10 +1467,10 @@ export function TrainingExamplesViewer({ showChinese = false }: TrainingExamples
                 </button>
                 <button
                   onClick={saveTrainingExample}
-                  disabled={editingId === editingExample.id}
+                  disabled={editingId === (isCreating ? 'creating' : editingExample?.id)}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-md transition-colors"
                 >
-                  {editingId === editingExample.id ? 'Saving...' : 'Save Changes'}
+                  {editingId === (isCreating ? 'creating' : editingExample?.id) ? 'Saving...' : (isCreating ? 'Create Example' : 'Save Changes')}
                 </button>
               </div>
             </div>
