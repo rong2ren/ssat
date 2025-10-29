@@ -351,41 +351,4 @@ See [frontend/README.md](frontend/README.md) for more troubleshooting tips.
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 👥 Authors
-
-- **rong2ren** - [GitHub](https://github.com/rong2ren)
-
-## 🙏 Acknowledgments
-
-- OpenAI for GPT models
-- Google for Gemini AI
-- Supabase for authentication and database
-- SSAT official materials for reference
-- Open-source community for amazing tools
-
-## 📧 Support
-
-For questions or support:
-- Open an issue on GitHub
-- Email: ssat@schoolbase.org
-- Check documentation in `docs/` directory
-
-## 🔒 Security
-
-- Never commit API keys or secrets to the repository
-- Use environment variables for all sensitive data
-- Keep dependencies up to date
-- Report security vulnerabilities privately
-
-## 📈 Roadmap
-
-- [ ] Add more question types
-- [ ] Implement spaced repetition algorithm
-- [ ] Mobile app (React Native)
-- [ ] Performance analytics dashboard
-- [ ] Multi-language support expansion
-- [ ] Integration with learning management systems
-
----
-
 **Built with ❤️ for students preparing for the SSAT exam**
