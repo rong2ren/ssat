@@ -1,292 +1,391 @@
-# SSAT Frontend
+# SmartSSAT - AI-Powered SSAT Practice Platform
 
-Modern React/Next.js frontend for the SSAT Question Generator. This is a TypeScript-based web application that provides an intuitive interface for generating SSAT practice questions and tests.
+An intelligent web application that generates personalized SSAT (Secondary School Admission Test) practice questions using advanced AI models. Built for students preparing for elementary and middle-level SSAT exams.
 
-## 🚀 Quick Start
+## 🎯 Overview
 
-```bash
-# Install dependencies
-npm install
+SmartSSAT leverages OpenAI GPT and Google Gemini to generate authentic, SSAT-format practice questions across all test sections. The platform provides immediate feedback, detailed explanations, and adaptive difficulty levels to help students effectively prepare for the SSAT exam.
 
-# Set up environment variables
-cp .env.example .env.local  # If .env.example exists
-# Or create .env.local manually (see Environment Variables section)
+### Key Features
 
-# Start development server
-npm run dev
-```
+- **🤖 AI-Powered Question Generation**
+  - Quantitative (Math) questions with varying difficulty
+  - Verbal reasoning (Synonyms & Analogies)
+  - Reading comprehension with authentic passages
+  - Creative writing prompts with visual aids
 
-Open [http://localhost:3000](http://localhost:3000) to view the application.
+- **📝 Flexible Practice Modes**
+  - Single section practice (targeted learning)
+  - Full-length practice tests (comprehensive assessment)
+  - Customizable difficulty levels and question counts
+  - Topic-specific practice sessions
+
+- **✨ Smart Features**
+  - Instant answer checking with detailed explanations
+  - PDF export for offline practice
+  - Daily usage limits with role-based access
+  - Progress tracking and statistics
+  - Bilingual support (English/Chinese)
+
+- **🔐 User Management**
+  - Secure authentication via Supabase
+  - Email verification
+  - Password reset functionality
+  - User profiles with grade level tracking
+  - Admin dashboard for content management
 
 ## 🏗️ Tech Stack
 
-| Component            | Technology      | Version  | Purpose                         |
-| -------------------- | --------------- | -------- | ------------------------------- |
-| **Framework**        | Next.js         | 15.3.5   | React framework with App Router |
-| **Language**         | TypeScript      | 5+       | Type-safe JavaScript            |
-| **UI Library**       | React           | 19.0.0   | Component library               |
-| **Styling**          | Tailwind CSS    | 4.0+     | Utility-first CSS framework     |
-| **UI Components**    | Radix UI        | Latest   | Accessible component primitives |
-| **Icons**            | Lucide React    | 0.525.0  | Icon library                    |
-| **State Management** | React Context   | Built-in | Global state management         |
-| **Authentication**   | Supabase Client | 2.52.0   | Client-side auth                |
-| **HTTP Client**      | Fetch API       | Built-in | API communication               |
-| **Build Tool**       | Turbopack       | Built-in | Fast bundler                    |
+### Frontend
+- **Framework:** Next.js 15.3.5 (App Router)
+- **Language:** TypeScript 5+
+- **UI:** React 19, Tailwind CSS 4.0, Radix UI
+- **State Management:** React Context API
+- **Authentication:** Supabase Client
+- **Deployment:** Vercel
+
+### Backend
+- **Framework:** FastAPI (Python 3.11+)
+- **AI Models:** OpenAI GPT-4, Google Gemini
+- **Database:** Supabase (PostgreSQL)
+- **Authentication:** Supabase Auth + JWT
+- **Embeddings:** Sentence Transformers
+- **Deployment:** Google Cloud Run
+
+### Infrastructure
+- **Hosting:** Vercel (Frontend), Google Cloud Run (Backend)
+- **Database:** Supabase PostgreSQL
+- **Storage:** Supabase Storage (images)
+- **CDN:** Vercel Edge Network
 
 ## 📁 Project Structure
 
 ```
-frontend/
-├── src/
-│   ├── app/                    # Next.js App Router pages
-│   │   ├── api/               # API routes (backend proxy)
-│   │   ├── auth/              # Authentication pages
-│   │   ├── dashboard/         # User dashboard
-│   │   ├── generate/          # Question generation pages
-│   │   ├── admin/             # Admin panel
-│   │   └── globals.css        # Global styles
-│   ├── components/            # Reusable React components
-│   │   ├── ui/               # Base UI components
-│   │   ├── forms/            # Form components
-│   │   ├── layout/           # Layout components
-│   │   └── features/         # Feature-specific components
-│   ├── contexts/             # React Context providers
-│   ├── hooks/                # Custom React hooks
-│   ├── lib/                  # Utility libraries
-│   │   └── supabase.ts       # Supabase client configuration
-│   ├── types/                # TypeScript type definitions
-│   └── utils/                # Utility functions
-├── public/                   # Static assets
-├── .env.local               # Environment variables (create this)
-├── next.config.ts           # Next.js configuration
-├── tailwind.config.js       # Tailwind CSS configuration
-└── package.json             # Dependencies and scripts
+ssat/
+├── frontend/              # Next.js frontend application
+│   ├── src/
+│   │   ├── app/          # Next.js pages and API routes
+│   │   ├── components/   # React components
+│   │   ├── contexts/     # React Context providers
+│   │   ├── lib/          # Utilities and configurations
+│   │   └── types/        # TypeScript type definitions
+│   └── package.json
+│
+├── backend/              # FastAPI backend API
+│   ├── app/
+│   │   ├── routers/     # API endpoint routers
+│   │   ├── services/    # Business logic services
+│   │   ├── models/      # Pydantic models
+│   │   ├── config/      # Configuration management
+│   │   └── main.py      # FastAPI application entry
+│   ├── core/            # Core utilities (DB, prompts)
+│   ├── tests/           # Backend tests
+│   └── pyproject.toml
+│
+├── docs/                # Documentation
+│   ├── DEPLOY.md       # Deployment guide
+│   ├── AUTH_SETUP.md   # Authentication setup
+│   └── ...
+│
+├── sql/                 # Database schemas and migrations
+└── scripts/            # Utility scripts
 ```
 
-## ⚙️ Environment Variables
-
-Create a `.env.local` file in the frontend directory:
-
-```env
-# Backend API URL (required)
-NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
-
-# Supabase Configuration (required)
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_public_key
-```
-
-### Environment Variable Details
-
-- **`NEXT_PUBLIC_BACKEND_URL`**: URL of the backend API server
-  - Development: `http://localhost:8000`
-  - Production: `https://your-backend-domain.com`
-
-- **`NEXT_PUBLIC_SUPABASE_URL`**: Your Supabase project URL
-  - Found in Supabase Dashboard → Settings → API
-
-- **`NEXT_PUBLIC_SUPABASE_ANON_KEY`**: Your Supabase anonymous public key
-  - Found in Supabase Dashboard → Settings → API
-  - This is safe to expose to the browser
-
-## 🔧 Development
+## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 18+ 
-- Backend server running (see backend README)
-- Supabase project configured
+- Node.js 18+
+- Python 3.11+
+- Supabase account
+- OpenAI API key
+- Google Cloud account (for deployment)
 
-### Available Scripts
+### Local Development
 
+**1. Clone the repository**
 ```bash
-# Development
-npm run dev              # Start development server
-npm run build           # Build for production
-npm run start           # Start production server
-npm run lint            # Run ESLint
-npm run type-check      # Run TypeScript type checking
-
-# Testing (if configured)
-npm run test            # Run tests
-npm run test:watch      # Run tests in watch mode
+git clone https://github.com/yourusername/ssat.git
+cd ssat
 ```
 
-### Development Workflow
-
-1. **Start Backend First**
-   ```bash
-   cd ../backend
-   uv run uvicorn app.main:app --reload --port 8000
-   ```
-
-2. **Start Frontend**
-   ```bash
-   cd frontend
-   npm run dev
-   ```
-
-3. **Access Application**
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:8000
-   - API Documentation: http://localhost:8000/docs
-
-4. **Test**
+**2. Setup Backend**
 ```bash
+cd backend
+
+# Create and activate virtual environment
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
+uv sync
+
+# Create .env file with your credentials
+# Copy from .env.example and fill in your values
+cat > .env << EOF
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_KEY=your_supabase_service_role_key
+OPENAI_API_KEY=your_openai_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key  # Optional
+EOF
+
+# Setup database (create tables)
+# See sql/ directory for schema files
+
+# Start backend server
+uv run uvicorn app.main:app --reload --port 8000
+```
+
+**3. Setup Frontend**
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Create .env.local with your credentials
+cat > .env.local << EOF
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+EOF
+
+# Start frontend server
+npm run dev
+```
+
+**4. Access the application**
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+
+### Environment Variables
+
+**Backend (.env):**
+```env
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_KEY=your_supabase_service_role_key
+OPENAI_API_KEY=your_openai_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key  # Optional
+```
+
+**Frontend (.env.local):**
+```env
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+**Getting Supabase Credentials:**
+1. Go to [supabase.com](https://supabase.com) and create a project
+2. Navigate to Settings → API
+3. Copy "Project URL" as `SUPABASE_URL`
+4. Copy "service_role" key as `SUPABASE_KEY` (backend)
+5. Copy "anon public" key as `SUPABASE_ANON_KEY` (frontend)
+
+**Getting OpenAI API Key:**
+1. Go to [platform.openai.com](https://platform.openai.com)
+2. Create an API key in your account settings
+3. Copy the key as `OPENAI_API_KEY`
+
+## 📦 Deployment
+
+### Frontend (Vercel)
+
+**Automatic Deployment (Recommended):**
+1. Connect your GitHub repository to Vercel
+2. Set root directory to `frontend`
+3. Add environment variables in Vercel dashboard
+4. Every push to `main` will auto-deploy
+
+**Manual Deployment:**
+```bash
+cd frontend
+npm install -g vercel
+vercel --prod
+```
+
+### Backend (Google Cloud Run)
+
+```bash
+cd backend
+
+# First time deployment
+gcloud run deploy ssat-backend \
+  --source . \
+  --region us-central1 \
+  --platform managed \
+  --allow-unauthenticated \
+  --port 8080 \
+  --set-env-vars "SUPABASE_URL=your_url,SUPABASE_KEY=your_key,OPENAI_API_KEY=your_key"
+
+# Future deployments (environment variables persist)
+gcloud run deploy ssat-backend --source . --region us-central1
+```
+
+See [docs/DEPLOY.md](docs/DEPLOY.md) for detailed deployment instructions.
+
+## 🧪 Testing
+
+```bash
+# Backend tests
+cd backend
 uv run pytest tests/ -v
+
+# Frontend tests (if configured)
+cd frontend
+npm test
 ```
 
-### Code Quality
+## 📊 Features & Capabilities
+
+### Question Generation
+- Generate 5-50 questions per session
+- Difficulty levels: Easy, Medium, Hard
+- AI-powered explanations for each answer
+- Support for all SSAT sections
+
+### SSAT Sections Covered
+- **Quantitative (Math):** Word problems, algebra, geometry, fractions
+- **Verbal:** Synonyms, analogies, vocabulary
+- **Reading:** Passages with comprehension questions
+- **Writing:** Creative prompts with optional visual aids
+
+### User Roles & Limits
+- **Free Users:** 20 questions/day per section
+- **Premium Users:** 100 questions/day per section  
+- **Admin Users:** Unlimited access + content management
+
+### Admin Dashboard
+- View all users and their usage statistics
+- Manage question pool and training examples
+- Monitor system performance
+- Review and approve AI-generated content
+
+## 🛠️ Development
+
+### Backend Development
 
 ```bash
-# Format code
-npm run format
+cd backend
+
+# Run tests
+uv run pytest tests/ -v
+
+# Run with auto-reload
+uv run uvicorn app.main:app --reload
+
+# Check code quality
+uv run ruff check .
+```
+
+### Frontend Development
+
+```bash
+cd frontend
+
+# Development server
+npm run dev
+
+# Build for production
+npm run build
 
 # Lint code
 npm run lint
 
-# Type checking
+# Type check
 npm run type-check
 ```
 
-## 🎨 UI Components
+## 📚 Documentation
 
-The frontend uses a component-based architecture with:
+Detailed documentation is available in the `docs/` directory:
 
-### Base Components (Radix UI)
-- **Button** - Accessible button components
-- **Input** - Form input components
-- **Dialog** - Modal dialogs
-- **Dropdown** - Dropdown menus
-- **Toast** - Notification system
+- **[DEPLOY.md](docs/DEPLOY.md)** - Deployment guide for Vercel and Google Cloud
+- **[AUTH_SETUP.md](docs/AUTH_SETUP.md)** - Authentication configuration
+- **[FRONTEND_ENVIRONMENT_SETUP.md](docs/FRONTEND_ENVIRONMENT_SETUP.md)** - Frontend setup guide
+- **[POOL_IMPLEMENTATION.md](docs/POOL_IMPLEMENTATION.md)** - Question pool architecture
+- **[LLM.md](docs/LLM.md)** - AI model integration details
 
-### Custom Components
-- **QuestionCard** - Display individual questions
-- **TestGenerator** - Complete test generation interface
-- **AuthForm** - Authentication forms
-- **Dashboard** - User dashboard layout
-- **AdminPanel** - Administrative interface
+## 🤝 Contributing
 
-## 🔐 Authentication
+Contributions are welcome! Please:
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-The frontend uses Supabase Auth for authentication:
-
-### Features
-- Email/password registration and login
-- Password reset functionality
-- Email confirmation
-- Session management
-- Protected routes
-
-### Implementation
-- **AuthContext**: Global authentication state
-- **AuthGuard**: Route protection component
-- **AuthForm**: Login/register forms
-- **Session Management**: Automatic token refresh
-
-## 📡 API Integration
-
-The frontend communicates with the backend through:
-
-### API Routes
-- `/api/generate` - Question generation
-- `/api/generate/complete-test/start` - Start test generation
-- `/api/generate/complete-test/{id}/status` - Check generation status
-- `/api/auth/*` - Authentication endpoints
-- `/api/user/*` - User management
-
-### Error Handling
-- Global error boundary
-- API error responses
-- User-friendly error messages
-- Retry mechanisms for failed requests
-
-## 🚀 Deployment
-
-### Vercel (Recommended)
-```bash
-# Install Vercel CLI
-npm install -g vercel
-
-# Deploy
-vercel
-```
-
-### Netlify
-```bash
-# Build the project
-npm run build
-
-# Deploy the .next folder
-```
-
-### Railway
-```bash
-# Install Railway CLI
-npm install -g @railway/cli
-
-# Deploy
-railway login
-railway init
-railway up
-```
-
-### Environment Variables for Production
-
-Update your production environment variables:
-
-```env
-NEXT_PUBLIC_BACKEND_URL=https://your-backend-domain.com
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_public_key
-```
+### Code Style
+- Backend: Follow PEP 8, use type hints
+- Frontend: Follow ESLint rules, use TypeScript
+- Write tests for new features
+- Update documentation as needed
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
-#### 1. "Missing Supabase environment variables"
-- Ensure `.env.local` file exists in frontend directory
-- Verify all required environment variables are set
-- Restart the development server
+**"Missing Supabase environment variables"**
+- Create `.env.local` in frontend directory
+- Ensure all required variables are set
+- Restart dev server after changes
 
-#### 2. "Failed to connect to backend"
-- Check if backend server is running on port 8000
+**"Failed to connect to backend"**
+- Check if backend is running on port 8000
 - Verify `NEXT_PUBLIC_BACKEND_URL` is correct
-- Check CORS configuration in backend
+- Check for CORS errors in browser console
 
-#### 3. "Authentication errors"
-- Verify Supabase project is active
-- Check Supabase URL and keys are correct
-- Ensure email confirmation is enabled in Supabase
+**"Authentication infinite spinner"**
+- Clear browser localStorage: `localStorage.clear()`
+- Verify Supabase URL and keys are correct
+- Check browser console for errors
 
-#### 4. Build errors
-```bash
-# Clear Next.js cache
-rm -rf .next
-npm run build
-```
+**"AI generation errors"**
+- Verify OpenAI API key is valid and has credits
+- Check API rate limits
+- Review backend logs for detailed errors
 
-### Debug Mode
-```bash
-# Enable debug logging
-DEBUG=* npm run dev
-```
+See [frontend/README.md](frontend/README.md) for more troubleshooting tips.
 
-## 📚 Additional Resources
+## 📝 License
 
-- [Next.js Documentation](https://nextjs.org/docs)
-- [React Documentation](https://react.dev)
-- [TypeScript Handbook](https://www.typescriptlang.org/docs)
-- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
-- [Radix UI Documentation](https://www.radix-ui.com/docs)
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🤝 Contributing
+## 👥 Authors
 
-1. Follow the existing code style
-2. Add TypeScript types for new features
-3. Test your changes thoroughly
-4. Update documentation as needed
+- **rong2ren** - [GitHub](https://github.com/rong2ren)
+
+## 🙏 Acknowledgments
+
+- OpenAI for GPT models
+- Google for Gemini AI
+- Supabase for authentication and database
+- SSAT official materials for reference
+- Open-source community for amazing tools
+
+## 📧 Support
+
+For questions or support:
+- Open an issue on GitHub
+- Email: ssat@schoolbase.org
+- Check documentation in `docs/` directory
+
+## 🔒 Security
+
+- Never commit API keys or secrets to the repository
+- Use environment variables for all sensitive data
+- Keep dependencies up to date
+- Report security vulnerabilities privately
+
+## 📈 Roadmap
+
+- [ ] Add more question types
+- [ ] Implement spaced repetition algorithm
+- [ ] Mobile app (React Native)
+- [ ] Performance analytics dashboard
+- [ ] Multi-language support expansion
+- [ ] Integration with learning management systems
 
 ---
 
-For backend setup and API documentation, see the [backend README](../backend/README.md).
+**Built with ❤️ for students preparing for the SSAT exam**
