@@ -36,19 +36,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     // Get initial session
     const getInitialSession = async () => {
-      
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (session?.user) {
-        // Only treat as logged in if email is confirmed
-        if (session.user.email_confirmed_at) {
-          await fetchUserProfile(session)
-        } else {
-          // Email not confirmed - don't set user as logged in
+      try {
+        // Add timeout to prevent hanging forever on network errors
+        const timeoutPromise = new Promise<{ data: any; error: any }>((_, reject) => {
+          setTimeout(() => reject(new Error('Authentication timeout')), 5000)
+        })
+        
+        const { data: { session }, error } = await Promise.race([
+          supabase.auth.getSession(),
+          timeoutPromise
+        ]) as any
+        
+        // If there's any error, clear localStorage and stop loading
+        if (error) {
+          console.error('❌ Auth error:', error.message)
+          console.log('🧹 Clearing stale authentication data...')
+          
+          // Clear all Supabase-related localStorage items
+          Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('supabase')) {
+              localStorage.removeItem(key)
+            }
+          })
+          
           setUser(null)
           setLoading(false)
+          return
         }
-      } else {
+        
+        if (session?.user) {
+          // Only treat as logged in if email is confirmed
+          if (session.user.email_confirmed_at) {
+            await fetchUserProfile(session)
+          } else {
+            // Email not confirmed - don't set user as logged in
+            setUser(null)
+            setLoading(false)
+          }
+        } else {
+          setLoading(false)
+        }
+      } catch (err) {
+        // Catch any network errors or exceptions
+        console.error('❌ Auth initialization failed:', err)
+        console.log('🧹 Clearing stale authentication data...')
+        
+        // Clear all Supabase-related localStorage items
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('supabase')) {
+            localStorage.removeItem(key)
+          }
+        })
+        
+        setUser(null)
         setLoading(false)
       }
     }
